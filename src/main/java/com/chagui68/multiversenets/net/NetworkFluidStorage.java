@@ -53,7 +53,7 @@ public class NetworkFluidStorage {
         return load(DeviceType.MVN_FLUID_CELL);
     }
 
-    /** Every Fluid DRAM Module in the network's DRAM Bays (up to 16 per bay). */
+    /** Every Fluid DRAM Module in the network's DRAM Bays (up to 18 per bay). */
     private List<FluidCellRef> loadDrams() {
         List<FluidCellRef> list = new ArrayList<>();
         for (FluidCellRef bay : load(DeviceType.MVN_DRAM_BAY)) {

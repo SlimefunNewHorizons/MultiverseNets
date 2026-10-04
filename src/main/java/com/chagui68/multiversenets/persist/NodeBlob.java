@@ -115,12 +115,12 @@ public class NodeBlob implements Serializable {
      */
     public String installedModule;
     /**
-     * EN: DRAM Bay only: the installed memory modules (up to 16), one blob each. A module blob has
+     * EN: DRAM Bay only: the installed memory modules (up to 18), one blob each. A module blob has
      * the module's DeviceType as {@link #typeName}; an item module keeps its stock in
      * {@link #virtualSamples}/{@link #virtualAmounts} with {@link #virtualCacheTier} set to its tier,
      * the Fluid DRAM in {@link #dramFluids}/{@link #dramFluidAmounts}. Same layout as the stock a
      * module item carries.
-     * ES: Solo DRAM Bay: los módulos de memoria instalados (hasta 16), un blob cada uno. El blob de un
+     * ES: Solo DRAM Bay: los módulos de memoria instalados (hasta 18), un blob cada uno. El blob de un
      * módulo lleva su DeviceType en {@link #typeName}; un módulo de ítems guarda su stock en
      * {@link #virtualSamples}/{@link #virtualAmounts} con {@link #virtualCacheTier} igual a su nivel,
      * el Fluid DRAM en {@link #dramFluids}/{@link #dramFluidAmounts}. El mismo formato que el stock

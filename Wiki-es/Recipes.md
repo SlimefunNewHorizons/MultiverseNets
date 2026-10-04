@@ -150,11 +150,11 @@ I Q I
 > I = **Lingote de hierro** · Q = **Cuarzo** · R = **Redstone** · C = **Bloque de cobre**
 
 - **Resultado**: 1× DRAM Bay (Bombilla de cobre encerada)
-- **Función**: Bloque de red que aloja **hasta 16 módulos de memoria** (cualquier mezcla de los
+- **Función**: Bloque de red que aloja **hasta 18 módulos de memoria** (cualquier mezcla de los
   módulos de ítems de abajo y Fluid DRAMs), cada uno con su propio stock. Mientras están instalados,
   su stock forma parte de la red. Clic derecho al bay con un módulo en la mano para instalarlo en el
-  siguiente hueco libre, o clic derecho para abrir su menú: una cuadrícula de 4×4, un hueco por
-  módulo, más un resumen. Instala desde el cursor o con shift+clic; **haz clic en un módulo instalado
+  siguiente hueco libre, o clic derecho para abrir su menú: el resumen del bay, 18 huecos de
+  módulo con su barra de llenado, y medidores de ítems y fluidos. Instala desde el cursor o con shift+clic; **haz clic en un módulo instalado
   para sacarlo**. Un módulo sacado conserva todo su stock: instálalo en un DRAM Bay de otra red y el
   stock aparece allí y desaparece de la primera. Al romper el bay suelta el bay y cada módulo (con su
   stock) por separado.

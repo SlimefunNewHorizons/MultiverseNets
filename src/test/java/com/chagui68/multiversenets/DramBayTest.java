@@ -284,31 +284,31 @@ class DramBayTest {
         assertTrue(dropped, "the recovered module drops with its items");
     }
 
-    // ------------------------------------------------------------------ 16 modules per bay
+    // ------------------------------------------------------------------ 18 modules per bay
 
     @Test
-    void aBayHoldsSixteenModulesAndTheNetworkUsesAllOfThem() {
+    void aBayHoldsEighteenModulesAndTheNetworkUsesAllOfThem() {
         Block controller = place(0, 64, 0, DeviceType.MVN_CONTROLLER);
         Block bay = place(1, 64, 0, DeviceType.MVN_DRAM_BAY);
         Network net = network(controller);
         for (int i = 0; i < MemoryModules.BAY_SLOTS; i++) {
             rightClick(bay, Items.create(DeviceType.MVN_CACHE_L1));
         }
-        assertEquals(16, MemoryModules.modules(NodeStore.get(bay)).size());
+        assertEquals(18, MemoryModules.modules(NodeStore.get(bay)).size());
 
         ItemStack extra = Items.create(DeviceType.MVN_CACHE_L1);
         rightClick(bay, extra);
-        assertEquals(16, MemoryModules.modules(NodeStore.get(bay)).size(), "a 17th module is refused");
+        assertEquals(18, MemoryModules.modules(NodeStore.get(bay)).size(), "a 19th module is refused");
         assertEquals(DeviceType.MVN_CACHE_L1, Items.typeOf(player.getInventory().getItemInMainHand()),
                 "and stays in the hand");
 
-        // 16 x 2.048 = 32.768: mas de lo que cabe en un solo modulo.
+        // 18 x 2.048 = 36.864: mas de lo que cabe en un solo modulo.
         int stored = 0;
         for (int i = 0; i < 40; i++) {
             stored += 1000 - net.storage().deposit(new ItemStack(Material.COBBLESTONE, 1000));
         }
-        assertEquals(16 * 2048, stored, "every module of the bay fills up");
-        assertEquals(16L * 2048, net.storage().count(i -> i.getType() == Material.COBBLESTONE));
+        assertEquals(18 * 2048, stored, "every module of the bay fills up");
+        assertEquals(18L * 2048, net.storage().count(i -> i.getType() == Material.COBBLESTONE));
     }
 
     @Test
@@ -382,5 +382,31 @@ class DramBayTest {
         assertEquals(321, net.storage().count(i -> i.getType() == Material.EMERALD));
         rightClick(bay, Items.create(DeviceType.MVN_CACHE_L1));
         assertEquals(2, MemoryModules.modules(NodeStore.get(bay)).size(), "and the bay takes more modules");
+    }
+
+    @Test
+    void theMenuShowsEighteenSlotsAndHowFullTheBayIs() {
+        Block controller = place(0, 64, 0, DeviceType.MVN_CONTROLLER);
+        Block bay = place(1, 64, 0, DeviceType.MVN_DRAM_BAY);
+        Network net = network(controller);
+        rightClick(bay, Items.create(DeviceType.MVN_CACHE_L1));
+        net.storage().deposit(new ItemStack(Material.DIRT, 1024));
+
+        new DramBayMenu(plugin, player, bay).openMenu();
+        var top = player.getOpenInventory().getTopInventory();
+
+        assertEquals(18, DramBayMenu.MODULE_SLOTS.length);
+        assertEquals(DeviceType.MVN_CACHE_L1, Items.typeOf(top.getItem(DramBayMenu.MODULE_SLOTS[0])));
+        for (int i = 1; i < DramBayMenu.MODULE_SLOTS.length; i++) {
+            assertEquals(Material.BLACK_STAINED_GLASS_PANE, top.getItem(DramBayMenu.MODULE_SLOTS[i]).getType(),
+                    "slot " + i + " is free");
+        }
+        // 1.024 de 2.048 = 50 %: la mitad del medidor de items llena, ningun modulo de fluidos.
+        long filled = java.util.stream.IntStream.range(0, 9)
+                .mapToObj(i -> top.getItem(DramBayMenu.ITEM_GAUGE_ROW + i).getType())
+                .filter(m -> m == Material.LIME_STAINED_GLASS_PANE)
+                .count();
+        assertTrue(filled >= 4 && filled <= 5, "half of the item gauge is lit, got " + filled);
+        assertEquals(Material.LIGHT_GRAY_STAINED_GLASS_PANE, top.getItem(DramBayMenu.FLUID_GAUGE_ROW).getType());
     }
 }

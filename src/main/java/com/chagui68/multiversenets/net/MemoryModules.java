@@ -16,14 +16,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * [EN] Memory modules and the DRAM Bay. A module is the storage itself: up to 16 are installed in a
+ * [EN] Memory modules and the DRAM Bay. A module is the storage itself: up to 18 are installed in a
  * DRAM Bay, each with its own stock, and taking one out turns its whole stock into data on the
  * module item. Installing that item
  * in a bay of another network makes the stock appear there; the network it left loses it, because
  * the stock only ever lives in one place (the bay or the item). Item modules are the five cache
  * tiers; the Fluid DRAM holds several fluids at once.
  *
- * [ES] Módulos de memoria y el DRAM Bay. El módulo es el almacenamiento: se instalan hasta 16 en
+ * [ES] Módulos de memoria y el DRAM Bay. El módulo es el almacenamiento: se instalan hasta 18 en
  * un DRAM Bay, cada uno con su propio stock, y al sacar uno todo su stock pasa a ser datos del ítem
  * del módulo. Instalar ese ítem en el
  * bay de otra red hace que el stock aparezca allí; la red de la que salió lo pierde, porque el
@@ -41,7 +41,7 @@ public final class MemoryModules {
     }
 
     /** Modules one DRAM Bay holds / Módulos que admite un DRAM Bay. */
-    public static final int BAY_SLOTS = 16;
+    public static final int BAY_SLOTS = 18;
 
     /**
      * EN: The modules installed in a bay, in slot order (live list). A bay saved with a single

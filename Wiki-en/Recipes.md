@@ -149,10 +149,11 @@ I Q I
 > I = **Iron Ingot** · Q = **Quartz** · R = **Redstone** · C = **Copper Block**
 
 - **Result**: 1× DRAM Bay (Waxed Copper Bulb)
-- **Function**: Network block that holds **up to 16 memory modules** (any mix of the item modules
+- **Function**: Network block that holds **up to 18 memory modules** (any mix of the item modules
   below and Fluid DRAMs), each with its own stock. While installed, their stock is part of the
   network. Right-click the bay with a module in hand to install it in the next free slot, or
-  right-click to open its menu: a 4×4 grid, one slot per module, plus a summary. Install from the
+  right-click to open its menu: the bay's summary, 18 module slots with
+  their fill bars, and item and fluid gauges. Install from the
   cursor or with shift+click; **click an installed module to take it out**. A module taken out keeps
   its whole stock: install it in a DRAM Bay of another network and the stock appears there and is
   gone from the first one. Breaking the bay drops it and each module (with its stock) separately.

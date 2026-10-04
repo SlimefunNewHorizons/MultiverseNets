@@ -397,10 +397,10 @@ public class DeviceInteractions {
     }
 
     /**
-     * EN: Right-click on a DRAM Bay with a free slot (16 per bay) while holding a memory module:
+     * EN: Right-click on a DRAM Bay with a free slot (18 per bay) while holding a memory module:
      * installs one module from the hand, bringing in whatever stock the module carries.
      *
-     * ES: Clic derecho en un DRAM Bay con hueco libre (16 por bay) con un módulo de memoria en la
+     * ES: Clic derecho en un DRAM Bay con hueco libre (18 por bay) con un módulo de memoria en la
      * mano: instala un módulo con el stock que lleve.
      */
     public void installMemoryModule(Player player, Block block, NodeBlob blob, ItemStack held) {

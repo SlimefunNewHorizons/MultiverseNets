@@ -110,7 +110,7 @@ antiguos) con campos públicos:
 | `greedySamples` / `greedyAmounts` | `List<ItemStack>` / `List<Long>` | Búfer multi-ítem de la Greedy Cell. |
 | `virtualCacheTier` / `virtualSamples` / `virtualAmounts` | `int` / listas | Stock de un módulo de memoria de ítems: un DRAM Bay con módulo de ítems, o la caché antigua de un Controlador. |
 | `recoveredModules` | `List<ItemStack>` | Solo Controlador: módulos que estaban dentro antes del DRAM Bay, sacados por `Network.scan()` (`MemoryModules.migrateControllerCache`) con su stock; el Terminal los muestra primero y los entrega; romper el controlador los suelta. |
-| `bayModules` / `installedModule` | `List<NodeBlob>` / `String` | DRAM Bay: hasta 16 módulos instalados, un blob cada uno (tipo del módulo en `typeName`, stock en `virtualSamples`/`virtualAmounts` + `virtualCacheTier`, o `dramFluids`/`dramFluidAmounts`). `installedModule` es el campo antiguo de un solo módulo; `migrateSingleModuleBay()` (lo llaman `NodeStore.normalize` y `MemoryModules.modules`) lo pasa a la lista. |
+| `bayModules` / `installedModule` | `List<NodeBlob>` / `String` | DRAM Bay: hasta 18 módulos instalados, un blob cada uno (tipo del módulo en `typeName`, stock en `virtualSamples`/`virtualAmounts` + `virtualCacheTier`, o `dramFluids`/`dramFluidAmounts`). `installedModule` es el campo antiguo de un solo módulo; `migrateSingleModuleBay()` (lo llaman `NodeStore.normalize` y `MemoryModules.modules`) lo pasa a la lista. |
 | `dramFluids` / `dramFluidAmounts` | `List<String>` / `List<Long>` | Un Fluid DRAM Module (dentro de `bayModules` de un DRAM Bay): varios fluidos (mB). |
 | `chickenActive` / `chickenPull` / `chickenProducts` / `chickenMinTier` / `chickenMaxTier` / `chickenKnown` / `chickenAge` / `chickenMinStrength` / `chickenPureOnly` | varios | Reglas del Genetic Chicken Sorter (ver §19). |
 | `quotaSample` / `quotaLimit` / `quotaActive` | `ItemStack` / `long` / `boolean` | Quota Limiter. |
@@ -211,7 +211,7 @@ las redes a partir de él al arrancar.
 ## 7. Almacenamiento de ítems: `NetworkStorage`
 
 Una sola "bóveda" sobre todo el almacenamiento de la red: los **módulos de memoria** (cada módulo de ítems de cada DRAM
-Bay, hasta 16 por bay, más un módulo antiguo dentro del Controlador; cada uno se guarda a través del
+Bay, hasta 18 por bay, más un módulo antiguo dentro del Controlador; cada uno se guarda a través del
 bay que lo contiene), las **Celdas Cuánticas**, los **Infinity Barrels**, las **Greedy Cells** y los
 **barriles de Slimefun**. Todos los métodos son `synchronized`; los blobs se leen con
 `NodeStore.canonical` y solo se reescriben los modificados.
@@ -370,8 +370,8 @@ en cada ciclo; lo que cuenta `network.max-active-devices-per-chunk`), `cacheTier
 | Menú | Tamaño | Uso / detalles |
 | --- | --- | --- |
 | `TerminalMenu` | 54 | Terminal (bloque, inalámbrico, botones de transmisor/receptor). Entrada `INPUT_SLOT=8`, vista del purgador `17`, orden `26`, página de fluidos `35`, páginas `44`/`53`; 48 ítems por página. Depósito/retirada de fluidos con cubos y botellas. |
-| `ControllerMenu` | 27 | Estado del controlador y del router; la ranura `11` muestra la memoria de la red: DRAM Bays y módulos instalados de 16 por bay. |
-| `DramBayMenu` | 54 | Resumen `4`, una cuadrícula de 4×4 de huecos de módulo `11–14`, `20–23`, `29–32`, `38–41` (clic en un módulo para sacarlo con su stock; clic en un hueco libre con un módulo en el cursor, o shift+clic a uno, para instalarlo), cerrar `49`. Sin botón de expulsar. Lee el blob en cada clic, así dos jugadores no pueden sacar el mismo módulo. |
+| `ControllerMenu` | 27 | Estado del controlador y del router; la ranura `11` muestra la memoria de la red: DRAM Bays y módulos instalados de 18 por bay. |
+| `DramBayMenu` | 54 | Cabecera: resumen `4` (módulos x/18, ítems y fluidos), ayuda `8`. Huecos de módulo `9–26` (`MODULE_SLOTS`, uno por módulo, con barra de llenado y brillo mientras guarda algo; clic en un módulo para sacarlo con su stock; clic en un hueco libre con un módulo en el cursor, o shift+clic a uno, para instalarlo). Fila del medidor de ítems `27–35` y de fluidos `36–44` (encendidos según el llenado, amarillo desde el 70 %, rojo desde el 90 %). Pie: cerrar `49`. Sin botón de expulsar. Lee el blob en cada clic, así dos jugadores no pueden sacar el mismo módulo. |
 | `ChickenSorterMenu` | 54 | Barra de control: activo `1`, push/pull `3`, libro de resumen `4`, lado `5`, ayuda `7`. Productos `9–26` (cada uno con su propio ítem). Separador `27–35`. Reglas de genes: nivel mín/máx `37`/`38`, fuerza `40`, puros `41`, ADN `43`, edad `44` — valor en el nombre y en el tamaño del stack, brillo mientras está activa, izquierdo +1, derecho −1, shift reinicia, el rango de niveles se mantiene válido. Acciones: vaciar productos `46`, reiniciar reglas `49`, cerrar `52`. |
 | `MonitorMenu` | 27 | Diagnóstico en vivo (tarea de refresco mientras está abierto). |
 | `FilterMenu` | 27 | Grabbers, pushers, vacuum, purger, greedy cell, receptor y transmisor: hasta 17 plantillas, modo `17`, limpiar `25`, ayuda `26`. Ranura `24`: selector de cara en los avanzados, "abrir bloque adyacente" en los simples, "abrir terminal" en Transmisor/Receptor. |

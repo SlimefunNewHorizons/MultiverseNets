@@ -22,26 +22,42 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * [EN] DRAM Bay menu: a 4×4 grid with one slot per module (16 per bay). Clicking an installed module
- * takes it out as an item that keeps everything it stored; clicking a free slot with a module on the
- * cursor, or shift-clicking one in the inventory, installs it. The book on top sums up the bay.
+ * [EN] DRAM Bay menu, top to bottom:
+ * <pre>
+ *  row 0    header      summary of the bay · help
+ *  rows 1-2 modules     18 slots, one per module, each with its fill bar
+ *  row 3    item gauge  how full the item modules are
+ *  row 4    fluid gauge how full the Fluid DRAMs are
+ *  row 5    footer      close
+ * </pre>
+ * Clicking an installed module takes it out as an item that keeps everything it stored; clicking a
+ * free slot with a module on the cursor, or shift-clicking one in the inventory, installs it.
  *
- * [ES] Menú del DRAM Bay: una cuadrícula de 4×4 con un hueco por módulo (16 por bay). Hacer clic en un
- * módulo instalado lo saca como ítem que conserva todo lo que guardaba; hacer clic en un hueco libre
- * con un módulo en el cursor, o shift+clic a uno del inventario, lo instala. El libro de arriba
- * resume el bay.
+ * [ES] Menú del DRAM Bay, de arriba abajo: cabecera con el resumen y la ayuda, 18 huecos de módulo
+ * (cada uno con su barra de llenado), medidor de ítems, medidor de fluidos y pie con cerrar. Hacer
+ * clic en un módulo instalado lo saca con todo su stock; hacer clic en un hueco libre con un módulo en
+ * el cursor, o shift+clic a uno del inventario, lo instala.
  */
 public class DramBayMenu extends MenuHolder {
 
     public static final int SIZE = 54;
     public static final int STATS_SLOT = 4;
+    public static final int HELP_SLOT = 8;
     public static final int CLOSE_SLOT = 49;
-    /** One slot per module, in install order / Un hueco por módulo, en orden de instalación. */
-    public static final int[] MODULE_SLOTS = {
-            11, 12, 13, 14,
-            20, 21, 22, 23,
-            29, 30, 31, 32,
-            38, 39, 40, 41};
+    /** First slot of the module grid (rows 1-2) / Primer hueco de la cuadrícula de módulos. */
+    public static final int FIRST_MODULE_SLOT = 9;
+    public static final int[] MODULE_SLOTS = new int[MemoryModules.BAY_SLOTS];
+    public static final int ITEM_GAUGE_ROW = 27;
+    public static final int FLUID_GAUGE_ROW = 36;
+
+    static {
+        for (int i = 0; i < MODULE_SLOTS.length; i++) {
+            MODULE_SLOTS[i] = FIRST_MODULE_SLOT + i;
+        }
+    }
+
+    private static final int GAUGE_CELLS = 9;
+    private static final int BAR_CELLS = 10;
 
     private final Block block;
 
@@ -54,42 +70,86 @@ public class DramBayMenu extends MenuHolder {
         open(SIZE, Component.text("DRAM Bay", NamedTextColor.DARK_AQUA).decoration(TextDecoration.ITALIC, false));
     }
 
+    // ------------------------------------------------------------------ drawing
+
     @Override
     protected void draw() {
-        ItemStack background = icon(Material.GRAY_STAINED_GLASS_PANE, " ", NamedTextColor.DARK_GRAY, List.of());
-        for (int i = 0; i < inv.getSize(); i++) {
-            inv.setItem(i, background);
-        }
         NodeBlob blob = NodeStore.get(block);
         List<NodeBlob> modules = MemoryModules.modules(blob);
-        inv.setItem(STATS_SLOT, statsIcon(modules));
-        for (int i = 0; i < MODULE_SLOTS.length; i++) {
-            inv.setItem(MODULE_SLOTS[i], i < modules.size() ? moduleIcon(modules.get(i))
-                    : icon(Material.LIGHT_GRAY_STAINED_GLASS_PANE, "Free module slot", NamedTextColor.GRAY, List.of(
-                            "Click here with a memory module on the",
-                            "cursor, or Shift-Click one in your inventory.",
-                            "Item modules: L1, L2, L3, DRAM, Quantum.",
-                            "Fluid DRAM Module: fluids only.")));
+        Totals totals = Totals.of(modules);
+
+        ItemStack header = pane(Material.CYAN_STAINED_GLASS_PANE);
+        ItemStack footer = pane(Material.GRAY_STAINED_GLASS_PANE);
+        for (int i = 0; i < 9; i++) {
+            inv.setItem(i, header);
+            inv.setItem(45 + i, footer);
         }
+        inv.setItem(STATS_SLOT, summary(modules, totals));
+        inv.setItem(HELP_SLOT, icon(Material.KNOWLEDGE_BOOK, "How it works", NamedTextColor.GOLD, List.of(
+                "Each DRAM Bay holds up to " + MemoryModules.BAY_SLOTS + " memory modules.",
+                "Every module keeps its own stock, and the",
+                "network uses all of them at once.",
+                "",
+                "» Install: click a free slot with a module",
+                "  on the cursor, Shift-Click one in your",
+                "  inventory, or right-click the bay with",
+                "  a module in hand.",
+                "» Take out: click the module. Its stock",
+                "  goes with it and appears in the network",
+                "  where you install it next.")));
+
+        for (int i = 0; i < MODULE_SLOTS.length; i++) {
+            inv.setItem(MODULE_SLOTS[i], i < modules.size() ? moduleIcon(i, modules.get(i)) : freeSlot(i));
+        }
+
+        drawGauge(ITEM_GAUGE_ROW, "Item memory", totals.items, totals.itemCap, "items",
+                Material.LIME_STAINED_GLASS_PANE, "No item module installed.");
+        drawGauge(FLUID_GAUGE_ROW, "Fluid memory", totals.fluids, totals.fluidCap, "mB",
+                Material.LIGHT_BLUE_STAINED_GLASS_PANE, "No Fluid DRAM Module installed.");
+
         inv.setItem(CLOSE_SLOT, icon(Material.OAK_DOOR, "Close", NamedTextColor.WHITE, List.of()));
     }
 
-    private ItemStack moduleIcon(NodeBlob module) {
+    private ItemStack summary(List<NodeBlob> modules, Totals totals) {
+        List<String> lines = new ArrayList<>();
+        lines.add("Modules: " + modules.size() + " / " + MemoryModules.BAY_SLOTS);
+        lines.add("");
+        lines.add("Items: " + amount(totals.items, totals.itemCap, "") + "  (" + totals.itemModules + " modules)");
+        lines.add("Fluids: " + amount(totals.fluids, totals.fluidCap, " mB") + "  (" + totals.fluidModules + " modules)");
+        ItemStack item = icon(Material.WAXED_COPPER_BULB, "DRAM Bay", NamedTextColor.AQUA, lines);
+        item.setAmount(Math.max(1, modules.size()));
+        return item;
+    }
+
+    private ItemStack moduleIcon(int index, NodeBlob module) {
         DeviceType type = MemoryModules.typeOf(module);
         if (type == null) {
             return icon(Material.BARRIER, "Unknown module", NamedTextColor.RED, List.of("» Click to take it out."));
         }
+        long stored;
+        long cap;
+        String unit;
+        if (type.isCacheModule()) {
+            stored = module.totalVirtualAmount();
+            cap = MemoryModules.itemCapacity(type);
+            unit = " items";
+        } else {
+            stored = module.totalDramFluid();
+            cap = Settings.fluidDramCapacity();
+            unit = " mB";
+        }
+        double ratio = cap <= 0 ? 0 : Math.min(1.0, (double) stored / cap);
         ItemStack shown = Items.create(type);
         var meta = shown.getItemMeta();
+        meta.displayName(Component.text("#" + (index + 1) + "  " + type.display(), NamedTextColor.AQUA)
+                .decoration(TextDecoration.ITALIC, false));
         List<Component> lore = new ArrayList<>();
+        lore.add(bar(ratio));
+        lore.add(line(amount(stored, cap, unit), NamedTextColor.WHITE));
         if (type.isCacheModule()) {
             int kinds = module.virtualSamples == null ? 0 : module.virtualSamples.size();
-            lore.add(line("Stored: " + Items.formatAmount(module.totalVirtualAmount()) + " / "
-                    + Items.formatAmount(MemoryModules.itemCapacity(type)) + " items", NamedTextColor.AQUA));
             lore.add(line("Item types: " + kinds, NamedTextColor.GRAY));
         } else {
-            lore.add(line("Stored: " + Items.formatAmount(module.totalDramFluid()) + " / "
-                    + Items.formatAmount(Settings.fluidDramCapacity()) + " mB", NamedTextColor.AQUA));
             for (int i = 0; i < module.dramFluids.size(); i++) {
                 lore.add(line(" • " + module.dramFluids.get(i) + ": "
                         + Items.formatAmount(module.dramFluidAmounts.get(i)) + " mB", NamedTextColor.GRAY));
@@ -98,42 +158,46 @@ public class DramBayMenu extends MenuHolder {
         lore.add(Component.empty());
         lore.add(line("» Click to take it out with its stock.", NamedTextColor.YELLOW));
         meta.lore(lore);
+        if (stored > 0) {
+            meta.setEnchantmentGlintOverride(true);
+        }
         shown.setItemMeta(meta);
         return shown;
     }
 
-    private ItemStack statsIcon(List<NodeBlob> modules) {
-        long items = 0;
-        long itemCap = 0;
-        long fluids = 0;
-        long fluidCap = 0;
-        for (NodeBlob module : modules) {
-            DeviceType type = MemoryModules.typeOf(module);
-            if (type == null) {
-                continue;
-            }
-            if (type.isCacheModule()) {
-                items += module.totalVirtualAmount();
-                itemCap += MemoryModules.itemCapacity(type);
-            } else {
-                fluids += module.totalDramFluid();
-                fluidCap += Settings.fluidDramCapacity();
-            }
-        }
-        List<String> lines = new ArrayList<>();
-        lines.add("Modules: " + modules.size() + " / " + MemoryModules.BAY_SLOTS);
-        if (itemCap > 0) {
-            lines.add("Items: " + Items.formatAmount(items) + " / " + Items.formatAmount(itemCap));
-        }
-        if (fluidCap > 0) {
-            lines.add("Fluids: " + Items.formatAmount(fluids) + " / " + Items.formatAmount(fluidCap) + " mB");
-        }
-        lines.add("");
-        lines.add("Click a module to take it out: its stock");
-        lines.add("leaves this network and appears wherever");
-        lines.add("you install the module next.");
-        return icon(Material.BOOK, "Memory", NamedTextColor.AQUA, lines);
+    private ItemStack freeSlot(int index) {
+        return icon(Material.BLACK_STAINED_GLASS_PANE, "Free slot #" + (index + 1), NamedTextColor.DARK_GRAY, List.of(
+                "» Click here with a memory module on the",
+                "  cursor, or Shift-Click one in your inventory.",
+                "Item modules: L1, L2, L3, DRAM, Quantum.",
+                "Fluid DRAM Module: fluids only."));
     }
+
+    /** A row of 9 panes filled in proportion to {@code used / cap} / Fila de 9 paneles proporcional. */
+    private void drawGauge(int rowStart, String title, long used, long cap, String unit,
+                           Material fillMaterial, String emptyText) {
+        if (cap <= 0) {
+            ItemStack none = icon(Material.LIGHT_GRAY_STAINED_GLASS_PANE, title, NamedTextColor.GRAY, List.of(emptyText));
+            for (int i = 0; i < GAUGE_CELLS; i++) {
+                inv.setItem(rowStart + i, none);
+            }
+            return;
+        }
+        double ratio = Math.min(1.0, (double) used / cap);
+        int filled = used <= 0 ? 0 : Math.max(1, (int) Math.round(ratio * GAUGE_CELLS));
+        Material fill = ratio >= 0.9 ? Material.RED_STAINED_GLASS_PANE
+                : ratio >= 0.7 ? Material.YELLOW_STAINED_GLASS_PANE : fillMaterial;
+        NamedTextColor color = ratio >= 0.9 ? NamedTextColor.RED : ratio >= 0.7 ? NamedTextColor.YELLOW : NamedTextColor.GREEN;
+        List<String> lore = List.of(amount(used, cap, " " + unit), "Free: " + Items.formatAmount(cap - used) + " " + unit);
+        String name = title + ": " + percent(ratio);
+        for (int i = 0; i < GAUGE_CELLS; i++) {
+            inv.setItem(rowStart + i, i < filled
+                    ? icon(fill, name, color, lore)
+                    : icon(Material.BLACK_STAINED_GLASS_PANE, name, NamedTextColor.DARK_GRAY, lore));
+        }
+    }
+
+    // ------------------------------------------------------------------ clicks
 
     @Override
     protected void click(InventoryClickEvent event) {
@@ -166,8 +230,8 @@ public class DramBayMenu extends MenuHolder {
             player.closeInventory();
             return;
         }
-        int index = moduleIndex(raw);
-        if (index < 0) {
+        int index = raw - FIRST_MODULE_SLOT;
+        if (index < 0 || index >= MODULE_SLOTS.length) {
             return;
         }
         if (index < MemoryModules.modules(blob).size()) {
@@ -189,15 +253,6 @@ public class DramBayMenu extends MenuHolder {
                 event.getView().setCursor(null);
             }
         }
-    }
-
-    private static int moduleIndex(int raw) {
-        for (int i = 0; i < MODULE_SLOTS.length; i++) {
-            if (MODULE_SLOTS[i] == raw) {
-                return i;
-            }
-        }
-        return -1;
     }
 
     private boolean install(NodeBlob blob, ItemStack moduleItem) {
@@ -223,8 +278,66 @@ public class DramBayMenu extends MenuHolder {
         }
     }
 
+    // ------------------------------------------------------------------ helpers
+
+    /** What the bay holds, summed over its modules / Lo que guarda el bay, sumando sus módulos. */
+    private static final class Totals {
+        long items;
+        long itemCap;
+        int itemModules;
+        long fluids;
+        long fluidCap;
+        int fluidModules;
+
+        static Totals of(List<NodeBlob> modules) {
+            Totals totals = new Totals();
+            for (NodeBlob module : modules) {
+                DeviceType type = MemoryModules.typeOf(module);
+                if (type == null) {
+                    continue;
+                }
+                if (type.isCacheModule()) {
+                    totals.items += module.totalVirtualAmount();
+                    totals.itemCap += MemoryModules.itemCapacity(type);
+                    totals.itemModules++;
+                } else {
+                    totals.fluids += module.totalDramFluid();
+                    totals.fluidCap += Settings.fluidDramCapacity();
+                    totals.fluidModules++;
+                }
+            }
+            return totals;
+        }
+    }
+
+    private static String amount(long used, long cap, String unit) {
+        return Items.formatAmount(used) + " / " + Items.formatAmount(cap) + unit;
+    }
+
+    private static String percent(double ratio) {
+        return Math.round(ratio * 100) + "%";
+    }
+
+    /** "■■■■□□□□□□ 40%" coloured by how full it is / Barra coloreada según lo lleno. */
+    private static Component bar(double ratio) {
+        int filled = (int) Math.round(ratio * BAR_CELLS);
+        NamedTextColor color = ratio >= 0.9 ? NamedTextColor.RED : ratio >= 0.7 ? NamedTextColor.YELLOW : NamedTextColor.GREEN;
+        return Component.text("■".repeat(filled), color)
+                .append(Component.text("□".repeat(BAR_CELLS - filled), NamedTextColor.DARK_GRAY))
+                .append(Component.text(" " + percent(ratio), NamedTextColor.WHITE))
+                .decoration(TextDecoration.ITALIC, false);
+    }
+
     private static Component line(String text, NamedTextColor color) {
         return Component.text(text, color).decoration(TextDecoration.ITALIC, false);
+    }
+
+    private static ItemStack pane(Material material) {
+        ItemStack item = new ItemStack(material);
+        var meta = item.getItemMeta();
+        meta.displayName(Component.text(" "));
+        item.setItemMeta(meta);
+        return item;
     }
 
     private static ItemStack icon(Material material, String name, NamedTextColor color, List<String> lore) {
@@ -233,7 +346,8 @@ public class DramBayMenu extends MenuHolder {
         meta.displayName(Component.text(name, color).decoration(TextDecoration.ITALIC, false));
         List<Component> lines = new ArrayList<>();
         for (String text : lore) {
-            lines.add(line(text, NamedTextColor.GRAY));
+            NamedTextColor lineColor = text.startsWith("»") ? NamedTextColor.YELLOW : NamedTextColor.GRAY;
+            lines.add(line(text, lineColor));
         }
         meta.lore(lines);
         item.setItemMeta(meta);

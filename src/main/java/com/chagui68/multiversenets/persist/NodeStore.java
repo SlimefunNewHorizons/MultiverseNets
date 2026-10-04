@@ -555,7 +555,7 @@ public final class NodeStore {
         if (blob.chickenProducts == null) {
             blob.chickenProducts = new ArrayList<>();
         }
-        // DRAM Bays de un solo modulo: el modulo pasa a la lista bayModules (hasta 16 por bay).
+        // DRAM Bays de un solo modulo: el modulo pasa a la lista bayModules (hasta 18 por bay).
         blob.migrateSingleModuleBay();
         for (NodeBlob module : blob.bayModules) {
             normalize(module);

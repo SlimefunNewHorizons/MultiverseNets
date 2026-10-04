@@ -59,7 +59,7 @@ public class NetworkStorage {
 
     /**
      * One item memory module. {@code blob} holds the stock; {@code owner} is what gets saved: the
-     * DRAM Bay that contains the module (up to 16 per bay), or the module's own blob for a legacy
+     * DRAM Bay that contains the module (up to 18 per bay), or the module's own blob for a legacy
      * Controller cache.
      */
     private static final class VirtualCacheState {

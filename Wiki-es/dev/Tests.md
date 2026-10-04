@@ -57,7 +57,7 @@ A tener en cuenta:
 - `src/test/java/dev/espi/protectionstones/PSRegion.java` es un stub de la API de ProtectionStones que
   los tests del provider cargan por reflexión.
 
-## 3. Resumen: 38 clases, 287 tests
+## 3. Resumen: 38 clases, 288 tests
 
 | Clase (paquete `com.chagui68.multiversenets` salvo que se indique) | Tests | Cubre |
 | --- | --- | --- |
@@ -66,7 +66,7 @@ A tener en cuenta:
 | `CellGuiTest` | 9 | Menú de la Celda Cuántica: plantilla, depósito rápido, retirada, capacidad, sin duplicación al correr el ticker. |
 | `ChickenSorterTest` | 6 | Los genes de GeneticChickengineering se leen como en el addon (producto, nivel, fuerza, pureza, edad, especies especiales); todas las reglas deben cumplirse; el clasificador mueve solo los pollos que cumplen, solo mientras está activo, y nunca otros ítems. Menú: el resumen dice qué pasa, los productos muestran su propio ítem, un pollo en el cursor añade su producto y un clic lo quita; los botones de reglas suben, bajan, se reinician, brillan y mantienen válido el rango de niveles; la barra de control cambia estado, dirección y lado (hacia atrás con clic derecho). |
 | `CrafterGuiTest` | 10 | Menú del crafter: instalar/desinstalar/limpiar; los crafters de Slimefun aceptan Blueprints de Slimefun y vanilla, los estándar rechazan los de Slimefun. |
-| `DramBayTest` | 12 | Un módulo en un DRAM Bay guarda ítems; un módulo sacado lleva su stock a otra red; romper el bay suelta todos los módulos con su stock; el Fluid DRAM guarda varios fluidos y viaja con ellos; un controlador ya no acepta módulos; un módulo antiguo del controlador espera en el Terminal; un bay admite 16 módulos (el 17.º se queda en la mano) y la red los llena todos; hacer clic en un módulo del menú saca solo ese; un bay guardado con un solo módulo lo conserva con su stock. |
+| `DramBayTest` | 13 | Un módulo en un DRAM Bay guarda ítems; un módulo sacado lleva su stock a otra red; romper el bay suelta todos los módulos con su stock; el Fluid DRAM guarda varios fluidos y viaja con ellos; un controlador ya no acepta módulos; un módulo antiguo del controlador espera en el Terminal; un bay admite 18 módulos (el 19.º se queda en la mano) y la red los llena todos; hacer clic en un módulo del menú saca solo ese; un bay guardado con un solo módulo lo conserva con su stock; el menú muestra 18 huecos y un medidor de ítems encendido según el llenado. |
 | `DeviceTypeTest` | 7 | Clasificación de `DeviceType`: dispositivos con filtro, la Greedy Cell no es celda, ítems de mano, dispositivos direccionales, request y crafters de Slimefun. |
 | `FilterGuiTest` | 15 | Menú de filtro: añadir/quitar plantillas, whitelist/blacklist, shift+clic, caras, limpiar. |
 | `FluidAndRequesterTest` | 13 | Almacenamiento de fluidos e interacción rápida con la celda, Liquid Pump, página de fluidos del terminal, Request Terminal (pedidos, cantidad por chat, cadenas recursivas, ignora Auto-Crafters, Slimefun Request Crafter), Slimefun Auto-Crafter. |

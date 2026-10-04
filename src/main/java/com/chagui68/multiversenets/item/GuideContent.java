@@ -333,19 +333,19 @@ public final class GuideContent {
 
         // ------------------------------------------------------------------ memory
         add(DeviceType.MVN_DRAM_BAY, Category.MEMORY, "Bahía DRAM",
-                "Network block that holds up to 16 memory modules, each with its own stock. The modules are the "
+                "Network block that holds up to 18 memory modules, each with its own stock. The modules are the "
                         + "storage: while installed, their stock is part of the network. Place as many bays as you "
                         + "like.",
-                "Bloque de red que aloja hasta 16 módulos de memoria, cada uno con su propio stock. Los módulos "
+                "Bloque de red que aloja hasta 18 módulos de memoria, cada uno con su propio stock. Los módulos "
                         + "son el almacenamiento: mientras están instalados, su stock es parte de la red. Pon tantos "
                         + "bays como quieras.",
                 "Right-click the bay with a module in hand to install it in the next free slot, or right-click "
-                        + "to open its menu: a 4x4 grid, one slot per module. Install from the cursor or with "
+                        + "to open its menu: 18 module slots with their fill bars and item/fluid gauges. Install from the cursor or with "
                         + "shift-click; click an installed module to take it out. A module taken out keeps its whole "
                         + "stock: install it in another network's bay and the stock appears there and leaves the "
                         + "first one. Breaking the bay drops it and every module with its stock.",
                 "Clic derecho al bay con un módulo en la mano para instalarlo en el siguiente hueco libre, o clic "
-                        + "derecho para abrir su menú: una cuadrícula de 4x4, un hueco por módulo. Instala desde el "
+                        + "derecho para abrir su menú: 18 huecos de módulo con su barra de llenado y medidores de ítems y fluidos. Instala desde el "
                         + "cursor o con shift+clic; haz clic en un módulo instalado para sacarlo. Un módulo sacado "
                         + "conserva todo su stock: instálalo en el bay de otra red y el stock aparece allí y sale de "
                         + "la primera. Romper el bay suelta el bay y todos sus módulos con su stock.");

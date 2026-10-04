@@ -108,7 +108,7 @@ fields:
 | `greedySamples` / `greedyAmounts` | `List<ItemStack>` / `List<Long>` | Greedy Cell multi-item buffer. |
 | `virtualCacheTier` / `virtualSamples` / `virtualAmounts` | `int` / lists | Item memory module stock: a DRAM Bay with an item module, or a legacy Controller cache. |
 | `recoveredModules` | `List<ItemStack>` | Controller only: modules that were inside it before the DRAM Bay, taken out by `Network.scan()` (`MemoryModules.migrateControllerCache`) with their stock; the Terminal lists them first and hands them out; breaking the controller drops them. |
-| `bayModules` / `installedModule` | `List<NodeBlob>` / `String` | DRAM Bay: up to 16 installed modules, one blob each (module type in `typeName`, stock in `virtualSamples`/`virtualAmounts` + `virtualCacheTier`, or `dramFluids`/`dramFluidAmounts`). `installedModule` is the legacy single-module field; `migrateSingleModuleBay()` (called by `NodeStore.normalize` and `MemoryModules.modules`) moves it into the list. |
+| `bayModules` / `installedModule` | `List<NodeBlob>` / `String` | DRAM Bay: up to 18 installed modules, one blob each (module type in `typeName`, stock in `virtualSamples`/`virtualAmounts` + `virtualCacheTier`, or `dramFluids`/`dramFluidAmounts`). `installedModule` is the legacy single-module field; `migrateSingleModuleBay()` (called by `NodeStore.normalize` and `MemoryModules.modules`) moves it into the list. |
 | `dramFluids` / `dramFluidAmounts` | `List<String>` / `List<Long>` | A Fluid DRAM Module (inside a DRAM Bay's `bayModules`): several fluids (mB). |
 | `chickenActive` / `chickenPull` / `chickenProducts` / `chickenMinTier` / `chickenMaxTier` / `chickenKnown` / `chickenAge` / `chickenMinStrength` / `chickenPureOnly` | various | Genetic Chicken Sorter rules (see §19). |
 | `quotaSample` / `quotaLimit` / `quotaActive` | `ItemStack` / `long` / `boolean` | Quota Limiter. |
@@ -207,7 +207,7 @@ networks from it at startup.
 ## 7. Item storage: `NetworkStorage`
 
 One "vault" over every storage of the network: the **memory modules** (every item module in every DRAM
-Bay, up to 16 per bay, plus a legacy module inside the Controller; each one is saved through the bay
+Bay, up to 18 per bay, plus a legacy module inside the Controller; each one is saved through the bay
 that contains it), **Quantum Cells**, **Infinity Barrels**,
 **Greedy Cells** and **Slimefun barrels**. All methods are
 `synchronized`; blobs are read with `NodeStore.canonical` and only dirty ones are written back.
@@ -364,8 +364,8 @@ Abstract `InventoryHolder`. `open(size, title)` creates the inventory, calls `dr
 | Menu | Size | Usage / details |
 | --- | --- | --- |
 | `TerminalMenu` | 54 | Terminal (block, wireless, transmitter/receiver buttons). Input `INPUT_SLOT=8`, purger view `17`, sort `26`, fluids page `35`, pages `44`/`53`; 48 items per page. Fluid deposits/withdrawals with buckets and bottles. |
-| `ControllerMenu` | 27 | Controller status, router status; slot `11` shows the network memory: DRAM Bays and modules installed out of 16 per bay. |
-| `DramBayMenu` | 54 | Summary `4`, a 4×4 grid of module slots `11–14`, `20–23`, `29–32`, `38–41` (click a module to take it out with its stock; click a free slot with a module on the cursor, or shift-click one, to install), close `49`. No eject button. Reads the blob on every click, so two viewers cannot take out the same module. |
+| `ControllerMenu` | 27 | Controller status, router status; slot `11` shows the network memory: DRAM Bays and modules installed out of 18 per bay. |
+| `DramBayMenu` | 54 | Header row: summary `4` (modules x/18, items and fluids), help `8`. Module slots `9–26` (`MODULE_SLOTS`, one per module, with a fill bar and glint while it holds something; click a module to take it out with its stock; click a free slot with a module on the cursor, or shift-click one, to install). Item gauge row `27–35` and fluid gauge row `36–44` (lit in proportion to the fill, yellow from 70 %, red from 90 %). Footer: close `49`. No eject button. Reads the blob on every click, so two viewers cannot take out the same module. |
 | `ChickenSorterMenu` | 54 | Control bar: running `1`, push/pull `3`, summary book `4`, side `5`, help `7`. Products `9–26` (each shows its own item). Divider `27–35`. Gene rules: min/max tier `37`/`38`, strength `40`, pure `41`, DNA `43`, age `44` — value in the name and the stack size, glint while active, left +1, right −1, shift resets, the tier range is kept valid. Actions: clear products `46`, reset rules `49`, close `52`. |
 | `MonitorMenu` | 27 | Live diagnostics (refresh task while open). |
 | `FilterMenu` | 27 | Grabbers, pushers, vacuum, purger, greedy cell, receiver and transmitter: up to 17 templates, mode `17`, clear `25`, help `26`. Slot `24`: face selector for Advanced devices, "open adjacent block" for simple ones, "open terminal" for Transmitter/Receiver. |

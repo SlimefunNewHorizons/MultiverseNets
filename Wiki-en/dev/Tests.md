@@ -56,7 +56,7 @@ Things to know:
 - `src/test/java/dev/espi/protectionstones/PSRegion.java` is a stub of the ProtectionStones API that
   the provider tests load by reflection.
 
-## 3. Overview: 38 classes, 287 tests
+## 3. Overview: 38 classes, 288 tests
 
 | Class (package `com.chagui68.multiversenets` unless stated) | Tests | Covers |
 | --- | --- | --- |
@@ -65,7 +65,7 @@ Things to know:
 | `CellGuiTest` | 9 | Quantum Cell menu: template, quick deposit, withdrawal, capacity, no duplication when the ticker runs. |
 | `ChickenSorterTest` | 6 | GeneticChickengineering genes read like the addon (product, tier, strength, purity, age, special species); every rule must pass; the sorter moves only matching chickens, only while running, and never other items. Menu: the summary spells out what passes, products show their own item, a cursor chicken adds its product and clicking removes it; rule buttons step, reset, glow and keep the tier range valid; the control bar toggles status, direction and side (backwards with right-click). |
 | `CrafterGuiTest` | 10 | Crafter menu: install/uninstall/clear; Slimefun crafters accept Slimefun and vanilla Blueprints, standard crafters refuse Slimefun ones. |
-| `DramBayTest` | 12 | A module in a DRAM Bay stores items; a module taken out moves its stock to another network; breaking the bay drops every module with its stock; the Fluid DRAM holds several fluids and travels with them; a controller no longer takes modules; an old controller module waits in the Terminal; a bay holds 16 modules (a 17th stays in the hand) and the network fills all of them; clicking a module in the menu takes out only that one; a bay saved with a single module keeps it and its stock. |
+| `DramBayTest` | 13 | A module in a DRAM Bay stores items; a module taken out moves its stock to another network; breaking the bay drops every module with its stock; the Fluid DRAM holds several fluids and travels with them; a controller no longer takes modules; an old controller module waits in the Terminal; a bay holds 18 modules (a 19th stays in the hand) and the network fills all of them; clicking a module in the menu takes out only that one; a bay saved with a single module keeps it and its stock; the menu shows 18 slots and an item gauge lit in proportion to the fill. |
 | `DeviceTypeTest` | 7 | `DeviceType` classification: filterable devices, Greedy Cell is not a cell, hand items, directional devices, request and Slimefun crafters. |
 | `FilterGuiTest` | 15 | Filter menu: add/remove templates, whitelist/blacklist, shift-click, faces, clear. |
 | `FluidAndRequesterTest` | 13 | Fluid storage and fluid cell quick interaction, Liquid Pump, terminal fluid page, Request Terminal (orders, chat amount, recursive chains, ignores Auto-Crafters, Slimefun Request Crafter), Slimefun Auto-Crafter. |
