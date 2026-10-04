@@ -556,13 +556,15 @@ public final class SlimefunBridge {
      * {@code pushItem} drops the whole stack into the first empty slot, so a Pusher's 128 or 1,024
      * units ended up as one over-sized slot and everything above a stack was lost. With
      * {@code kinds} &gt; 1 (a whitelist of several ingredients), one item type never takes more
-     * than its share of the input slots, so the other ingredients still fit.
+     * than its share of the input slots, so the other ingredients still fit. See
+     * {@link #fillInputSlots} for the one-new-slot-per-insert rule.
      *
      * ES: Inserta en las ranuras de entrada de la máquina, como mucho un stack por ranura. El
      * {@code pushItem} de Slimefun mete el stack entero en la primera ranura vacía, así que las
      * 128 o 1.024 unidades de un Pusher quedaban en una ranura sobredimensionada y todo lo que
      * pasaba de un stack se perdía. Con {@code kinds} &gt; 1 (whitelist de varios ingredientes), un
-     * tipo nunca ocupa más que su parte de las ranuras de entrada.
+     * tipo nunca ocupa más que su parte de las ranuras de entrada. Ver {@link #fillInputSlots} para
+     * la regla de un hueco nuevo por inserción.
      *
      * @return units that did not fit / unidades que no cupieron
      */
@@ -571,46 +573,121 @@ public final class SlimefunBridge {
         if (menu == null || stack == null || stack.getAmount() <= 0) {
             return stack == null ? 0 : stack.getAmount();
         }
-        int remaining = stack.getAmount();
         try {
             ItemStack sample = stack.clone();
             sample.setAmount(1);
             int[] slots = getTransportSlots(menu, flowInsert, sample);
-            if (slots.length == 0) return remaining;
-            int perSlot = Math.max(1, Math.min(stack.getMaxStackSize(), 64));
-            int share = kinds > 1 ? Math.max(1, slots.length / kinds) : Integer.MAX_VALUE;
-            int occupied = 0;
+            return fillInputSlots(new SlotAccess() {
+                @Override
+                public ItemStack get(int slot) {
+                    try {
+                        return mGetItemInSlot.invoke(menu, slot) instanceof ItemStack item ? item : null;
+                    } catch (ReflectiveOperationException error) {
+                        throw new IllegalStateException(error);
+                    }
+                }
+
+                @Override
+                public void set(int slot, ItemStack item) {
+                    try {
+                        mReplaceExistingItem.invoke(menu, slot, item);
+                    } catch (ReflectiveOperationException error) {
+                        throw new IllegalStateException(error);
+                    }
+                }
+            }, slots, stack, kinds, error -> logError(block, error));
+        } catch (RuntimeException error) {
+            // Fallo antes de tocar ningun hueco: no entro nada.
+            logError(block, error);
+            return stack.getAmount();
+        }
+    }
+
+    /** The slots of a machine's menu, as the insert logic sees them / Los huecos del menú de una máquina. */
+    interface SlotAccess {
+        ItemStack get(int slot);
+
+        void set(int slot, ItemStack item);
+    }
+
+    /**
+     * EN: The insert rule, apart from Slimefun's reflection so it can be tested.
+     * <ol>
+     *   <li>Top up every slot (among the ones the machine offered for this item) that already holds
+     *       it, up to one stack each.</li>
+     *   <li>Then open <b>at most one</b> new slot, as NetworksV6 does (it moves one stack per
+     *       cycle). The machine decides which slots it offers: the Electric Smeltery, the Heated
+     *       Pressure Chamber and addon machines with the same rule only offer the slot that already
+     *       holds the item (none once it is full), so each ingredient ends up in a single stack and
+     *       the other slots stay free for the other ingredients. Ordinary machines offer every input
+     *       slot and still fill them all, one per cycle.</li>
+     * </ol>
+     * A whitelist of several ingredients ({@code kinds} &gt; 1) still caps one item type at its
+     * share of the slots.
+     *
+     * ES: La regla de inserción, aparte de la reflexión de Slimefun para poder probarla. Primero
+     * rellena hasta un stack los huecos (de los que la máquina ofrece para este ítem) que ya lo
+     * tienen; después abre <b>como mucho un</b> hueco nuevo, como NetworksV6 (un stack por ciclo). La
+     * máquina decide qué huecos ofrece: la Electric Smeltery, la Heated Pressure Chamber y las
+     * máquinas de addons con la misma regla solo ofrecen el hueco que ya tiene el ítem (ninguno si
+     * está lleno), así cada ingrediente queda en un solo stack y los demás huecos quedan libres. Las
+     * máquinas normales ofrecen todos los huecos de entrada y los siguen llenando, uno por ciclo.
+     *
+     * A failing slot access stops the insert and reports it to {@code onError}; the return value
+     * still counts exactly what went in, so nothing is duplicated.
+     * Un fallo al acceder a un hueco detiene la inserción y se informa a {@code onError}; el
+     * resultado sigue contando exactamente lo que entró, así no se duplica nada.
+     *
+     * @return units that did not fit / unidades que no cupieron
+     */
+    static int fillInputSlots(SlotAccess access, int[] slots, ItemStack stack, int kinds,
+                              java.util.function.Consumer<RuntimeException> onError) {
+        int remaining = stack.getAmount();
+        if (slots == null || slots.length == 0 || remaining <= 0) {
+            return remaining;
+        }
+        ItemStack sample = stack.clone();
+        sample.setAmount(1);
+        int perSlot = Math.max(1, Math.min(stack.getMaxStackSize(), 64));
+        int share = kinds > 1 ? Math.max(1, slots.length / kinds) : Integer.MAX_VALUE;
+        int occupied = 0;
+        try {
             for (int slot : slots) {
-                Object raw = mGetItemInSlot.invoke(menu, slot);
-                if (!(raw instanceof ItemStack current) || current.getType().isAir()
-                        || !StackUtils.itemsMatch(current, sample)) {
+                ItemStack current = access.get(slot);
+                if (current == null || current.getType().isAir() || !StackUtils.itemsMatch(current, sample)) {
                     continue;
                 }
                 occupied++;
                 int room = perSlot - current.getAmount();
-                if (room <= 0 || remaining <= 0) continue;
+                if (room <= 0 || remaining <= 0) {
+                    continue;
+                }
                 int add = Math.min(room, remaining);
                 ItemStack merged = current.clone();
                 merged.setAmount(current.getAmount() + add);
-                mReplaceExistingItem.invoke(menu, slot, merged);
+                access.set(slot, merged);
                 remaining -= add;
             }
+            if (remaining <= 0 || occupied >= share) {
+                return remaining;
+            }
             for (int slot : slots) {
-                if (remaining <= 0 || occupied >= share) break;
-                Object raw = mGetItemInSlot.invoke(menu, slot);
-                if (raw instanceof ItemStack current && !current.getType().isAir()) continue;
+                ItemStack current = access.get(slot);
+                if (current != null && !current.getType().isAir()) {
+                    continue;
+                }
                 int add = Math.min(perSlot, remaining);
                 ItemStack placed = sample.clone();
                 placed.setAmount(add);
-                mReplaceExistingItem.invoke(menu, slot, placed);
-                occupied++;
+                access.set(slot, placed);
                 remaining -= add;
+                // Un solo hueco nuevo por insercion: el siguiente ciclo vuelve a preguntar a la maquina.
+                break;
             }
-            return remaining;
-        } catch (ReflectiveOperationException | RuntimeException error) {
-            logError(block, error);
-            return remaining;
+        } catch (RuntimeException error) {
+            onError.accept(error);
         }
+        return remaining;
     }
 
     /**

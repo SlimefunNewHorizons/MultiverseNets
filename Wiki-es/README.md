@@ -459,6 +459,11 @@ DrakesCraft como el original) y, con `compat.slimefun: true`:
 
 * Grabbers, Pushers, Greedy Cells y crafters trabajan con **máquinas de Slimefun** como con un cofre,
   usando solo las ranuras que la máquina declara de entrada y salida.
+* Al insertar se sigue la regla de la propia máquina, como en Networks: cada inserción rellena
+  las ranuras que ya tienen el ítem y abre **como mucho una ranura nueva**. Máquinas como la
+  Electric Smeltery o la Heated Pressure Chamber solo aceptan un ítem en la ranura que ya lo
+  tiene, así cada ingrediente queda en **un solo stack** y las demás ranuras quedan libres para
+  los otros ingredientes. Las máquinas normales siguen llenando todas sus ranuras, una por ciclo.
 * Los bloques de Slimefun cuyo id contiene `CABLE` o `BRIDGE` conducen una red de MultiverseNets, y
   los barriles de Slimefun que la toquen pasan a formar parte de su almacenamiento.
 * El codificador y los crafters de Slimefun quedan disponibles.

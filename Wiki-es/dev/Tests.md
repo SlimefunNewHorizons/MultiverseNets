@@ -57,7 +57,7 @@ A tener en cuenta:
 - `src/test/java/dev/espi/protectionstones/PSRegion.java` es un stub de la API de ProtectionStones que
   los tests del provider cargan por reflexión.
 
-## 3. Resumen: 38 clases, 288 tests
+## 3. Resumen: 39 clases, 292 tests
 
 | Clase (paquete `com.chagui68.multiversenets` salvo que se indique) | Tests | Cubre |
 | --- | --- | --- |
@@ -93,6 +93,7 @@ A tener en cuenta:
 | `UpgradedFeaturesTest` | 6 | Módulo de memoria en un DRAM Bay, Router, conteo de nodos por chunk, búfer de tránsito del grabber, caché conservada al romper, romper en creativo no suelta nada. |
 | `compat.NetworkOwnershipTest` | 9 | Una red funciona dentro del reclamo de su dueño; otras redes y un dueño null son extraños; el terreno público sigue abierto; providers rotos o sin conectar no dan acceso; las respuestas de dueño no se filtran entre redes. |
 | `compat.ProtectionStonesProviderTest` | 18 | El provider de ProtectionStones contra la forma real de la API (`PSRegion.fromLocation*`, firmas exactas), certificación de dueño/miembro, comportamiento cerrado ante fallos; la búsqueda de regiones de WorldGuard falla de forma segura. |
+| `compat.SlimefunInsertRuleTest` | 4 | Insertar en máquinas de Slimefun: una Electric Smeltery falsa (misma respuesta de transporte que la de Slimefun) deja cada ingrediente en un stack y las demás ranuras libres; un stack se rellena sin abrir otra ranura; una máquina normal llena todas sus ranuras, una por ciclo; un menú que falla a mitad nunca devuelve lo que ya entró. |
 | `compat.ProtectionWhitelistTest` | 15 | Valores por defecto de la protección y parseo y geometría de `exempt-locations`; el puente queda inerte sin providers. |
 | `listen.SneakingRightClickTest` | 3 | Agachado + clic derecho nunca abre el menú de un dispositivo y sigue permitiendo colocar bloques. |
 | `net.ScanCostTest` | 2 | El recorrido de vecinos del BFS no reserva memoria por nodo y un escaneo grande sigue siendo lineal. |

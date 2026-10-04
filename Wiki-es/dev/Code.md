@@ -446,6 +446,15 @@ el orden de almacenamiento.
   `insert` (ranuras de entrada + `INSERT`), `isNetworkCable`, `isBarrel` y depósito/retirada de
   barriles, `findSlimefunRecipe`, `openSlimefunMenu`. Se mantienen los alias en español (`disponible`,
   `esMaquina`, `idDe`, `esItemSlimefun`, `extraer`, `insertar`).
+- **Regla de inserción** (`fillInputSlots`, separada de la reflexión para poder probarla): el puente
+  pregunta a la máquina qué ranuras aceptan este ítem (`getSlotsAccessedByItemTransport(menu, INSERT,
+  ítem)`, la misma pregunta que hace NetworksV6), rellena hasta un stack las ranuras ofrecidas que ya
+  lo tienen y abre **como mucho una** ranura nueva por inserción. La Electric Smeltery y la Heated
+  Pressure Chamber solo ofrecen la ranura que ya tiene el ítem (ninguna si está llena), así cada
+  ingrediente queda en un solo stack; las máquinas normales ofrecen todas sus ranuras de entrada y se
+  llenan una por ciclo. Una whitelist de varios ingredientes (`kinds` > 1) sigue limitando un ítem a
+  su parte de las ranuras. Si el menú falla a mitad, el resultado cuenta exactamente lo que entró
+  (`SlimefunInsertRuleTest`).
 
 ## 17. Protección de terrenos (`compat/ProtectionBridge`)
 

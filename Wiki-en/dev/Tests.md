@@ -56,7 +56,7 @@ Things to know:
 - `src/test/java/dev/espi/protectionstones/PSRegion.java` is a stub of the ProtectionStones API that
   the provider tests load by reflection.
 
-## 3. Overview: 38 classes, 288 tests
+## 3. Overview: 39 classes, 292 tests
 
 | Class (package `com.chagui68.multiversenets` unless stated) | Tests | Covers |
 | --- | --- | --- |
@@ -92,6 +92,7 @@ Things to know:
 | `UpgradedFeaturesTest` | 6 | Memory module in a DRAM Bay, Router, per-chunk node counting, grabber transit buffer, cache kept on break, creative breaking drops nothing. |
 | `compat.NetworkOwnershipTest` | 9 | A network runs inside its owner's claim; other networks and a null owner are strangers; public land stays open; broken or unwired providers grant nothing; owner answers never leak between networks. |
 | `compat.ProtectionStonesProviderTest` | 18 | The ProtectionStones provider against the real API shape (`PSRegion.fromLocation*`, exact signatures), owner/member certification, fail-closed behaviour; WorldGuard region lookup fails safe. |
+| `compat.SlimefunInsertRuleTest` | 4 | Inserting into Slimefun machines: a fake Electric Smeltery (same transport answer as Slimefun's) keeps each ingredient in one stack and leaves the other slots free; a stack is topped up without opening another slot; an ordinary machine fills every slot, one per cycle; a menu failing half-way never returns what already went in. |
 | `compat.ProtectionWhitelistTest` | 15 | Protection defaults and `exempt-locations` parsing and geometry; the bridge is inert without providers. |
 | `listen.SneakingRightClickTest` | 3 | Sneaking + right-click never opens a device menu and still allows vanilla placement. |
 | `net.ScanCostTest` | 2 | The BFS neighbour walk allocates nothing per node and a large scan stays linear. |

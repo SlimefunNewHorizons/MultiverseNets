@@ -401,6 +401,11 @@ MultiverseNets **does not depend on Slimefun**. If it is installed it is detecte
 
 * Grabbers, Pushers, Greedy Cells and crafters work with **Slimefun machines** like with a chest,
   using only the slots the machine declares for input and output.
+* Inserting follows the machine's own rule, like Networks: each insert tops up the slots that
+  already hold the item and opens **at most one new slot**. Machines such as the Electric
+  Smeltery or the Heated Pressure Chamber only accept an item in the slot that already holds
+  it, so each ingredient stays in **one stack** and the other slots remain free for the other
+  ingredients. Ordinary machines still fill every input slot, one per cycle.
 * Slimefun blocks whose id contains `CABLE` or `BRIDGE` conduct a MultiverseNets network, and
   Slimefun barrels touching it become part of its storage.
 * Slimefun encoder and crafters become usable.

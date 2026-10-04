@@ -438,6 +438,15 @@ order apply.
   `WITHDRAW`), `insert` (input slots + `INSERT`), `isNetworkCable`, `isBarrel` and barrel
   deposit/withdraw, `findSlimefunRecipe`, `openSlimefunMenu`. Spanish legacy aliases remain
   (`disponible`, `esMaquina`, `idDe`, `esItemSlimefun`, `extraer`, `insertar`).
+- **Insert rule** (`fillInputSlots`, kept apart from the reflection so it can be tested): the bridge
+  asks the machine which slots take this item (`getSlotsAccessedByItemTransport(menu, INSERT, item)`,
+  the same question NetworksV6 asks), tops up the offered slots that already hold it to one stack
+  each, then opens **at most one** new slot per insert. The Electric Smeltery and the Heated
+  Pressure Chamber only offer the slot that already holds the item (none once it is full), so each
+  ingredient ends up in a single stack; ordinary machines offer every input slot and are filled one
+  per cycle. A whitelist of several ingredients (`kinds` > 1) still caps one item at its share of the
+  slots. If the menu fails half-way the return value counts exactly what went in
+  (`SlimefunInsertRuleTest`).
 
 ## 17. Land protection (`compat/ProtectionBridge`)
 
