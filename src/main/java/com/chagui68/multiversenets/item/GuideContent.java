@@ -201,10 +201,24 @@ public final class GuideContent {
                         + "los jugadores no pueden abrir dispositivos en terreno que no pueden usar.");
         topic(Material.SPYGLASS, "Diagnostics & commands", "Diagnóstico y comandos",
                 "Right-click a cable to see if it reaches a controller. The Network Probe and /mvnets doctor "
-                        + "explain scan errors. /mvnets devices lists every device id; admins can use /mvnets give.",
+                        + "explain scan errors. Admins can use /mvnets give (Tab completes the ids), "
+                        + "/mvnets stats (networks and storage) and /mvnets save.",
                 "Clic derecho en un cable muestra si llega a un controlador. La Network Probe y /mvnets doctor "
-                        + "explican los errores del escaneo. /mvnets devices lista los ids; los admins pueden usar "
-                        + "/mvnets give.");
+                        + "explican los errores del escaneo. Los admins pueden usar /mvnets give (Tab completa los ids), "
+                        + "/mvnets stats (redes y almacenamiento) y /mvnets save.");
+        topic(Material.BOOKSHELF, "Building big", "Construir a lo grande",
+                "There is no limit on network blocks per chunk: device data lives in region files inside the "
+                        + "world folder, not in the chunk, and a cable or an unconfigured device only stores its "
+                        + "type. Fill a chunk with cables and machines if you like. A server can still cap the "
+                        + "devices that work every cycle (grabbers, pushers, vacuums, crafters...) per chunk; "
+                        + "cables, cells and terminals never count. Data is saved in the background and travels "
+                        + "with the world.",
+                "No hay límite de bloques de red por chunk: los datos de los dispositivos viven en archivos de "
+                        + "región dentro de la carpeta del mundo, no en el chunk, y un cable o un dispositivo sin "
+                        + "configurar solo guarda su tipo. Llena un chunk de cables y máquinas si quieres. Un "
+                        + "servidor aún puede limitar por chunk los dispositivos que trabajan en cada ciclo "
+                        + "(grabbers, pushers, vacuums, crafters...); cables, celdas y terminales nunca cuentan. "
+                        + "Los datos se guardan en segundo plano y viajan con el mundo.");
 
         // ------------------------------------------------------------------ core
         add(DeviceType.MVN_CONTROLLER, Category.CORE, "Controlador de Red",
@@ -319,18 +333,22 @@ public final class GuideContent {
 
         // ------------------------------------------------------------------ memory
         add(DeviceType.MVN_DRAM_BAY, Category.MEMORY, "Bahía DRAM",
-                "Network block that holds ONE memory module. The module is the storage: while installed, its "
-                        + "stock is part of the network. Place as many bays as you like.",
-                "Bloque de red que aloja UN módulo de memoria. El módulo es el almacenamiento: mientras está "
-                        + "instalado, su stock es parte de la red. Pon tantos bays como quieras.",
-                "Right-click an empty bay holding a module to install it, or right-click to open its menu: stock, "
-                        + "install from the cursor or with shift-click, and Eject Module. An ejected module keeps "
-                        + "its whole stock: install it in another network's bay and the stock appears there and "
-                        + "leaves the first one. Breaking the bay drops it and the module with its stock.",
-                "Clic derecho a un bay vacío con un módulo en la mano para instalarlo, o clic derecho para abrir su "
-                        + "menú: stock, instalar desde el cursor o con shift+clic, y Eject Module. Un módulo "
-                        + "expulsado conserva todo su stock: instálalo en el bay de otra red y el stock aparece allí "
-                        + "y sale de la primera. Romper el bay suelta el bay y el módulo con su stock.");
+                "Network block that holds up to 16 memory modules, each with its own stock. The modules are the "
+                        + "storage: while installed, their stock is part of the network. Place as many bays as you "
+                        + "like.",
+                "Bloque de red que aloja hasta 16 módulos de memoria, cada uno con su propio stock. Los módulos "
+                        + "son el almacenamiento: mientras están instalados, su stock es parte de la red. Pon tantos "
+                        + "bays como quieras.",
+                "Right-click the bay with a module in hand to install it in the next free slot, or right-click "
+                        + "to open its menu: a 4x4 grid, one slot per module. Install from the cursor or with "
+                        + "shift-click; click an installed module to take it out. A module taken out keeps its whole "
+                        + "stock: install it in another network's bay and the stock appears there and leaves the "
+                        + "first one. Breaking the bay drops it and every module with its stock.",
+                "Clic derecho al bay con un módulo en la mano para instalarlo en el siguiente hueco libre, o clic "
+                        + "derecho para abrir su menú: una cuadrícula de 4x4, un hueco por módulo. Instala desde el "
+                        + "cursor o con shift+clic; haz clic en un módulo instalado para sacarlo. Un módulo sacado "
+                        + "conserva todo su stock: instálalo en el bay de otra red y el stock aparece allí y sale de "
+                        + "la primera. Romper el bay suelta el bay y todos sus módulos con su stock.");
         String moduleWhatEn = "Item memory module for a DRAM Bay: stores any mix of item types up to its capacity. "
                 + "It keeps its items when taken out of the bay.";
         String moduleWhatEs = "Módulo de memoria de ítems para un DRAM Bay: guarda cualquier mezcla de tipos hasta su "
@@ -529,11 +547,16 @@ public final class GuideContent {
                 "Mueve SOLO los pollos de bolsillo de GeneticChickengineering, elegidos por sus genes; cualquier "
                         + "otro ítem se ignora. Push: de la red al bloque al que mira. Pull: de ese bloque a la red. "
                         + "Hasta 16 pollos por ciclo.",
-                "Right-click. Rules (all must pass): products (click with a chicken on the cursor; empty = any), "
-                        + "min/max tier, min DNA strength, pure genes only, known/unknown DNA, adult/baby. Choose "
-                        + "the side. It starts STOPPED: turn it on when it is set up.",
-                "Clic derecho. Reglas (todas deben cumplirse): productos (clic con un pollo en el cursor; vacío = "
-                        + "cualquiera), nivel mín/máx, fuerza de ADN mínima, solo genes puros, ADN conocido/"
-                        + "desconocido, adulto/bebé. Elige el lado. Empieza PARADO: actívalo cuando esté listo.");
+                "Right-click. Top row: start/stop, Push/Pull, side, a summary of what passes, help. Middle: "
+                        + "accepted products (click a slot with a chicken on the cursor or Shift-click one in your "
+                        + "inventory; click a product to remove it; empty = any). Below: gene rules, all must pass: "
+                        + "min/max tier, min DNA strength, pure genes, DNA, age. Left +1, right -1, Shift resets; "
+                        + "an active rule glows. It starts STOPPED: turn it on when it is set up.",
+                "Clic derecho. Fila superior: arrancar/parar, Push/Pull, lado, un resumen de lo que pasa, ayuda. "
+                        + "En medio: productos aceptados (clic en un hueco con un pollo en el cursor o Shift+clic a "
+                        + "uno del inventario; clic en un producto para quitarlo; vacío = cualquiera). Debajo: reglas "
+                        + "de genes, todas deben cumplirse: nivel mín/máx, fuerza de ADN mínima, genes puros, ADN, "
+                        + "edad. Izquierdo +1, derecho -1, Shift reinicia; una regla activa brilla. Empieza PARADO: "
+                        + "actívalo cuando esté listo.");
     }
 }

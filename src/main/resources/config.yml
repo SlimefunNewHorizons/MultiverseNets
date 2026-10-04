@@ -31,19 +31,30 @@ compat:
   #      y prefieres que cada red gestione únicamente sus propios contenedores.
   slimefun: true
 
-# [EN] Slimefun Recipe Encoder settings.
-# [ES] Ajustes del Codificador de Recetas de Slimefun.
-sf-encoder:
-  # [EN] Enable or disable the Slimefun Recipe Encoder machine.
-  # [ES] Habilita o deshabilita la máquina de codificación de recetas de Slimefun.
+# -------------------------------------------------------------------------------------
+#  Slimefun Machines / Máquinas de Slimefun
+# -------------------------------------------------------------------------------------
+# [EN] The machines made for Slimefun: Slimefun Recipe Encoder, Slimefun Auto-Crafter and
+#      Slimefun Request Crafter. A disabled machine has no recipe, cannot be placed, does not
+#      open its menu and does no work; blocks already placed stay where they are (break them to
+#      get the item back) and start working again as soon as the machine is enabled.
+#      Old configs that still use sf-encoder.enabled / sf-crafter.enabled keep working.
+# [ES] Las máquinas hechas para Slimefun: Codificador de Recetas, Auto-Crafter y Crafter bajo
+#      pedido de Slimefun. Una máquina desactivada no tiene receta, no se puede colocar, no abre su
+#      menú y no trabaja; los bloques ya colocados se quedan donde están (rómpelos para recuperar el
+#      ítem) y vuelven a trabajar en cuanto la máquina se activa.
+#      Las configs antiguas con sf-encoder.enabled / sf-crafter.enabled siguen funcionando.
+slimefun-machines:
+  # [EN] Master switch: false disables every Slimefun machine, whatever the keys below say.
+  # [ES] Interruptor general: false desactiva todas las máquinas de Slimefun, digan lo que digan
+  #      las claves de abajo.
   enabled: true
-
-# [EN] Slimefun Auto-Crafter and Request Crafter settings.
-# [ES] Ajustes de los Crafteadores automáticos y bajo demanda de Slimefun.
-sf-crafter:
-  # [EN] Enable or disable Slimefun Crafter machines (Auto-Crafter & Request Crafter).
-  # [ES] Habilita o deshabilita las máquinas crafteadoras de Slimefun.
-  enabled: true
+  # [EN] Slimefun Recipe Encoder.
+  # [ES] Codificador de Recetas de Slimefun.
+  encoder: true
+  # [EN] Slimefun Auto-Crafter and Slimefun Request Crafter.
+  # [ES] Auto-Crafter y Crafter bajo pedido de Slimefun.
+  crafters: true
 
 # -------------------------------------------------------------------------------------
 #  Network Topology & Timing / Topología y Tiempos de Red
@@ -58,8 +69,19 @@ network:
   # [ES] Cantidad máxima de nodos conectados (máquinas + cables) permitidos por red.
   #      Protege al servidor contra bucles infinitos o sobrecargas de rendimiento.
   max-nodes: 16384
-  # [EN] Maximum network devices allowed per chunk to prevent saturation.
-  max-nodes-per-chunk: 64
+
+  # [EN] There is no limit on network blocks per chunk: node data lives in region files inside the
+  #      world folder, not in the chunk. This OPTIONAL cap only counts devices the network works
+  #      every cycle (grabbers, pushers, vacuums, purgers, pumps, crafters, bridges, Greedy Cells,
+  #      chicken sorters); cables, cells, terminals and other passive blocks never count.
+  #      0 = no cap. Raise it from 0 only if players build lag machines in a single chunk.
+  # [ES] No hay límite de bloques de red por chunk: los datos de los nodos viven en archivos de
+  #      región dentro de la carpeta del mundo, no en el chunk. Este tope OPCIONAL solo cuenta los
+  #      dispositivos que la red trabaja en cada ciclo (grabbers, pushers, vacuums, purgadores,
+  #      bombas, crafters, puentes, Greedy Cells, clasificadores de pollos); cables, celdas,
+  #      terminales y demás bloques pasivos nunca cuentan. 0 = sin tope. Súbelo de 0 solo si los
+  #      jugadores montan máquinas de lag en un único chunk.
+  max-active-devices-per-chunk: 0
 
   # [EN] Operation intervals (in ticks) for active network machines.
   # [ES] Intervalos de operación (en ticks) para las máquinas activas de la red.
@@ -73,6 +95,18 @@ network:
     # [EN] Crafting cycle frequency for Auto-Crafters.
     # [ES] Frecuencia del ciclo de crafteo para los Auto-Crafters.
     craft: 20
+
+# -------------------------------------------------------------------------------------
+#  Node Storage / Almacenamiento de Nodos
+# -------------------------------------------------------------------------------------
+storage:
+  # [EN] Seconds between background saves of the node region files
+  #      (<world>/multiversenets/r.<x>.<z>.mvn). Only regions that changed are written, off the
+  #      main thread. /save-all and shutdown always save immediately.
+  # [ES] Segundos entre guardados en segundo plano de los archivos de región de nodos
+  #      (<mundo>/multiversenets/r.<x>.<z>.mvn). Solo se escriben las regiones que cambiaron, fuera
+  #      del hilo principal. /save-all y el apagado siempre guardan al momento.
+  autosave-seconds: 30
 
 # -------------------------------------------------------------------------------------
 #  Item Logistics / Transferencia de Ítems

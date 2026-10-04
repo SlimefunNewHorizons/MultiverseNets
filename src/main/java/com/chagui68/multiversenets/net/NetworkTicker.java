@@ -1108,7 +1108,7 @@ public class NetworkTicker {
         };
 
         forEachWorked(net, DeviceType.MVN_CRAFTER, ticker::accept);
-        // sf-crafter.enabled=false ya impedia abrir el menu; ahora tambien detiene el autocrafteo
+        // slimefun-machines (crafters/enabled) en false ya impedia abrir el menu; ahora tambien detiene el autocrafteo
         // de los que quedaron colocados, que era lo que el ajuste prometia.
         if (Settings.sfCrafterEnabled()) {
             forEachWorked(net, DeviceType.MVN_SF_CRAFTER, ticker::accept);

@@ -149,12 +149,13 @@ I Q I
 > I = **Iron Ingot** · Q = **Quartz** · R = **Redstone** · C = **Copper Block**
 
 - **Result**: 1× DRAM Bay (Waxed Copper Bulb)
-- **Function**: Network block that holds **one memory module** (any item module below, or the Fluid
-  DRAM). While installed, the module's stock is part of the network. Right-click an empty bay with a
-  module in hand to install it, or right-click to open its menu (stock, install from the cursor or
-  with shift+click, **Eject Module**). An ejected module keeps its whole stock: install it in a DRAM
-  Bay of another network and the stock appears there and is gone from the first one. Breaking the bay
-  drops it and its module (with the stock) separately.
+- **Function**: Network block that holds **up to 16 memory modules** (any mix of the item modules
+  below and Fluid DRAMs), each with its own stock. While installed, their stock is part of the
+  network. Right-click the bay with a module in hand to install it in the next free slot, or
+  right-click to open its menu: a 4×4 grid, one slot per module, plus a summary. Install from the
+  cursor or with shift+click; **click an installed module to take it out**. A module taken out keeps
+  its whole stock: install it in a DRAM Bay of another network and the stock appears there and is
+  gone from the first one. Breaking the bay drops it and each module (with its stock) separately.
 
 ---
 
@@ -579,8 +580,8 @@ E P E
 
 - **Result**: 1× Slimefun Recipe Encoder (Enchanting Table)
 - **Function**: Same as the Recipe Encoder for Slimefun recipes. Blueprints left in its slots stay
-  stored in the block when you close it. Needs Slimefun. Its recipe and menu exist only while
-  `sf-encoder.enabled: true`.
+  stored in the block when you close it. Needs Slimefun. Its recipe, placing and menu exist only
+  while `slimefun-machines.enabled` and `slimefun-machines.encoder` are `true` (the default).
 
 ---
 
@@ -614,7 +615,8 @@ R C R
 
 - **Result**: 1× Slimefun Auto-Crafter (Crying Obsidian)
 - **Function**: Same as the Auto-Crafter and accepts **both Slimefun and vanilla Blueprints**.
-  `sf-crafter.enabled: false` removes its recipe, its menu and its crafting.
+  `slimefun-machines.crafters: false` (or `slimefun-machines.enabled: false`) removes its recipe,
+  its placing, its menu and its crafting.
 
 ---
 
@@ -646,7 +648,7 @@ R C R
 
 - **Result**: 1× Slimefun Request Crafter (Purpur Pillar)
 - **Function**: Same as the Request Crafter, with Slimefun and vanilla Blueprints. Depends on
-  `sf-crafter.enabled`.
+  `slimefun-machines.crafters` and `slimefun-machines.enabled`.
 
 ---
 
@@ -700,11 +702,19 @@ F E F
 - **Result**: 1× Genetic Chicken Sorter (Hay Bale)
 - **Function**: Moves **only** the pocket chickens of the GeneticChickengineering addon, chosen by
   their genes; every other item is ignored. **Push** sends matching chickens from the network to the
-  block it faces; **Pull** brings them from that block into the network (up to 16 per cycle). Rules,
-  all of which must pass: accepted products (add one by clicking with a chicken on the cursor or
-  shift-clicking one in your inventory; empty list = any), min/max tier, minimum DNA strength, pure
-  genes only, known/unknown DNA, adult/baby. It starts **stopped** so it cannot empty a network
-  before you configure it.
+  block it faces; **Pull** brings them from that block into the network (up to 16 per cycle).
+- **Menu** (right-click), top to bottom:
+  - **Control bar**: start/stop, direction (Push/Pull), side, a summary book that says in plain
+    words which chickens pass right now, and help.
+  - **Accepted products**: 18 slots, each showing the product's own item. Click a slot with a pocket
+    chicken on the cursor, or shift-click a chicken in your inventory, to add its product; click a
+    product to remove it. Empty list = any product.
+  - **Gene rules** (all must pass), in three pairs: tier (min/max), genes (minimum DNA strength, pure
+    genes only) and identity (sequenced/unsequenced DNA, adult/baby). Each rule shows its value in
+    its name and stack size and glows while active: left-click +1, right-click −1, shift-click
+    resets it. The tier range can never be left empty.
+  - **Bottom row**: clear products, reset gene rules, close.
+- It starts **stopped** so it cannot empty a network before you configure it.
 
 ---
 

@@ -585,6 +585,14 @@ public final class Items {
      */
     public static synchronized void registerRecipes(MultiverseNets plugin) {
         synchronized (RECIPE_KEYS) {
+            // Se quitan primero las registradas: si /mvnets reload desactivo una maquina (p. ej. las
+            // de Slimefun), su receta no debe quedarse viva en Bukkit.
+            for (org.bukkit.NamespacedKey key : RECIPE_KEYS) {
+                try {
+                    Bukkit.removeRecipe(key);
+                } catch (Throwable ignored) {
+                }
+            }
             RECIPE_KEYS.clear();
         }
         shaped(plugin, "controller", create(DeviceType.MVN_CONTROLLER), r -> {

@@ -167,6 +167,48 @@ public final class ChickenGenetics {
         return key;
     }
 
+    /**
+     * EN: Raw id of a product key ("IRON_DUST", "URANIUM"), or null when unknown.
+     * ES: Id en bruto de una clave de producto ("IRON_DUST", "URANIUM"), o null si no se conoce.
+     */
+    public static String productId(String key) {
+        if (key == null) {
+            return null;
+        }
+        if (key.startsWith("TYPE:")) {
+            try {
+                int typing = Integer.parseInt(key.substring(5));
+                return typing >= 0 && typing < PRODUCTS.length ? PRODUCTS[typing] : null;
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return key.startsWith("SPECIES:") ? key.substring(8) : null;
+    }
+
+    /**
+     * EN: Tier of the chickens that lay this product: recessive genes for a typing (0-6), 7-9 for
+     * the special species. -1 when unknown.
+     * ES: Nivel de los pollos que dan este producto: genes recesivos para un tipo (0-6), 7-9 para
+     * las especies especiales. -1 si no se conoce.
+     */
+    public static int productTier(String key) {
+        if (key == null) {
+            return -1;
+        }
+        if (key.startsWith("TYPE:")) {
+            try {
+                return 6 - Integer.bitCount(Integer.parseInt(key.substring(5)) & 0x3F);
+            } catch (NumberFormatException ignored) {
+                return -1;
+            }
+        }
+        if (key.startsWith("SPECIES:")) {
+            return SPECIES_TIER.getOrDefault(key.substring(8), 7);
+        }
+        return -1;
+    }
+
     private static String pretty(String id) {
         StringBuilder out = new StringBuilder();
         for (String part : id.toLowerCase(Locale.ROOT).split("_")) {

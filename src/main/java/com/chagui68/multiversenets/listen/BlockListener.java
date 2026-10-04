@@ -86,16 +86,27 @@ public class BlockListener implements Listener {
             event.setCancelled(true);
             return;
         }
+        if (!Settings.deviceEnabled(type)) {
+            // Maquinas de Slimefun apagadas en config (slimefun-machines): no se pueden colocar.
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(Text.msg(type.display() + " is disabled on this server.", NamedTextColor.RED));
+            return;
+        }
         if (com.chagui68.multiversenets.util.Settings.blockedWorld(event.getBlockPlaced().getWorld())) {
             // Clasico y otros mundos vainilla: la red no existe ahi (config blocked-worlds).
             event.setCancelled(true);
             event.getPlayer().sendMessage(Text.msg("Network devices cannot be used in this world.", NamedTextColor.RED));
             return;
         }
-        if (NodeStore.countNodesInChunk(event.getBlockPlaced().getChunk()) >= Settings.maxNodesPerChunk()) {
+        // Sin limite de bloques por chunk: los datos no viven en el chunk. Solo hay un tope opcional
+        // para los dispositivos que trabajan en cada ciclo (0 = desactivado).
+        int activeCap = Settings.maxActiveDevicesPerChunk();
+        if (activeCap > 0 && type.isTicking()
+                && NodeStore.countTickingInChunk(event.getBlockPlaced().getChunk()) >= activeCap) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(Text.msg("Chunk device limit reached! Maximum "
-                    + Settings.maxNodesPerChunk() + " network devices per chunk.", NamedTextColor.RED));
+            event.getPlayer().sendMessage(Text.msg("This chunk already has " + activeCap
+                    + " active network devices (grabbers, pushers, vacuums, crafters...). "
+                    + "Cables, cells and other passive blocks are not limited.", NamedTextColor.RED));
             return;
         }
         NodeStore.put(event.getBlockPlaced(), NodeBlob.create(type.name()));
@@ -150,12 +161,12 @@ public class BlockListener implements Listener {
                 SlimefunBridge.unregisterCell(block);
             }
         }
-        // El modulo de un DRAM Bay sale como item con todo su stock, tambien en creativo: el
-        // stock es del jugador, no del bloque.
-        ItemStack module = type == DeviceType.MVN_DRAM_BAY
-                ? com.chagui68.multiversenets.net.MemoryModules.eject(blob) : null;
-        if (module != null) {
-            block.getWorld().dropItemNaturally(block.getLocation().add(0.5, 0.5, 0.5), module);
+        // Los modulos de un DRAM Bay (hasta 16) salen como items con todo su stock, tambien en
+        // creativo: el stock es del jugador, no del bloque.
+        if (type == DeviceType.MVN_DRAM_BAY) {
+            for (ItemStack module : com.chagui68.multiversenets.net.MemoryModules.ejectAll(blob)) {
+                block.getWorld().dropItemNaturally(block.getLocation().add(0.5, 0.5, 0.5), module);
+            }
         }
         // Modulos recuperados de un Controlador antiguo que nadie recogio del Terminal: salen al
         // suelo con su stock en vez de perderse con el bloque.
@@ -272,6 +283,7 @@ public class BlockListener implements Listener {
                 && blob.pumpMode == null
                 && blob.pumpFluid == null
                 && blob.installedModule == null
+                && (blob.bayModules == null || blob.bayModules.isEmpty())
                 && !blob.chickenActive
                 && !blob.chickenPull
                 && (blob.chickenProducts == null || blob.chickenProducts.isEmpty())
@@ -468,7 +480,7 @@ public class BlockListener implements Listener {
         }
 
         if (type == DeviceType.MVN_DRAM_BAY && heldType != null && heldType.isMemoryModule()
-                && com.chagui68.multiversenets.net.MemoryModules.installed(blob) == null) {
+                && com.chagui68.multiversenets.net.MemoryModules.freeSlots(blob) > 0) {
             event.setCancelled(true);
             interactions.installMemoryModule(player, block, blob, held);
             return;
@@ -525,8 +537,8 @@ public class BlockListener implements Listener {
         }
         // El rastrillo desmonta y RECUPERA el nodo, como en Networks: antes ponia el bloque en aire
         // y el dispositivo (con su filtro o sus planos) se perdia sin dejar nada.
-        ItemStack module = type == DeviceType.MVN_DRAM_BAY
-                ? com.chagui68.multiversenets.net.MemoryModules.eject(blob) : null;
+        List<ItemStack> modules = type == DeviceType.MVN_DRAM_BAY
+                ? com.chagui68.multiversenets.net.MemoryModules.ejectAll(blob) : List.of();
         ItemStack recovered = createDropItem(type, blob);
         if (type.isCell() && Settings.compatSlimefun() && SlimefunBridge.isAvailable()) {
             SlimefunBridge.unregisterCell(block);
@@ -539,7 +551,7 @@ public class BlockListener implements Listener {
                 player.getWorld().dropItemNaturally(player.getLocation(), overflow);
             }
         }
-        if (module != null) {
+        for (ItemStack module : modules) {
             for (ItemStack overflow : player.getInventory().addItem(module).values()) {
                 player.getWorld().dropItemNaturally(player.getLocation(), overflow);
             }
@@ -697,7 +709,7 @@ public class BlockListener implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onPistonExtend(BlockPistonExtendEvent event) {
         for (Block block : event.getBlocks()) {
-            if (NodeStore.chunkHasNodes(block.getChunk()) && NodeStore.hasNode(block)) {
+            if (NodeStore.hasNode(block)) {
                 event.setCancelled(true);
                 return;
             }
@@ -707,7 +719,7 @@ public class BlockListener implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onPistonRetract(BlockPistonRetractEvent event) {
         for (Block block : event.getBlocks()) {
-            if (NodeStore.chunkHasNodes(block.getChunk()) && NodeStore.hasNode(block)) {
+            if (NodeStore.hasNode(block)) {
                 event.setCancelled(true);
                 return;
             }
@@ -716,12 +728,12 @@ public class BlockListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent event) {
-        event.blockList().removeIf(block -> NodeStore.chunkHasNodes(block.getChunk()) && NodeStore.hasNode(block));
+        event.blockList().removeIf(block -> NodeStore.hasNode(block));
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onBlockExplode(BlockExplodeEvent event) {
-        event.blockList().removeIf(block -> NodeStore.chunkHasNodes(block.getChunk()) && NodeStore.hasNode(block));
+        event.blockList().removeIf(block -> NodeStore.hasNode(block));
     }
 
     /**
@@ -758,6 +770,6 @@ public class BlockListener implements Listener {
             return false;
         }
         Block block = state.getBlock();
-        return NodeStore.chunkHasNodes(block.getChunk()) && NodeStore.hasNode(block);
+        return NodeStore.hasNode(block);
     }
 }

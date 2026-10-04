@@ -1,12 +1,12 @@
 package com.chagui68.multiversenets.persist;
 
 import com.chagui68.multiversenets.MultiverseNets;
-import com.chagui68.multiversenets.util.Keys;
+import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.io.BukkitObjectInputStream;
 import org.bukkit.util.io.BukkitObjectOutputStream;
 
@@ -14,70 +14,85 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 /**
- * [EN] Chunk Persistent Storage & Network Registry
- * Handles serialization/deserialization of {@link NodeBlob} data into chunk PDC containers,
- * and maintains the persistent controller position registry in {@code networks.yml}.
+ * [EN] Node Storage & Network Registry
+ * <p>
+ * Every placed device lives in a region file inside the world folder
+ * ({@code <world>/multiversenets/r.<rx>.<rz>.mvn}, 32×32 chunks per file), loaded into memory
+ * while its chunks are loaded and saved in the background. Nothing is written to the chunk itself,
+ * so there is no per-chunk ceiling: a chunk full of cables weighs what its positions weigh, and the
+ * chunk's own save is untouched. Devices still in their default state (every cable, every device
+ * nobody configured) store only their type.
+ * <p>
+ * The API is the one the rest of the plugin has always used: {@link #get} returns an independent
+ * copy, {@link #canonical} the shared live instance, {@link #getType}/{@link #hasNode} answer
+ * without decoding, and everything answers "no node" for a chunk that is not loaded. It also keeps
+ * the persistent controller registry in {@code networks.yml}. Main thread only.
  *
- * [ES] Almacenamiento Persistente en Chunks y Registro de Redes
- * Gestiona la serialización y deserialización de objetos {@link NodeBlob} en los contenedores PDC de chunks,
- * y mantiene el registro de controladores persistente en {@code networks.yml}.
+ * [ES] Almacenamiento de Nodos y Registro de Redes
+ * <p>
+ * Cada dispositivo colocado vive en un archivo de región dentro de la carpeta del mundo
+ * ({@code <mundo>/multiversenets/r.<rx>.<rz>.mvn}, 32×32 chunks por archivo), cargado en memoria
+ * mientras sus chunks están cargados y guardado en segundo plano. No se escribe nada en el chunk,
+ * así que no hay techo por chunk: un chunk lleno de cables pesa lo que pesan sus posiciones, y el
+ * guardado del propio chunk no cambia. Los dispositivos en su estado por defecto (todos los cables,
+ * todo dispositivo sin configurar) solo guardan su tipo.
+ * <p>
+ * La API es la de siempre: {@link #get} devuelve una copia independiente, {@link #canonical} la
+ * instancia viva compartida, {@link #getType}/{@link #hasNode} responden sin decodificar, y todo
+ * responde "no hay nodo" para un chunk sin cargar. También mantiene el registro de controladores en
+ * {@code networks.yml}. Solo hilo principal.
  */
 public final class NodeStore {
+
+    /** Seconds the shutdown waits for pending writes / Segundos que el apagado espera a las escrituras. */
+    private static final long SHUTDOWN_TIMEOUT_SECONDS = 30;
 
     private static MultiverseNets plugin;
     private static File registryFile;
     private static final Map<UUID, List<String>> CONTROLLERS = new HashMap<>();
 
-    /**
-     * [EN] Live, shared instances of decoded node blobs, keyed by world+position.
-     * <p>
-     * {@link #get} stays copy-on-read on purpose — plenty of code does get/mutate/put and relies on
-     * owning its own object. This map exists for the one caller that cannot afford that:
-     * {@code NetworkStorage}, which asks about every cell on every deposit and withdrawal, i.e.
-     * thousands of times per second. Deserialising Base64 + {@code BukkitObjectInputStream} there was
-     * the plugin's heaviest recurring cost.
-     * <p>
-     * Correctness rule: the map is always replaced wholesale by whoever writes, so it can never hold
-     * a value that is older than the last {@link #put} or {@link #remove}. A caller that mutates an
-     * object it read with {@link #get} without calling {@link #put} never reaches this map, exactly
-     * as before.
-     *
-     * [ES] Instancias vivas y compartidas de los blobs ya decodificados, indexadas por mundo+posición.
-     * <p>
-     * {@link #get} sigue devolviendo una copia a propósito: mucho código hace get/mutar/put y cuenta
-     * con ser dueño de su objeto. Este mapa existe para el único consumidor que no puede permitírselo:
-     * {@code NetworkStorage}, que pregunta por todas las celdas en cada depósito y retirada, es decir
-     * miles de veces por segundo. Deserializar Base64 + {@code BukkitObjectInputStream} ahí era el
-     * gasto recurrente más alto del plugin.
-     * <p>
-     * Regla de corrección: quien escribe reemplaza la entrada entera, así que el mapa nunca puede
-     * contener un valor más viejo que el último {@link #put} o {@link #remove}.
-     */
-    private static final Map<String, NodeBlob> CANONICAL = new java.util.concurrent.ConcurrentHashMap<>();
-    /** Beyond this the map is dropped outright; a re-decode spike beats unbounded growth. */
-    private static final int CANONICAL_LIMIT = 8192;
+    private static NodeIO io;
+    private static final Map<UUID, WorldNodes> WORLDS = new HashMap<>();
+    /** Encoded {@link NodeBlob#create} per type: a blob equal to it is stored as "default" / Blob por defecto. */
+    private static final Map<String, byte[]> DEFAULT_ENCODINGS = new ConcurrentHashMap<>();
+
+    /** Numbers for {@code /mvnets stats} / Números para {@code /mvnets stats}. */
+    public record StorageStats(int worlds, int loadedRegions, int regionsOnDisk, int loadedNodes, int unsavedRegions) {
+    }
 
     private NodeStore() {
     }
 
     /**
-     * EN: Initializes the controller registry file and loads saved network coordinates.
- *
-     * ES: Inicializa el archivo de registro de controladores y carga las coordenadas guardadas.
+     * EN: Opens the storage and loads the controller registry. Calling it again (a reload) first
+     * saves and drops everything held in memory, so no pre-reload object survives.
+     *
+     * ES: Abre el almacenamiento y carga el registro de controladores. Llamarlo otra vez (una
+     * recarga) primero guarda y suelta todo lo que hay en memoria, así ningún objeto previo
+     * sobrevive.
      */
     public static void init(MultiverseNets pl) {
+        if (io != null) {
+            shutdown();
+        }
         plugin = pl;
-        CANONICAL.clear();
+        io = new NodeIO(pl.getLogger());
         registryFile = new File(pl.getDataFolder(), "networks.yml");
         if (registryFile.isFile()) {
             YamlConfiguration yaml = YamlConfiguration.loadConfiguration(registryFile);
@@ -90,47 +105,370 @@ public final class NodeStore {
         }
     }
 
-    public static void save() {
-        YamlConfiguration yaml = new YamlConfiguration();
-        synchronized (CONTROLLERS) {
-            for (Map.Entry<UUID, List<String>> entry : CONTROLLERS.entrySet()) {
-                yaml.set("controllers." + entry.getKey(), new ArrayList<>(entry.getValue()));
-            }
+    /**
+     * EN: Saves every region with changes, waits for the writes and closes the I/O thread.
+     * ES: Guarda toda región con cambios, espera las escrituras y cierra el hilo de E/S.
+     */
+    public static void shutdown() {
+        if (io == null) {
+            return;
         }
-        if (plugin != null && plugin.isEnabled() && plugin.getServer() != null && plugin.getServer().isPrimaryThread()) {
-            plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
-                try {
-                    yaml.save(registryFile);
-                } catch (IOException e) {
-                    plugin.getLogger().severe("Could not save networks.yml: " + e.getMessage());
+        flushAll(true);
+        io.shutdown(SHUTDOWN_TIMEOUT_SECONDS);
+        io = null;
+        WORLDS.clear();
+    }
+
+    /**
+     * EN: Periodic task: saves what changed and drops regions that are no longer in use.
+     * ES: Tarea periódica: guarda lo que cambió y suelta las regiones que ya no se usan.
+     */
+    public static void autosave() {
+        flushAll(false);
+        Iterator<Map.Entry<UUID, WorldNodes>> worlds = WORLDS.entrySet().iterator();
+        while (worlds.hasNext()) {
+            Map.Entry<UUID, WorldNodes> entry = worlds.next();
+            World world = Bukkit.getWorld(entry.getKey());
+            if (world == null) {
+                if (entry.getValue().dirtyRegions() == 0) {
+                    worlds.remove();
                 }
-            });
-        } else {
+                continue;
+            }
+            entry.getValue().evictIdle(world);
+        }
+    }
+
+    /**
+     * EN: Saves one world now (on {@code /save-all} and world unload).
+     * ES: Guarda un mundo ahora (con {@code /save-all} y al descargar el mundo).
+     */
+    public static void flush(World world) {
+        WorldNodes nodes = WORLDS.get(world.getUID());
+        if (nodes != null) {
+            nodes.flush(logger());
+        }
+    }
+
+    /**
+     * EN: Saves every world. With {@code wait} it blocks until the files are written.
+     * ES: Guarda todos los mundos. Con {@code wait} bloquea hasta que los archivos estén escritos.
+     */
+    public static void flushAll(boolean wait) {
+        List<CompletableFuture<Void>> writes = new ArrayList<>();
+        for (WorldNodes nodes : WORLDS.values()) {
+            writes.addAll(nodes.flush(logger()));
+        }
+        if (wait && !writes.isEmpty()) {
             try {
-                yaml.save(registryFile);
-            } catch (IOException e) {
-                if (plugin != null) {
-                    plugin.getLogger().severe("Could not save networks.yml: " + e.getMessage());
-                }
+                CompletableFuture.allOf(writes.toArray(new CompletableFuture[0])).join();
+            } catch (RuntimeException alreadyLogged) {
+                // Cada escritura fallida ya dejo su mensaje y su region marcada para reintentar.
             }
         }
     }
 
+    /**
+     * EN: A chunk just loaded: moves its legacy PDC data into the region files, or starts reading
+     * its region in the background so the first lookup finds it in memory.
+     *
+     * ES: Un chunk acaba de cargar: pasa sus datos antiguos del PDC a los archivos de región, o
+     * empieza a leer su región en segundo plano para que la primera consulta la encuentre en memoria.
+     */
+    public static void onChunkLoad(Chunk chunk) {
+        if (migrateLegacy(chunk) == 0) {
+            worldNodes(chunk.getWorld()).prefetch(chunk.getX(), chunk.getZ());
+        }
+    }
+
+    /**
+     * EN: The world is going away: save it and forget it.
+     * ES: El mundo se descarga: se guarda y se olvida.
+     */
+    public static void onWorldUnload(World world) {
+        WorldNodes nodes = WORLDS.remove(world.getUID());
+        if (nodes != null) {
+            nodes.flush(logger());
+        }
+    }
+
+    /**
+     * EN: Migrates every chunk that is already loaded (startup and {@code /reload}).
+     * ES: Migra todos los chunks ya cargados (arranque y {@code /reload}).
+     */
+    public static int migrateLoadedChunks() {
+        int migrated = 0;
+        for (World world : Bukkit.getWorlds()) {
+            for (Chunk chunk : world.getLoadedChunks()) {
+                migrated += migrateLegacy(chunk);
+            }
+        }
+        if (migrated > 0) {
+            logger().info("Moved " + migrated + " network node(s) from chunk data to region files.");
+        }
+        return migrated;
+    }
+
+    /**
+     * EN: Moves the nodes version 5.2 or earlier left in this chunk's PDC into the region files and
+     * deletes them from the chunk. Returns how many nodes moved.
+     *
+     * ES: Pasa a los archivos de región los nodos que la versión 5.2 o anterior dejó en el PDC
+     * de este chunk y los borra del chunk. Devuelve cuántos nodos se movieron.
+     */
+    public static int migrateLegacy(Chunk chunk) {
+        if (plugin == null || !LegacyChunkData.present(chunk)) {
+            return 0;
+        }
+        List<LegacyChunkData.Entry> entries = LegacyChunkData.extract(chunk, plugin.getName());
+        if (entries.isEmpty()) {
+            return 0;
+        }
+        NodeRegion region = worldNodes(chunk.getWorld()).region(chunk.getX(), chunk.getZ(), true);
+        for (LegacyChunkData.Entry entry : entries) {
+            byte[] data = entry.data();
+            if (data != null && isDefault(entry.type(), data)) {
+                data = null;
+            }
+            region.put(entry.x(), entry.y(), entry.z(), new NodeRecord(entry.type(), data));
+        }
+        return entries.size();
+    }
+
+    public static StorageStats stats() {
+        int loadedRegions = 0;
+        int onDisk = 0;
+        int nodes = 0;
+        int unsaved = 0;
+        for (WorldNodes world : WORLDS.values()) {
+            loadedRegions += world.loadedRegions();
+            onDisk += world.regionsOnDisk();
+            nodes += world.loadedNodes();
+            unsaved += world.dirtyRegions();
+        }
+        return new StorageStats(WORLDS.size(), loadedRegions, onDisk, nodes, unsaved);
+    }
+
+    // ------------------------------------------------------------------ node access
+
+    public static NodeBlob get(Block block) {
+        NodeRecord record = record(block);
+        if (record == null) {
+            return null;
+        }
+        return record.data == null ? defaultBlob(record.type) : decodeBytes(record.data);
+    }
+
+    /**
+     * [EN] The shared live instance of this node's blob, decoded once and reused. Only safe for
+     * callers that treat the object as the authoritative in-memory state and always write it back
+     * with {@link #put}; everybody else wants {@link #get}. {@code NetworkStorage} asks about every
+     * cell on every deposit and withdrawal, and decoding there was the plugin's heaviest recurring
+     * cost.
+     *
+     * [ES] La instancia compartida y viva del blob de este nodo, decodificada una vez y reutilizada.
+     * Solo es segura para quien trata el objeto como estado autoritativo en memoria y siempre lo
+     * reescribe con {@link #put}; todos los demás quieren {@link #get}.
+     */
+    public static NodeBlob canonical(Block block) {
+        NodeRecord record = record(block);
+        if (record == null) {
+            return null;
+        }
+        if (record.live == null) {
+            record.live = record.data == null ? defaultBlob(record.type) : decodeBytes(record.data);
+        }
+        return record.live;
+    }
+
+    /**
+     * EN: The DeviceType of a node without decoding its blob.
+     * ES: El DeviceType de un nodo sin decodificar su blob.
+     */
+    public static com.chagui68.multiversenets.item.DeviceType getType(Block block) {
+        NodeRecord record = record(block);
+        return record == null ? null : com.chagui68.multiversenets.item.DeviceType.parse(record.type);
+    }
+
+    /**
+     * EN: Whether a block is a registered network node, without decoding.
+     * ES: Si un bloque es un nodo de red registrado, sin decodificar.
+     */
+    public static boolean hasNode(Block block) {
+        return record(block) != null;
+    }
+
+    /**
+     * EN: Stores the node. The caller's object becomes the live instance served by
+     * {@link #canonical}, so a shared reader can never hold something older than the last write.
+     * Throws {@link IllegalStateException} when the blob cannot be serialized, like before.
+     *
+     * ES: Guarda el nodo. El objeto del llamante pasa a ser la instancia viva que sirve
+     * {@link #canonical}, así un lector compartido nunca tiene algo más viejo que la última
+     * escritura. Lanza {@link IllegalStateException} si el blob no se puede serializar.
+     */
+    public static void put(Block block, NodeBlob blob) {
+        if (blob == null) {
+            remove(block);
+            return;
+        }
+        byte[] data = encodeBytes(blob);
+        if (isDefault(blob.typeName, data)) {
+            data = null;
+        }
+        NodeRecord record = new NodeRecord(blob.typeName, data);
+        record.live = blob;
+        ensureLoaded(block);
+        region(block, true).put(block.getX(), block.getY(), block.getZ(), record);
+    }
+
+    public static void remove(Block block) {
+        NodeRegion region = region(block, false);
+        if (region != null) {
+            region.remove(block.getX(), block.getY(), block.getZ());
+        }
+    }
+
+    /**
+     * EN: Every node in the chunk, cables included. Constant time.
+     * ES: Todos los nodos del chunk, cables incluidos. Tiempo constante.
+     */
+    public static int countNodesInChunk(Chunk chunk) {
+        NodeRegion.ChunkStats stats = chunkStats(chunk);
+        return stats == null ? 0 : stats.total;
+    }
+
+    /**
+     * EN: Devices in the chunk that the network loop works every cycle
+     * ({@link com.chagui68.multiversenets.item.DeviceType#isTicking()}). Constant time.
+     * ES: Dispositivos del chunk que el bucle de la red trabaja en cada ciclo. Tiempo constante.
+     */
+    public static int countTickingInChunk(Chunk chunk) {
+        NodeRegion.ChunkStats stats = chunkStats(chunk);
+        return stats == null ? 0 : stats.ticking;
+    }
+
+    public static boolean chunkHasNodes(Chunk chunk) {
+        return countNodesInChunk(chunk) > 0;
+    }
+
+    /** Test hook: stores raw bytes as a node's blob / Gancho de test: guarda bytes crudos. */
+    static void putRaw(Block block, String type, byte[] data) {
+        ensureLoaded(block);
+        region(block, true).put(block.getX(), block.getY(), block.getZ(), new NodeRecord(type, data));
+    }
+
+    /** Test hook: the stored bytes, null for a default blob / Gancho de test: los bytes guardados. */
+    static byte[] rawData(Block block) {
+        NodeRecord record = record(block);
+        return record == null ? null : record.data;
+    }
+
+    /** Test hook: where a world's region files go / Gancho de test: carpeta de regiones del mundo. */
+    static Path folder(World world) {
+        return worldNodes(world).folder();
+    }
+
+    private static NodeRecord record(Block block) {
+        int x = block.getX();
+        int z = block.getZ();
+        World world = block.getWorld();
+        if (!world.isChunkLoaded(x >> 4, z >> 4)) {
+            return null;
+        }
+        NodeRegion region = worldNodes(world).region(x >> 4, z >> 4, false);
+        return region == null ? null : region.get(x, block.getY(), z);
+    }
+
+    /**
+     * Igual que antes (put pasaba por block.getChunk()): escribir un nodo deja su chunk cargado, o
+     * el nodo recien guardado se leeria como ausente.
+     */
+    private static void ensureLoaded(Block block) {
+        if (!block.getWorld().isChunkLoaded(block.getX() >> 4, block.getZ() >> 4)) {
+            block.getChunk();
+        }
+    }
+
+    private static NodeRegion region(Block block, boolean create) {
+        return worldNodes(block.getWorld()).region(block.getX() >> 4, block.getZ() >> 4, create);
+    }
+
+    private static NodeRegion.ChunkStats chunkStats(Chunk chunk) {
+        if (!chunk.isLoaded()) {
+            return null;
+        }
+        NodeRegion region = worldNodes(chunk.getWorld()).region(chunk.getX(), chunk.getZ(), false);
+        return region == null ? null : region.stats(chunk.getX(), chunk.getZ());
+    }
+
+    private static WorldNodes worldNodes(World world) {
+        WorldNodes nodes = WORLDS.get(world.getUID());
+        if (nodes == null) {
+            if (io == null) {
+                // Algo pidio datos despues del apagado (otro plugin en su onDisable): se sirve igual.
+                io = new NodeIO(logger());
+            }
+            nodes = new WorldNodes(folderFor(world), io, logger());
+            WORLDS.put(world.getUID(), nodes);
+        }
+        return nodes;
+    }
+
+    /**
+     * EN: Inside the world folder, so copying or backing up a world keeps its networks. Servers (or
+     * test doubles) that do not expose the folder fall back to the plugin folder.
+     *
+     * ES: Dentro de la carpeta del mundo, así copiar o respaldar un mundo conserva sus redes. Si el
+     * servidor (o un doble de test) no expone la carpeta, se usa la del plugin.
+     */
+    private static Path folderFor(World world) {
+        try {
+            File worldFolder = world.getWorldFolder();
+            if (worldFolder != null) {
+                return worldFolder.toPath().resolve("multiversenets");
+            }
+        } catch (RuntimeException unsupported) {
+            // Cae al directorio del plugin.
+        }
+        Path base = plugin != null ? plugin.getDataFolder().toPath() : Path.of("plugins", "MultiverseNets");
+        return base.resolve("nodes").resolve(world.getUID().toString());
+    }
+
+    private static Logger logger() {
+        return plugin != null ? plugin.getLogger() : Logger.getLogger("MultiverseNets");
+    }
+
+    // ------------------------------------------------------------------ encoding
+
     public static String encode(NodeBlob blob) {
+        return Base64.getEncoder().encodeToString(encodeBytes(blob));
+    }
+
+    public static NodeBlob decode(String data) {
+        byte[] encoded;
+        try {
+            encoded = Base64.getDecoder().decode(data);
+        } catch (IllegalArgumentException notBase64) {
+            return null;
+        }
+        return decodeBytes(encoded);
+    }
+
+    static byte[] encodeBytes(NodeBlob blob) {
         try (ByteArrayOutputStream bytes = new ByteArrayOutputStream();
              GZIPOutputStream gzip = new GZIPOutputStream(bytes);
              BukkitObjectOutputStream out = new BukkitObjectOutputStream(gzip)) {
             out.writeObject(blob);
             out.flush();
             gzip.finish();
-            return Base64.getEncoder().encodeToString(bytes.toByteArray());
+            return bytes.toByteArray();
         } catch (IOException e) {
             throw new IllegalStateException("Could not serialize node", e);
         }
     }
 
-    public static NodeBlob decode(String data) {
-        byte[] encoded = Base64.getDecoder().decode(data);
+    static NodeBlob decodeBytes(byte[] encoded) {
         try (ByteArrayInputStream bytes = new ByteArrayInputStream(encoded);
              BukkitObjectInputStream in = new BukkitObjectInputStream(isGzip(encoded)
                      ? new GZIPInputStream(bytes)
@@ -139,10 +477,10 @@ public final class NodeStore {
             normalize(blob);
             return blob;
         } catch (Throwable e) {
-            // A truncated or misplaced stream means the chunk PDC entry got damaged (a crash
-            // mid-write will do that). The block is not a node anymore, so the answer is null,
-            // and the world moves on. printStackTrace here would spam the console on every tick
-            // for the rest of the server session.
+            // A truncated or misplaced stream means the stored entry got damaged (a crash mid-write
+            // will do that). The block is not a node anymore, so the answer is null, and the world
+            // moves on. printStackTrace here would spam the console on every tick for the rest of
+            // the server session.
             if (plugin != null && com.chagui68.multiversenets.util.Settings.debug()) {
                 plugin.getLogger().warning("Could not deserialize node data; the corrupt entry "
                         + "is still in place and can be inspected. " + e.getClass().getSimpleName()
@@ -154,6 +492,20 @@ public final class NodeStore {
 
     private static boolean isGzip(byte[] encoded) {
         return encoded.length >= 2 && encoded[0] == (byte) 0x1f && encoded[1] == (byte) 0x8b;
+    }
+
+    private static boolean isDefault(String typeName, byte[] encoded) {
+        if (typeName == null) {
+            return false;
+        }
+        byte[] fresh = DEFAULT_ENCODINGS.computeIfAbsent(typeName, type -> encodeBytes(NodeBlob.create(type)));
+        return Arrays.equals(fresh, encoded);
+    }
+
+    private static NodeBlob defaultBlob(String typeName) {
+        NodeBlob blob = NodeBlob.create(typeName);
+        normalize(blob);
+        return blob;
     }
 
     /**
@@ -203,6 +555,11 @@ public final class NodeStore {
         if (blob.chickenProducts == null) {
             blob.chickenProducts = new ArrayList<>();
         }
+        // DRAM Bays de un solo modulo: el modulo pasa a la lista bayModules (hasta 16 por bay).
+        blob.migrateSingleModuleBay();
+        for (NodeBlob module : blob.bayModules) {
+            normalize(module);
+        }
         if (("GREEDY_CELL".equals(blob.typeName) || "MVN_GREEDY_CELL".equals(blob.typeName))
                 && blob.cellSample != null && blob.cellAmount > 0) {
             if (blob.greedySamples.isEmpty()) {
@@ -214,152 +571,32 @@ public final class NodeStore {
         }
     }
 
-    public static NodeBlob get(Block block) {
-        Chunk chunk = block.getChunk();
-        if (!chunk.isLoaded()) {
-            return null;
-        }
-        String data = chunk.getPersistentDataContainer()
-                .get(nodeKey(block), PersistentDataType.STRING);
-        return data == null ? null : decode(data);
-    }
+    // ------------------------------------------------------------------ controller registry
 
-    /**
-     * [EN] The shared live instance of this node's blob, decoded once and reused. Only safe for
-     * callers that treat the object as the authoritative in-memory state and always write it back
-     * with {@link #put}; everybody else wants {@link #get}.
-     *
-     * [ES] La instancia compartida y viva del blob de este nodo, decodificada una vez y reutilizada.
-     * Solo es segura para quien trata el objeto como estado autoritativo en memoria y siempre lo
-     * reescribe con {@link #put}; todos los demás quieren {@link #get}.
-     */
-    public static NodeBlob canonical(Block block) {
-        Chunk chunk = block.getChunk();
-        if (!chunk.isLoaded()) {
-            return null;
-        }
-        String key = canonicalKey(block);
-        NodeBlob hit = CANONICAL.get(key);
-        if (hit != null) {
-            return hit;
-        }
-        String data = chunk.getPersistentDataContainer()
-                .get(nodeKey(block), PersistentDataType.STRING);
-        if (data == null) {
-            return null;
-        }
-        NodeBlob blob = decode(data);
-        if (blob != null) {
-            publish(key, blob);
-        }
-        return blob;
-    }
-
-    private static void publish(String key, NodeBlob blob) {
-        if (CANONICAL.size() >= CANONICAL_LIMIT) {
-            CANONICAL.clear();
-        }
-        CANONICAL.put(key, blob);
-    }
-
-    private static String canonicalKey(Block block) {
-        return block.getWorld().getUID() + "|" + block.getX() + "_" + block.getY() + "_" + block.getZ();
-    }
-
-    /**
-     * EN: Retrieves the DeviceType directly without deserializing the entire NodeBlob.
-     *
-     * ES: Obtiene el DeviceType directamente sin deserializar el NodeBlob completo.
-     */
-    public static com.chagui68.multiversenets.item.DeviceType getType(Block block) {
-        Chunk chunk = block.getChunk();
-        if (!chunk.isLoaded()) {
-            return null;
-        }
-        var pdc = chunk.getPersistentDataContainer();
-        String typeName = pdc.get(nodeTypeKey(block), PersistentDataType.STRING);
-        if (typeName != null) {
-            return com.chagui68.multiversenets.item.DeviceType.parse(typeName);
-        }
-        // Fallback para nodos guardados antes del tipado rápido: deserializa y auto-repara el tag
-        String data = pdc.get(nodeKey(block), PersistentDataType.STRING);
-        if (data == null) {
-            return null;
-        }
-        NodeBlob blob = decode(data);
-        if (blob == null || blob.typeName == null) {
-            return null;
-        }
-        pdc.set(nodeTypeKey(block), PersistentDataType.STRING, blob.typeName);
-        return com.chagui68.multiversenets.item.DeviceType.parse(blob.typeName);
-    }
-
-    /**
-     * EN: Checks if a block is registered as a network node without deserializing.
-     *
-     * ES: Comprueba si un bloque está registrado como nodo de red sin deserializar.
-     */
-    public static boolean hasNode(Block block) {
-        Chunk chunk = block.getChunk();
-        if (!chunk.isLoaded()) {
-            return false;
-        }
-        var pdc = chunk.getPersistentDataContainer();
-        return pdc.has(nodeTypeKey(block), PersistentDataType.STRING)
-                || pdc.has(nodeKey(block), PersistentDataType.STRING);
-    }
-
-    public static void put(Block block, NodeBlob blob) {
-        Chunk chunk = block.getChunk();
-        var pdc = chunk.getPersistentDataContainer();
-        pdc.set(nodeKey(block), PersistentDataType.STRING, encode(blob));
-        if (blob != null && blob.typeName != null) {
-            pdc.set(nodeTypeKey(block), PersistentDataType.STRING, blob.typeName);
-        }
-        pdc.set(Keys.CHUNK_HAS_NODES, PersistentDataType.BYTE, (byte) 1);
-        if (blob != null) {
-            // Whoever writes becomes the live value, so a shared reader can never be holding
-            // something older than the last write. See CANONICAL.
-            publish(canonicalKey(block), blob);
-        }
-    }
-
-    public static void remove(Block block) {
-        Chunk chunk = block.getChunk();
-        var pdc = chunk.getPersistentDataContainer();
-        pdc.remove(nodeKey(block));
-        pdc.remove(nodeTypeKey(block));
-        CANONICAL.remove(canonicalKey(block));
-    }
-
-    public static int countNodesInChunk(Chunk chunk) {
-        if (!chunk.isLoaded()) {
-            return 0;
-        }
-        var pdc = chunk.getPersistentDataContainer();
-        int count = 0;
-        for (org.bukkit.NamespacedKey key : pdc.getKeys()) {
-            if (plugin != null && key.getNamespace().equalsIgnoreCase(plugin.getName())
-                    && key.getKey().startsWith("t")) {
-                count++;
+    public static void save() {
+        YamlConfiguration yaml = new YamlConfiguration();
+        synchronized (CONTROLLERS) {
+            for (Map.Entry<UUID, List<String>> entry : CONTROLLERS.entrySet()) {
+                yaml.set("controllers." + entry.getKey(), new ArrayList<>(entry.getValue()));
             }
         }
-        return count;
-    }
-
-    public static boolean chunkHasNodes(Chunk chunk) {
-        return chunk.isLoaded()
-                && Byte.valueOf((byte) 1).equals(chunk.getPersistentDataContainer().get(Keys.CHUNK_HAS_NODES, PersistentDataType.BYTE));
-    }
-
-    private static org.bukkit.NamespacedKey nodeKey(Block block) {
-        return new org.bukkit.NamespacedKey(plugin,
-                "n" + block.getX() + "_" + block.getY() + "_" + block.getZ());
-    }
-
-    private static org.bukkit.NamespacedKey nodeTypeKey(Block block) {
-        return new org.bukkit.NamespacedKey(plugin,
-                "t" + block.getX() + "_" + block.getY() + "_" + block.getZ());
+        if (plugin != null && plugin.isEnabled() && plugin.getServer() != null && plugin.getServer().isPrimaryThread()) {
+            plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+                try {
+                    yaml.save(registryFile);
+                } catch (IOException e) {
+                    plugin.getLogger().severe("Could not save networks.yml: " + e.getMessage());
+                }
+            });
+        } else {
+            try {
+                yaml.save(registryFile);
+            } catch (IOException e) {
+                if (plugin != null) {
+                    plugin.getLogger().severe("Could not save networks.yml: " + e.getMessage());
+                }
+            }
+        }
     }
 
     public static List<long[]> controllers(UUID worldId) {

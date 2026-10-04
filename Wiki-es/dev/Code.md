@@ -21,14 +21,15 @@ punto de vista del jugador, ver el [README de la wiki](../README.md).
 │   + crafteo                   │  com.chagui68.multiversenets.craft
 ├───────────────────────────────┤
 │  Capa de persistencia         │  com.chagui68.multiversenets.persist
-│   (NodeBlob / NodeStore)      │
+│   (NodeStore, regiones)       │
 ├───────────────────────────────┤
 │  Base                         │  util / item / command / compat / api
 └───────────────────────────────┘
 ```
 
 Toda la lógica de red corre en el hilo principal del servidor (síncrona), sin carreras con el mundo.
-Por eso el plugin **no es compatible con Folia**.
+Por eso el plugin **no es compatible con Folia**. El único otro hilo es el de E/S del almacenamiento
+de nodos, que solo lee y escribe archivos de región (§5.2).
 
 ## 2. Ciclo de vida del plugin
 
@@ -40,7 +41,10 @@ expone `networks()`, `ticker()` y `blockListener()`).
 2. `SlimefunBridge.registerSerializationAliases()` y `SlimefunBridge.init(...)` — la integración con
    Slimefun solo se activa si Slimefun está instalado.
 3. `ProtectionBridge.init(...)` — registra cada provider de protección cuyo plugin esté presente.
-4. `Items.registerRecipes(this)` y `NodeStore.init(this)` (registro de controladores).
+4. `Items.registerRecipes(this)`, `NodeStore.init(this)` (hilo de E/S del almacenamiento y registro
+   de controladores), `StorageListener`, `NodeStore.migrateLoadedChunks()` (pasa a archivos de
+   región los datos de la 5.2 de los chunks ya cargados) y la tarea de autoguardado
+   (`NodeStore.autosave` cada `storage.autosave-seconds`).
 5. `new NetworkManager(this); networks.load()` — recrea las redes a partir de los controladores
    guardados.
 6. Registra `BlockListener`, `GuiListener`, `ChatPrompts` y `CraftingListener`.
@@ -50,12 +54,13 @@ expone `networks()`, `ticker()` y `blockListener()`).
    `protection.cache-ticks`, y por último arranca `NetworkTicker` y registra `/mvnets`.
 
 **`onDisable()`**: detiene el ticker y la tarea de protección, borra todos los hologramas y ejecuta
-`networks.saveAll()` (registro de controladores).
+`networks.saveAll()` (registro de controladores), y luego `NodeStore.shutdown()`: escribe cada
+región con cambios y espera hasta 30 s al hilo de E/S.
 
 ## 3. Claves persistentes (`util/Keys`)
 
-Registro único de todas las `NamespacedKey` usadas en el `PersistentDataContainer` (PDC) de chunks e
-ítems (namespace `multiversenets:`):
+Registro único de todas las `NamespacedKey` usadas en el `PersistentDataContainer` (PDC) de ítems
+(y, hasta la 5.2, de chunks; namespace `multiversenets:`):
 
 | Constante | Clave | Uso |
 | --- | --- | --- |
@@ -63,7 +68,7 @@ Registro único de todas las `NamespacedKey` usadas en el `PersistentDataContain
 | `WIRELESS_BIND` | `wireless_bind` | Coordenadas del controlador vinculado a un Terminal Inalámbrico. |
 | `RECEIVER_BIND` | `receiver_bind` | Enlace del puente en un ítem Receptor o Transmisor (`mundo;x;y;z` del otro extremo). |
 | `BLUEPRINT_RECIPE` | `blueprint_recipe` | Clave de receta antigua de un blueprint viejo. |
-| `CHUNK_HAS_NODES` | `chunk_has_nodes` | Marca rápida de "este chunk puede tener nodos". |
+| `CHUNK_HAS_NODES` | `chunk_has_nodes` | Marca antigua (≤ 5.2): el chunk aún guarda datos de nodos en su PDC. Solo la lee la migración, que la borra. |
 | `TERMINAL_DISPLAY` | `terminal_display` | Ajustes de búsqueda/orden del terminal. |
 | `CELL_CARGO` | `cell_cargo` | `NodeBlob` serializado (Base64) dentro del ítem de un dispositivo roto. |
 | `BLUEPRINT_DATA` | `blueprint_data` | `RecipeData` codificado en Base64 en un Blueprint. |
@@ -105,8 +110,8 @@ antiguos) con campos públicos:
 | `greedySamples` / `greedyAmounts` | `List<ItemStack>` / `List<Long>` | Búfer multi-ítem de la Greedy Cell. |
 | `virtualCacheTier` / `virtualSamples` / `virtualAmounts` | `int` / listas | Stock de un módulo de memoria de ítems: un DRAM Bay con módulo de ítems, o la caché antigua de un Controlador. |
 | `recoveredModules` | `List<ItemStack>` | Solo Controlador: módulos que estaban dentro antes del DRAM Bay, sacados por `Network.scan()` (`MemoryModules.migrateControllerCache`) con su stock; el Terminal los muestra primero y los entrega; romper el controlador los suelta. |
-| `installedModule` | `String` | DRAM Bay: nombre del `DeviceType` del módulo instalado, null si está vacío. |
-| `dramFluids` / `dramFluidAmounts` | `List<String>` / `List<Long>` | DRAM Bay con Fluid DRAM Module: varios fluidos (mB). |
+| `bayModules` / `installedModule` | `List<NodeBlob>` / `String` | DRAM Bay: hasta 16 módulos instalados, un blob cada uno (tipo del módulo en `typeName`, stock en `virtualSamples`/`virtualAmounts` + `virtualCacheTier`, o `dramFluids`/`dramFluidAmounts`). `installedModule` es el campo antiguo de un solo módulo; `migrateSingleModuleBay()` (lo llaman `NodeStore.normalize` y `MemoryModules.modules`) lo pasa a la lista. |
+| `dramFluids` / `dramFluidAmounts` | `List<String>` / `List<Long>` | Un Fluid DRAM Module (dentro de `bayModules` de un DRAM Bay): varios fluidos (mB). |
 | `chickenActive` / `chickenPull` / `chickenProducts` / `chickenMinTier` / `chickenMaxTier` / `chickenKnown` / `chickenAge` / `chickenMinStrength` / `chickenPureOnly` | varios | Reglas del Genetic Chicken Sorter (ver §19). |
 | `quotaSample` / `quotaLimit` / `quotaActive` | `ItemStack` / `long` / `boolean` | Quota Limiter. |
 | `fluidType` / `fluidAmount` | `String` / `long` | Quantum Fluid Cell (mB). |
@@ -114,22 +119,53 @@ antiguos) con campos públicos:
 | `ownerUuid` | `String` | Solo el controlador: el dueño de la red. |
 | `crayon` | `boolean` | Campo heredado, sin uso. |
 
-### 5.2 Lectura/escritura por chunk: `NodeStore`
-El estado vive en el **PDC del chunk**, por bloque:
-- `"n" + x + "_" + y + "_" + z` → blob completo (Base64).
-- `"t" + x + "_" + y + "_" + z` → solo el nombre del tipo, para que el escaneo clasifique un bloque
-  sin deserializar.
+### 5.2 Almacenamiento de nodos: `NodeStore` y archivos de región
+No se guarda nada en el chunk. Cada nodo vive en un **archivo de región dentro de la carpeta del
+mundo**: `<mundo>/multiversenets/r.<rx>.<rz>.mvn`, 32×32 chunks por archivo (si el servidor no expone
+la carpeta: `<dataFolder>/nodes/<uuid-del-mundo>/`). Todas las clases son de paquete salvo la fachada:
 
-Cada `put()` marca además `CHUNK_HAS_NODES` en el chunk.
+| Clase | Papel |
+| --- | --- |
+| `NodeStore` | Fachada pública (la API de siempre) y registro de controladores. Solo hilo principal. |
+| `WorldNodes` | Un mundo: qué regiones existen en disco (se listan una vez), cuáles están en memoria y cuáles se están leyendo en segundo plano. `region(cx, cz, create)`, `prefetch`, `flush`, `evictIdle`. |
+| `NodeRegion` | Los nodos de una región indexados por posición empaquetada, más contadores por chunk (`total`, `ticking`) para que `countNodesInChunk`, `countTickingInChunk` y `chunkHasNodes` sean O(1). Marca `dirty` y `writesInFlight`. |
+| `NodeRecord` | Un nodo: nombre del tipo, blob codificado (`null` = el blob por defecto de ese tipo) y la instancia decodificada compartida (`live`). Se reemplaza entero en cada escritura. |
+| `RegionFile` | Formato binario: magia `MVNR`, versión, rx/rz, tabla de tipos, luego por nodo `x y z typeIndex longitud bytes`, y un CRC32 al final. Los blobs ya van comprimidos con gzip, así que el archivo no se vuelve a comprimir; un cable cuesta 20 bytes. |
+| `NodeIO` | El único hilo de E/S (`MultiverseNets-NodeIO`). Uno solo para que las lecturas y escrituras de un archivo corran en orden de cola. Las escrituras van a `.tmp` y reemplazan el archivo con un movimiento atómico; un archivo ilegible se renombra a `.corrupt-<hora>` y la región empieza vacía. Tras el apagado, el trabajo tardío corre en el llamante. |
+| `LegacyChunkData` | Lee y borra las entradas del PDC del chunk de la 5.2 y anteriores (blob `n<x>_<y>_<z>`, tipo `t<x>_<y>_<z>`, marca `chunk_has_nodes`). |
 
-API: `put` / `get` (copia en cada lectura; null si el chunk no está cargado) / `canonical` /
-`getType` / `hasNode` / `remove` / `countNodesInChunk` / `encode` / `decode`.
-- **`canonical(Block)`** devuelve una instancia compartida ya decodificada. `NetworkStorage` lee cada
-  celda en cada depósito y retirada, y decodificar Base64 + `BukkitObjectInputStream` ahí era el coste
-  más alto del plugin. Cada `put` reemplaza la instancia compartida, así nunca es más vieja que la
-  última escritura (`NodeStoreCanonicalTest`). La caché se vacía entera al pasar de 8.192 entradas.
+**Vida de una región.** En `ChunkLoadEvent` (`StorageListener`, prioridad LOWEST) un chunk con la
+marca antigua se migra; cualquier otro empieza a leer su región en segundo plano (`prefetch`). La
+primera consulta se une a esa lectura; una región que nadie pidió por adelantado se lee al momento por
+el mismo hilo de E/S, que respeta el orden con cualquier escritura en cola. `NodeStore.autosave()`
+(cada `storage.autosave-seconds`) serializa las regiones sucias en el hilo principal — solo copia
+bytes — y encola las escrituras; una región que quedó vacía borra su archivo. Después `evictIdle`
+suelta cada región guardada, sin escrituras pendientes y sin ningún chunk con nodos cargado.
+`WorldSaveEvent` guarda ese mundo, `WorldUnloadEvent` lo guarda y lo olvida, y `onDisable` guarda todo
+y espera.
+
+**Blobs por defecto.** `put` codifica el blob como antes y lo compara con la codificación de
+`NodeBlob.create(tipo)` (en caché por tipo). Si son iguales solo se guarda el tipo, y `get` construye
+un blob por defecto nuevo. Cada cable y cada dispositivo sin configurar cuesta un tipo y una posición.
+
+API para el resto del plugin (sin cambios): `put` / `get` (copia en cada lectura; null si el chunk no
+está cargado) / `canonical` / `getType` / `hasNode` / `remove` / `countNodesInChunk` /
+`countTickingInChunk` / `chunkHasNodes` / `encode` / `decode`. Ciclo de vida: `init`, `shutdown`,
+`autosave`, `flush(World)`, `flushAll(wait)`, `onChunkLoad`, `onWorldUnload`, `migrateLoadedChunks`,
+`migrateLegacy(Chunk)` y `stats()`.
+- **`put`** carga el chunk del bloque si no está cargado (el antiguo `block.getChunk()` hacía lo
+  mismo), así un nodo recién escrito nunca se lee como ausente. Lanza `IllegalStateException` si el
+  blob no se puede serializar, como antes.
+- **`canonical(Block)`** devuelve la instancia compartida ya decodificada que guarda el registro del
+  nodo. `NetworkStorage` lee cada celda en cada depósito y retirada, y decodificar ahí era el coste
+  más alto del plugin. Cada `put` reemplaza el registro y convierte el objeto del llamante en la
+  instancia viva, así nunca es más vieja que la última escritura (`NodeStoreCanonicalTest`); se va
+  con su región.
 - **`decode`** trata una entrada corrupta como ausente, en silencio y barato
   (`NodeStoreCorruptionTest`); también migra blobs antiguos (listas null, Greedy Cells de un ítem).
+- **Sin límite por chunk.** El único control de densidad es el opcional
+  `network.max-active-devices-per-chunk`, que `BlockPlaceEvent` comprueba con `countTickingInChunk`
+  para los dispositivos cuyo `DeviceType.isTicking()` es true (`NodeStoreRegionTest`).
 
 ### 5.3 Registro de controladores (`networks.yml`)
 `Map<UUID, List<String>>` (mundo → `"x,y,z"`) persistido en `<dataFolder>/networks.yml`. `save()`
@@ -145,6 +181,8 @@ las redes a partir de él al arrancar.
 - `scan()` — **BFS** desde el controlador por los 6 vecinos ortogonales. El escaneo:
   - nunca carga chunks (salta vecinos sin cargar; con el controlador sin cargar deja la red como
     estaba);
+  - clasifica cada vecino con una búsqueda en memoria (`NodeStore.getType`): sin objeto de chunk,
+    sin decodificar, el mismo coste en un chunk denso que en uno vacío;
   - vacía la red si el bloque del controlador ya no tiene blob (`controller missing`);
   - toma el dueño del blob del controlador y no se expande por terreno que ese dueño no pueda usar
     (`ProtectionBridge.mayActorUse`), contando los rechazos (`linksBlockedByProtection()`);
@@ -172,8 +210,9 @@ las redes a partir de él al arrancar.
 
 ## 7. Almacenamiento de ítems: `NetworkStorage`
 
-Una sola "bóveda" sobre todo el almacenamiento de la red: los **módulos de memoria** (uno por DRAM
-Bay con módulo de ítems, más un módulo antiguo dentro del Controlador), las **Celdas Cuánticas**, los **Infinity Barrels**, las **Greedy Cells** y los
+Una sola "bóveda" sobre todo el almacenamiento de la red: los **módulos de memoria** (cada módulo de ítems de cada DRAM
+Bay, hasta 16 por bay, más un módulo antiguo dentro del Controlador; cada uno se guarda a través del
+bay que lo contiene), las **Celdas Cuánticas**, los **Infinity Barrels**, las **Greedy Cells** y los
 **barriles de Slimefun**. Todos los métodos son `synchronized`; los blobs se leen con
 `NodeStore.canonical` y solo se reescriben los modificados.
 
@@ -238,7 +277,7 @@ terminal, ranura de entrada — solo consume un cubo, botella o bloque fuente en
     no, caen junto al dispositivo.
   - **Liquid Pump** (`pumpTick`): un bloque fuente debajo, solo si `deposit` devuelve 0.
 - **`doVacuum`**: entidades `Item` sin retardo de recogida dentro de `vacuum.radius`.
-- **`doCrafting`**: cada Auto-Crafter (y Slimefun Auto-Crafter si `sf-crafter.enabled`) intenta una
+- **`doCrafting`**: cada Auto-Crafter (y Slimefun Auto-Crafter si `Settings.sfCrafterEnabled()`) intenta una
   vez cada Blueprint instalado.
 - Cada bloque que se toca pasa `denied(net, block)` → `ProtectionBridge.mayActorUse(block, owner)`.
 
@@ -249,7 +288,8 @@ terminal, ranura de entrada — solo consume un cubo, botella o bloque fuente en
 `isLiquidPump()`, `isRequestTerminal()`, `isAutoCrafter()`, `isRequestCrafter()`,
 `isSlimefunCrafter()`, `filterable()` (grabbers, pushers, vacuum, greedy cell, purger, receptor,
 transmisor), `isImporter()`/`isExporter()`, `isDirectional()`, `isRouter()`, `isCacheModule()`,
-`isMemoryModule()` (módulos de caché + Fluid DRAM), `cacheTier()`. `parse(name)` acepta `MVN_…`, la forma sin prefijo y `wireless`.
+`isMemoryModule()` (módulos de caché + Fluid DRAM), `isTicking()` (dispositivos que el ticker trabaja
+en cada ciclo; lo que cuenta `network.max-active-devices-per-chunk`), `cacheTier()`. `parse(name)` acepta `MVN_…`, la forma sin prefijo y `wireless`.
 
 | Constante | Material | Nombre visible | Colocable |
 | --- | --- | --- | --- |
@@ -330,9 +370,9 @@ transmisor), `isImporter()`/`isExporter()`, `isDirectional()`, `isRouter()`, `is
 | Menú | Tamaño | Uso / detalles |
 | --- | --- | --- |
 | `TerminalMenu` | 54 | Terminal (bloque, inalámbrico, botones de transmisor/receptor). Entrada `INPUT_SLOT=8`, vista del purgador `17`, orden `26`, página de fluidos `35`, páginas `44`/`53`; 48 ítems por página. Depósito/retirada de fluidos con cubos y botellas. |
-| `ControllerMenu` | 27 | Estado del controlador y del router; la ranura `11` explica que los módulos van en un DRAM Bay y cuántos módulos recuperados esperan en el Terminal. |
-| `DramBayMenu` | 27 | Estadísticas `11`, módulo `13` (instalar desde el cursor/shift-clic, o expulsar), expulsar `15`. Lee el blob en cada clic, así dos jugadores no pueden expulsar a la vez. |
-| `ChickenSorterMenu` | 54 | Productos `0–17`, activo `27`, push/pull `28`, cara `29`, nivel mín/máx `31`/`32`, fuerza `33`, ADN `34`, edad `35`, puros `40`, limpiar `44`, ayuda `49`. |
+| `ControllerMenu` | 27 | Estado del controlador y del router; la ranura `11` muestra la memoria de la red: DRAM Bays y módulos instalados de 16 por bay. |
+| `DramBayMenu` | 54 | Resumen `4`, una cuadrícula de 4×4 de huecos de módulo `11–14`, `20–23`, `29–32`, `38–41` (clic en un módulo para sacarlo con su stock; clic en un hueco libre con un módulo en el cursor, o shift+clic a uno, para instalarlo), cerrar `49`. Sin botón de expulsar. Lee el blob en cada clic, así dos jugadores no pueden sacar el mismo módulo. |
+| `ChickenSorterMenu` | 54 | Barra de control: activo `1`, push/pull `3`, libro de resumen `4`, lado `5`, ayuda `7`. Productos `9–26` (cada uno con su propio ítem). Separador `27–35`. Reglas de genes: nivel mín/máx `37`/`38`, fuerza `40`, puros `41`, ADN `43`, edad `44` — valor en el nombre y en el tamaño del stack, brillo mientras está activa, izquierdo +1, derecho −1, shift reinicia, el rango de niveles se mantiene válido. Acciones: vaciar productos `46`, reiniciar reglas `49`, cerrar `52`. |
 | `MonitorMenu` | 27 | Diagnóstico en vivo (tarea de refresco mientras está abierto). |
 | `FilterMenu` | 27 | Grabbers, pushers, vacuum, purger, greedy cell, receptor y transmisor: hasta 17 plantillas, modo `17`, limpiar `25`, ayuda `26`. Ranura `24`: selector de cara en los avanzados, "abrir bloque adyacente" en los simples, "abrir terminal" en Transmisor/Receptor. |
 | `CellMenu` / `BarrelMenu` | 18 | Plantilla `4`, depositar todo `11`, fijar ítem `13`, extraer todo `15`. En el barril, clic derecho en *Set Item* borra el registro si está vacío. |
@@ -364,12 +404,14 @@ interacción rápida con la celda de fluidos.
 
 | Evento | Comportamiento |
 | --- | --- |
-| `BlockPlaceEvent` | Comprueba mundos bloqueados y `max-nodes-per-chunk`; registra el nodo, restaura el estado embebido (`CELL_CARGO`), aplica el enlace del puente desde el ítem (Receptor o Transmisor), guarda el dueño del Controlador y luego registra el controlador o reescanea los vecinos. |
-| `BlockBreakEvent` | Suelta los Blueprints guardados del Encoder y el módulo de un DRAM Bay (con su stock, también en creativo), suelta el dispositivo con su estado embebido (nada en creativo), quita el nodo y reescanea. |
+| `BlockPlaceEvent` | Comprueba mundos bloqueados y luego el tope opcional `max-active-devices-per-chunk` (solo dispositivos que trabajan por ciclo; no hay ningún otro límite por chunk); registra el nodo, restaura el estado embebido (`CELL_CARGO`), aplica el enlace del puente desde el ítem (Receptor o Transmisor), guarda el dueño del Controlador y luego registra el controlador o reescanea los vecinos. |
+| `BlockBreakEvent` | Suelta los Blueprints guardados del Encoder y todos los módulos de un DRAM Bay (con su stock, también en creativo), suelta el dispositivo con su estado embebido (nada en creativo), quita el nodo y reescanea. |
 | `PlayerInteractEvent` | Clic al aire con Terminal Inalámbrico (bloqueo por combate, alcance/mundo salvo con Router, acceso). Clic en bloque: acceso, luego Probe, Rake (devuelve el dispositivo), Llave, vínculos (inalámbrico en controlador/terminal; ítem Receptor en Transmisor e ítem Transmisor en Receptor), agachado nunca abre menús, mensaje de estado del cable, un módulo sobre un Controlador solo muestra un aviso, instalación de módulos en un DRAM Bay vacío, interacción rápida con la celda de fluidos, menú del dispositivo. |
 | `InventoryMoveItemEvent` | Se cancela siempre que el origen o el destino sea un nodo de la red, sin tocar ningún inventario. Las tolvas nunca interactúan con el plugin; el antiguo camino del Infinity Barrel llamaba a `removeItem` mientras Paper había reducido la ranura de la tolva a la cantidad movida, y eso borraba el stack entero. |
 | Pistones / explosiones | Los nodos no se pueden mover y se quitan de las listas de bloques de las explosiones. |
 | `EntityDamageByEntityEvent` | Anota el momento del combate para el bloqueo del Terminal Inalámbrico. |
+| `ChunkLoadEvent` (`StorageListener`) | Migra los datos de la 5.2 del PDC del chunk, o empieza a leer su región de nodos en segundo plano. |
+| `WorldSaveEvent` / `WorldUnloadEvent` (`StorageListener`) | Guarda las regiones de nodos de ese mundo (así `/save-all` también guarda las redes); al descargarlo además las olvida. |
 
 `CraftingListener` vuelve a registrar las recetas tras recargas y las desbloquea al entrar. En
 `PrepareItemCraftEvent` solo actúa si el servidor casó una receta: en las de este plugin los
@@ -379,8 +421,10 @@ receta con un dispositivo en la mesa se queda sin resultado.
 
 ## 14. Comando `/mvnets` (`command/MvnetsCommand`)
 
-Subcomandos: `help`, `info`, `guide`, `devices` (abiertos) y `give <id> [n]`, `doctor`, `stats`,
-`inspect`, `repair`, `recipes`, `reload` (**`multiversenets.admin`**). El autocompletado sugiere
+Subcomandos: `help`, `guide` (abiertos) y `give <id> [n]`, `doctor`, `stats`,
+`inspect`, `repair`, `recipes`, `save`, `reload` (**`multiversenets.admin`**). `stats` además
+muestra los números del almacenamiento de nodos (`NodeStore.stats()`); `save` encola la escritura de
+cada región con cambios. El autocompletado sugiere
 subcomandos, `en|es` para `guide` (abre `GuideMenu`) y los ids de dispositivo para `give` (`type.id()`, p. ej.
 `mvn_controller`; `give` también acepta la forma sin prefijo).
 
@@ -440,7 +484,8 @@ Todas las lecturas pasan por `Settings` sobre `plugin.getConfig()` (se refresca 
 | --- | --- | --- | --- |
 | `scanIntervalTicks()` | `network.scan-interval-ticks` | 20 | ≥ 5 |
 | `maxNodes()` | `network.max-nodes` | 16.384 | ≥ 16 |
-| `maxNodesPerChunk()` | `network.max-nodes-per-chunk` | 64 | ≥ 1 |
+| `maxActiveDevicesPerChunk()` | `network.max-active-devices-per-chunk` | 0 (desactivado) | ≥ 0 |
+| `storageAutosaveSeconds()` | `storage.autosave-seconds` | 30 | ≥ 5 |
 | `transferIntervalTicks()` | `network.op-interval-ticks.transfer` | 5 | ≥ 1 |
 | `vacuumIntervalTicks()` | `network.op-interval-ticks.vacuum` | 10 | ≥ 1 |
 | `craftIntervalTicks()` | `network.op-interval-ticks.craft` | 20 | ≥ 1 |
@@ -459,7 +504,9 @@ Todas las lecturas pasan por `Settings` sobre `plugin.getConfig()` (se refresca 
 | `wirelessCombatCooldownSeconds()` | `wireless.combat-cooldown-seconds` | 10 | ≥ 1 |
 | `blockedWorld(world)` | `blocked-worlds` | `[]` | sin distinguir mayúsculas |
 | `compatSlimefun()` | `compat.slimefun` | `true` | — |
-| `sfEncoderEnabled()` / `sfCrafterEnabled()` | `sf-encoder.enabled` / `sf-crafter.enabled` | `true` | — |
+| `sfMachinesEnabled()` | `slimefun-machines.enabled` | `true` | interruptor general de las tres máquinas de Slimefun |
+| `sfEncoderEnabled()` / `sfCrafterEnabled()` | `slimefun-machines.encoder` / `slimefun-machines.crafters` | `true` | `false` si el interruptor general está apagado; si falta la clave lee la antigua `sf-encoder.enabled` / `sf-crafter.enabled` |
+| `deviceEnabled(type)` | — | — | las dos anteriores para las máquinas de Slimefun, `true` para cualquier otro dispositivo. Se comprueba al colocar (`BlockListener`), en los menús, en el ticker y en el Request Terminal |
 | `protectionEnabled()` | `protection.enabled` | `true` | — |
 | `protectionProviderEnabled(id)` | `protection.providers` | lista vacía = todos | sin distinguir mayúsculas |
 | `protectionAllowClaims()` | `protection.allow-claims` | `false` | config ausente = `false` |
@@ -482,7 +529,9 @@ Lee los pollos de bolsillo directamente de su PDC, sin depender del addon:
 especiales, nivel 7-9). `read(item)` devuelve producto (`TYPE:<tipo>` o `SPECIES:<id>`), nivel (genes
 recesivos), fuerza de ADN (`6 − recesivos − mixtos`), puro, conocido y adulto, igual que el
 `PocketChickenData` del addon. `matches(blob, item)` aplica las reglas del clasificador (todas deben
-cumplirse; por defecto aceptan cualquier pollo y lo que no es un pollo nunca pasa).
+cumplirse; por defecto aceptan cualquier pollo y lo que no es un pollo nunca pasa). `productId(key)` y
+`productTier(key)` dan el id en bruto y el nivel de una clave de producto; el menú los usa para el
+icono y el lore de cada producto.
 
 ## 20. Comparación de ítems (`util/StackUtils`)
 

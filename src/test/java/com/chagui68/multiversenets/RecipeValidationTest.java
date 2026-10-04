@@ -108,7 +108,7 @@ class RecipeValidationTest {
 
         NodeBlob bay = NodeBlob.create(DeviceType.MVN_DRAM_BAY.name());
         MemoryModules.install(bay, Items.create(DeviceType.MVN_CACHE_L1));
-        bay.addVirtualItem(new ItemStack(Material.DIRT), 100);
+        MemoryModules.modules(bay).get(0).addVirtualItem(new ItemStack(Material.DIRT), 100);
         ItemStack loadedL1 = MemoryModules.eject(bay);
         ItemStack[] matrix = {
                 new ItemStack(Material.GOLD_INGOT), new ItemStack(Material.LAPIS_LAZULI), new ItemStack(Material.GOLD_INGOT),

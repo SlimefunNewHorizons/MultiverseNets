@@ -24,10 +24,11 @@ MultiverseNets/
 │   │   │   ├─ gui/          # Every inventory menu (MenuHolder base + one class per device)
 │   │   │   ├─ item/         # DeviceType (every device), Items (items, lore, recipes), GuideContent
 │   │   │   ├─ listen/       # BlockListener (events), DeviceInteractions (what each device opens),
-│   │   │   │                #   CraftingListener (recipe book, cell upgrades in the crafting table)
+│   │   │   │                #   CraftingListener (recipe book, cell upgrades in the crafting table),
+│   │   │   │                #   StorageListener (chunk load / world save for node storage)
 │   │   │   ├─ net/          # Network, NetworkManager, NetworkTicker, NetworkStorage,
 │   │   │   │                #   NetworkFluidStorage, hologram and throughput tracker
-│   │   │   ├─ persist/      # Per-chunk persistence (NodeBlob, NodeStore)
+│   │   │   ├─ persist/      # Node storage: NodeStore facade + region files in the world folder
 │   │   │   └─ util/         # Keys, PosUtil, Settings, StackUtils, Text
 │   │   └─ resources/        # config.yml and plugin.yml
 │   └─ test/java/            # JUnit 5 + MockBukkit tests (same packages as main, plus stubs)
@@ -60,8 +61,11 @@ MultiverseNets/
 - **`net/`** – Network core: topology (`Network`), registry (`NetworkManager`), the heartbeat
   (`NetworkTicker`), item and fluid storage, `MemoryModules` (DRAM Bay install/eject with the stock),
   the controller hologram and throughput tracking.
-- **`persist/`** – `NodeBlob` (serializable node state) and `NodeStore` (chunk PDC storage, the
-  controller registry and the decode cache).
+- **`persist/`** – `NodeBlob` (serializable node state) and `NodeStore` (the facade the whole plugin
+  uses, plus the controller registry). Behind it: `WorldNodes` (one world's regions), `NodeRegion`
+  (one 32×32-chunk region in memory, with per-chunk counters), `NodeRecord` (one node), `RegionFile`
+  (the `r.<rx>.<rz>.mvn` binary format), `NodeIO` (the single I/O thread) and `LegacyChunkData`
+  (one-way migration out of the ≤ 5.2 chunk PDC). Nothing is stored in chunks any more.
 - **`src/main/resources/`** – `config.yml` (fully commented in English and Spanish) and `plugin.yml`.
 - **`src/test/java/`** – JUnit tests; `dev/espi/protectionstones/PSRegion` is a stub of the
   ProtectionStones API used by the provider tests. Run them with `mvn test`.

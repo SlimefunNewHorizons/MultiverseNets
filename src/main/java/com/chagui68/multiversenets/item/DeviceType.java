@@ -258,6 +258,23 @@ public enum DeviceType {
     }
 
     /**
+     * @return true if the network loop works this device on every cycle (it moves items, fluids or
+     *         crafts). These are the only devices that cost CPU per tick; the
+     *         {@code network.max-active-devices-per-chunk} cap counts them and nothing else. /
+     *         true si el bucle de la red trabaja este dispositivo en cada ciclo (mueve ítems, fluidos
+     *         o craftea). Son los únicos que cuestan CPU por tick; el tope
+     *         {@code network.max-active-devices-per-chunk} solo cuenta estos.
+     */
+    public boolean isTicking() {
+        return switch (this) {
+            case MVN_GRABBER, MVN_GRABBER_HT, MVN_PUSHER, MVN_PUSHER_HT, MVN_GREEDY_CELL, MVN_VACUUM,
+                 MVN_PURGER, MVN_RECEIVER, MVN_TRANSMITTER, MVN_LIQUID_PUMP, MVN_CHICKEN_SORTER,
+                 MVN_CRAFTER, MVN_SF_CRAFTER -> true;
+            default -> false;
+        };
+    }
+
+    /**
      * @return Cache tier (1 to 5) or -1 if not a cache module / Nivel de caché (1 a 5) o -1
      */
     public int cacheTier() {

@@ -57,14 +57,21 @@ public class NetworkStorage {
         }
     }
 
+    /**
+     * One item memory module. {@code blob} holds the stock; {@code owner} is what gets saved: the
+     * DRAM Bay that contains the module (up to 16 per bay), or the module's own blob for a legacy
+     * Controller cache.
+     */
     private static final class VirtualCacheState {
         private final Block block;
+        private final NodeBlob owner;
         private final NodeBlob blob;
         private final long capacity;
         private boolean dirty;
 
-        private VirtualCacheState(Block block, NodeBlob blob, long capacity) {
+        private VirtualCacheState(Block block, NodeBlob owner, NodeBlob blob, long capacity) {
             this.block = block;
+            this.owner = owner;
             this.blob = blob;
             this.capacity = capacity;
         }
@@ -112,11 +119,11 @@ public class NetworkStorage {
     }
 
     /**
-     * EN: Every item memory module of the network: one per DRAM Bay holding a cache module, plus
+     * EN: Every item memory module of the network: every cache module in every DRAM Bay, plus
      * the module of a Controller built before the DRAM Bay existed (it keeps working until it is
      * moved to a bay).
      *
-     * ES: Todos los módulos de memoria de ítems de la red: uno por DRAM Bay con módulo de caché,
+     * ES: Todos los módulos de memoria de ítems de la red: cada módulo de caché de cada DRAM Bay,
      * más el módulo de un Controlador anterior al DRAM Bay (sigue funcionando hasta moverlo).
      */
     private List<VirtualCacheState> loadVirtualCaches() {
@@ -136,20 +143,29 @@ public class NetworkStorage {
         }
         Block block = network.block(pos);
         NodeBlob blob = NodeStore.canonical(block);
-        if (blob == null || blob.virtualCacheTier <= 0) {
+        if (blob == null) {
             return;
         }
-        if (bay) {
-            DeviceType module = MemoryModules.installed(blob);
-            if (DeviceType.parse(blob.typeName) != DeviceType.MVN_DRAM_BAY || module == null || !module.isCacheModule()) {
-                return;
+        if (!bay) {
+            long cap = Settings.virtualCacheCapacity(blob.virtualCacheTier);
+            if (blob.virtualCacheTier > 0 && cap > 0) {
+                caches.add(new VirtualCacheState(block, blob, blob, cap));
+            }
+            return;
+        }
+        if (DeviceType.parse(blob.typeName) != DeviceType.MVN_DRAM_BAY) {
+            return;
+        }
+        for (NodeBlob module : MemoryModules.modules(blob)) {
+            DeviceType type = MemoryModules.typeOf(module);
+            if (type == null || !type.isCacheModule()) {
+                continue;
+            }
+            long cap = MemoryModules.itemCapacity(type);
+            if (cap > 0) {
+                caches.add(new VirtualCacheState(block, blob, module, cap));
             }
         }
-        long cap = Settings.virtualCacheCapacity(blob.virtualCacheTier);
-        if (cap <= 0) {
-            return;
-        }
-        caches.add(new VirtualCacheState(block, blob, cap));
     }
 
     private List<Block> loadSfBarrels() {
@@ -218,7 +234,7 @@ public class NetworkStorage {
         }
         for (VirtualCacheState vCache : vCaches) {
             if (vCache.dirty) {
-                NodeStore.put(vCache.block, vCache.blob);
+                NodeStore.put(vCache.block, vCache.owner);
                 anyDirty = true;
             }
         }

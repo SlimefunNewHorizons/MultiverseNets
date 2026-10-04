@@ -160,7 +160,7 @@ public class Network {
         }
     }
 
-    /** Cuantos dispositivos de un tipo tiene la red. Util para /mvnets info sin recorrer nada. */
+    /** Cuantos dispositivos de un tipo tiene la red. Util para diagnosticos sin recorrer nada. */
     public int count(DeviceType type) {
         Set<Long> matching = byType.get(type);
         return matching == null ? 0 : matching.size();
@@ -247,10 +247,7 @@ public class Network {
                     continue;
                 }
                 Block block = block(next);
-                boolean chunkHasNodes = NodeStore.chunkHasNodes(block.getChunk());
-                if (!chunkHasNodes && !(Settings.compatSlimefun() && SlimefunBridge.isAvailable())) {
-                    continue;
-                }
+                // Una busqueda en memoria por vecino: sin nodo ni Slimefun, se descarta aqui mismo.
                 DeviceType type = NodeStore.getType(block);
                 if (type == null) {
                     if (Settings.compatSlimefun() && SlimefunBridge.isAvailable()) {

@@ -29,12 +29,22 @@ public class NetworkFluidStorage {
         this.network = network;
     }
 
+    /**
+     * A fluid cell, or one Fluid DRAM Module. {@code blob} holds the fluid; {@code owner} is what
+     * gets saved (the cell itself, or the DRAM Bay that contains the module).
+     */
     private static final class FluidCellRef {
         private final Block block;
+        private final NodeBlob owner;
         private final NodeBlob blob;
 
         private FluidCellRef(Block block, NodeBlob blob) {
+            this(block, blob, blob);
+        }
+
+        private FluidCellRef(Block block, NodeBlob owner, NodeBlob blob) {
             this.block = block;
+            this.owner = owner;
             this.blob = blob;
         }
     }
@@ -43,12 +53,14 @@ public class NetworkFluidStorage {
         return load(DeviceType.MVN_FLUID_CELL);
     }
 
-    /** DRAM Bays holding a Fluid DRAM Module. */
+    /** Every Fluid DRAM Module in the network's DRAM Bays (up to 16 per bay). */
     private List<FluidCellRef> loadDrams() {
         List<FluidCellRef> list = new ArrayList<>();
-        for (FluidCellRef ref : load(DeviceType.MVN_DRAM_BAY)) {
-            if (MemoryModules.installed(ref.blob) == DeviceType.MVN_FLUID_DRAM) {
-                list.add(ref);
+        for (FluidCellRef bay : load(DeviceType.MVN_DRAM_BAY)) {
+            for (NodeBlob module : MemoryModules.modules(bay.blob)) {
+                if (MemoryModules.typeOf(module) == DeviceType.MVN_FLUID_DRAM) {
+                    list.add(new FluidCellRef(bay.block, bay.blob, module));
+                }
             }
         }
         return list;
@@ -155,7 +167,7 @@ public class NetworkFluidStorage {
                     long toAdd = Math.min(space, remaining);
                     ref.blob.fluidAmount += toAdd;
                     remaining -= toAdd;
-                    NodeStore.put(ref.block, ref.blob);
+                    NodeStore.put(ref.block, ref.owner);
                 }
             }
         }
@@ -168,7 +180,7 @@ public class NetworkFluidStorage {
                 long toAdd = Math.min(space, remaining);
                 ref.blob.addDramFluid(target, toAdd);
                 remaining -= toAdd;
-                NodeStore.put(ref.block, ref.blob);
+                NodeStore.put(ref.block, ref.owner);
             }
         }
 
@@ -180,7 +192,7 @@ public class NetworkFluidStorage {
                 long toAdd = Math.min(capacity, remaining);
                 ref.blob.fluidAmount = toAdd;
                 remaining -= toAdd;
-                NodeStore.put(ref.block, ref.blob);
+                NodeStore.put(ref.block, ref.owner);
             }
         }
 
@@ -234,7 +246,7 @@ public class NetworkFluidStorage {
                 }
                 needed -= toTake;
                 extracted += toTake;
-                NodeStore.put(ref.block, ref.blob);
+                NodeStore.put(ref.block, ref.owner);
             }
         }
         for (FluidCellRef ref : loadDrams()) {
@@ -243,7 +255,7 @@ public class NetworkFluidStorage {
             if (taken > 0) {
                 needed -= taken;
                 extracted += taken;
-                NodeStore.put(ref.block, ref.blob);
+                NodeStore.put(ref.block, ref.owner);
             }
         }
 

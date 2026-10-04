@@ -42,8 +42,9 @@ Bukkit en memoria:
 
 Así se pueden colocar bloques, lanzar eventos (`server.getPluginManager().callEvent(...)`), simular
 clics de inventario, explosiones y pistones, ejecutar el ticker
-(`new NetworkTicker(plugin, plugin.networks()).tick()`) y leer el estado guardado en el PDC de los
-chunks.
+(`new NetworkTicker(plugin, plugin.networks()).tick()`) y volver a leer el estado de los nodos con
+`NodeStore`. Los archivos de región van a la carpeta de datos del plugin (MockBukkit no expone las
+carpetas de mundo), una carpeta por UUID de mundo, así los tests nunca ven los archivos de otros.
 
 A tener en cuenta:
 - Un test que coloca un dispositivo a mano debe guardar también su blob
@@ -56,16 +57,16 @@ A tener en cuenta:
 - `src/test/java/dev/espi/protectionstones/PSRegion.java` es un stub de la API de ProtectionStones que
   los tests del provider cargan por reflexión.
 
-## 3. Resumen: 36 clases, 265 tests
+## 3. Resumen: 38 clases, 287 tests
 
 | Clase (paquete `com.chagui68.multiversenets` salvo que se indique) | Tests | Cubre |
 | --- | --- | --- |
 | `BlockFlowsTest` | 24 | Romper/colocar con estado embebido, pistones, explosiones, vínculo inalámbrico, rake, llave, corte por agachado, dimensiones, enlace del puente desde el ítem Transmisor, estado del cable. |
 | `BlueprintDupeTest` | 3 | Los Blueprints del Encoder nunca se duplican (dos jugadores, romperlo con el menú abierto); instalar un Blueprint lo consume y *Clear All* lo devuelve. |
 | `CellGuiTest` | 9 | Menú de la Celda Cuántica: plantilla, depósito rápido, retirada, capacidad, sin duplicación al correr el ticker. |
-| `ChickenSorterTest` | 3 | Los genes de GeneticChickengineering se leen como en el addon (producto, nivel, fuerza, pureza, edad, especies especiales); todas las reglas deben cumplirse; el clasificador solo mueve los pollos que cumplen, solo si está activo, y nunca otros ítems. |
+| `ChickenSorterTest` | 6 | Los genes de GeneticChickengineering se leen como en el addon (producto, nivel, fuerza, pureza, edad, especies especiales); todas las reglas deben cumplirse; el clasificador mueve solo los pollos que cumplen, solo mientras está activo, y nunca otros ítems. Menú: el resumen dice qué pasa, los productos muestran su propio ítem, un pollo en el cursor añade su producto y un clic lo quita; los botones de reglas suben, bajan, se reinician, brillan y mantienen válido el rango de niveles; la barra de control cambia estado, dirección y lado (hacia atrás con clic derecho). |
 | `CrafterGuiTest` | 10 | Menú del crafter: instalar/desinstalar/limpiar; los crafters de Slimefun aceptan Blueprints de Slimefun y vanilla, los estándar rechazan los de Slimefun. |
-| `DramBayTest` | 8 | Un módulo en un DRAM Bay guarda ítems; un módulo expulsado lleva su stock a otra red; romper el bay suelta el módulo con su stock; el Fluid DRAM guarda varios fluidos y viaja con ellos; un controlador ya no acepta módulos; un módulo antiguo del controlador espera en el Terminal como ítem temporal y vuelve con sus ítems; el lore del Terminal muestra el total y su desglose por almacenamiento (celdas + Greedy suman, contadas una vez); romper un controlador suelta los módulos no recogidos. |
+| `DramBayTest` | 12 | Un módulo en un DRAM Bay guarda ítems; un módulo sacado lleva su stock a otra red; romper el bay suelta todos los módulos con su stock; el Fluid DRAM guarda varios fluidos y viaja con ellos; un controlador ya no acepta módulos; un módulo antiguo del controlador espera en el Terminal; un bay admite 16 módulos (el 17.º se queda en la mano) y la red los llena todos; hacer clic en un módulo del menú saca solo ese; un bay guardado con un solo módulo lo conserva con su stock. |
 | `DeviceTypeTest` | 7 | Clasificación de `DeviceType`: dispositivos con filtro, la Greedy Cell no es celda, ítems de mano, dispositivos direccionales, request y crafters de Slimefun. |
 | `FilterGuiTest` | 15 | Menú de filtro: añadir/quitar plantillas, whitelist/blacklist, shift+clic, caras, limpiar. |
 | `FluidAndRequesterTest` | 13 | Almacenamiento de fluidos e interacción rápida con la celda, Liquid Pump, página de fluidos del terminal, Request Terminal (pedidos, cantidad por chat, cadenas recursivas, ignora Auto-Crafters, Slimefun Request Crafter), Slimefun Auto-Crafter. |
@@ -81,21 +82,23 @@ A tener en cuenta:
 | `PluginResourcesTest` | 3 | `plugin.yml` y `config.yml` en el classpath; comprobación de versión. |
 | `PosUtilTest` | 2 | El empaquetado de coordenadas ida y vuelta, incluidos bordes del mundo e Y negativa. |
 | `QuantumWorkbenchTest` | 2 | La mejora de celdas conserva la carga; los ingredientes se devuelven al cerrar. |
-| `RecipeTest` | 7 | Cada receta registrada una vez, las recetas de cable y celda funcionan, una celda con carga casa con su receta de mejora y la conserva. |
+| `RecipeTest` | 9 | Cada receta registrada una vez, las recetas de cable y celda funcionan, una celda con carga casa con su receta de mejora y la conserva. |
 | `RecipeValidationTest` | 5 | Los ingredientes dispositivo se registran por receta; un material simple no sustituye a un dispositivo; las mejoras de celdas y módulos conservan su carga; una celda de fluidos con fluido se rechaza; los dispositivos nunca alimentan recetas vanilla. |
 | `ReportedIssuesTest` | 8 | El Advanced Pusher nunca pierde ítems (un stack por ranura); una whitelist de varios ítems deja sitio a cada ingrediente; lo que está en la blacklist se queda en la red; nada entra en el inventario del bloque de un Infinity Barrel; las tolvas nunca tocan un dispositivo; los ítems custom coinciden aunque su nombre se guarde distinto; el barril acepta de vuelta un ítem custom que entregó; el Slimefun Recipe Encoder guarda sus Blueprints. |
 | `SettingsCellCapacityTest` | 9 | Valores por defecto y casos límite de `Settings` (capacidades, límites, config null). |
+| `SlimefunMachinesSwitchTest` | 3 | La sección `slimefun-machines`: activa por defecto; el interruptor general quita las recetas (también al recargar) e impide colocar todas las máquinas de Slimefun pero ninguna vanilla; las claves por máquina y la antigua `sf-crafter.enabled` siguen funcionando. |
 | `SlimefunBridgeTest` | 5 | El puente de Slimefun queda inerte y nunca lanza excepciones sin Slimefun. |
 | `ToolsTest` | 3 | Llave y Rake son herramientas de mano; el Receptor tiene filtro; los filtros empiezan en whitelist. |
 | `TransmissionFixesTest` | 13 | Transmisión de ítems y fluidos: depósitos de fluido todo o nada, la bomba nunca duplica fluido, puente con filtro solo de plantillas, el puente nunca vacía Greedy Cells, un dispositivo compartido por dos controladores trabaja una vez por ciclo, los resultados de crafteo parciales se deshacen, la llave pega plantillas exactas, el rake devuelve el dispositivo, filtros/cara/búfer de tránsito sobreviven a romper y colocar, los búferes de tránsito de más de 99 unidades se guardan sin fallar. |
-| `UpgradedFeaturesTest` | 6 | Módulo de memoria en un DRAM Bay, Router, límite de nodos por chunk, búfer de tránsito del grabber, caché conservada al romper, romper en creativo no suelta nada. |
+| `UpgradedFeaturesTest` | 6 | Módulo de memoria en un DRAM Bay, Router, conteo de nodos por chunk, búfer de tránsito del grabber, caché conservada al romper, romper en creativo no suelta nada. |
 | `compat.NetworkOwnershipTest` | 9 | Una red funciona dentro del reclamo de su dueño; otras redes y un dueño null son extraños; el terreno público sigue abierto; providers rotos o sin conectar no dan acceso; las respuestas de dueño no se filtran entre redes. |
 | `compat.ProtectionStonesProviderTest` | 18 | El provider de ProtectionStones contra la forma real de la API (`PSRegion.fromLocation*`, firmas exactas), certificación de dueño/miembro, comportamiento cerrado ante fallos; la búsqueda de regiones de WorldGuard falla de forma segura. |
 | `compat.ProtectionWhitelistTest` | 15 | Valores por defecto de la protección y parseo y geometría de `exempt-locations`; el puente queda inerte sin providers. |
 | `listen.SneakingRightClickTest` | 3 | Agachado + clic derecho nunca abre el menú de un dispositivo y sigue permitiendo colocar bloques. |
 | `net.ScanCostTest` | 2 | El recorrido de vecinos del BFS no reserva memoria por nodo y un escaneo grande sigue siendo lineal. |
 | `persist.NodeStoreCanonicalTest` | 5 | El blob compartido nunca es más viejo que la última escritura. |
-| `persist.NodeStoreCorruptionTest` | 5 | Las entradas corruptas del PDC se leen como ausentes, en silencio y barato, y se pueden sobrescribir. |
+| `persist.NodeStoreCorruptionTest` | 6 | Los blobs corruptos se leen como ausentes, en silencio y barato, se quedan donde están y se pueden sobrescribir; un blob grande sigue cabiendo en el límite de texto del PDC de un ítem. |
+| `persist.NodeStoreRegionTest` | 9 | Almacenamiento por regiones: miles de nodos en un chunk (sin techo), los blobs por defecto solo guardan su tipo, los datos sobreviven a un reinicio (también en regiones negativas), una región vaciada borra su archivo, un archivo corrupto se aparta, el contador de dispositivos activos, el tope opcional (los bloques pasivos nunca cuentan), la migración desde el PDC del chunk de la 5.2, los chunks sin cargar responden "no hay nodo". |
 
 ## 4. Notas sobre algunas suites
 

@@ -21,14 +21,15 @@ see the [wiki README](../README.md).
 │   + crafting                  │  com.chagui68.multiversenets.craft
 ├───────────────────────────────┤
 │  Persistence layer            │  com.chagui68.multiversenets.persist
-│   (NodeBlob / NodeStore)      │
+│   (NodeStore, region files)   │
 ├───────────────────────────────┤
 │  Foundation                   │  util / item / command / compat / api
 └───────────────────────────────┘
 ```
 
 All network logic runs on the server's main thread (synchronous), avoiding race conditions with the
-world. The plugin is **not Folia-compatible** for that reason.
+world. The plugin is **not Folia-compatible** for that reason. The only other thread is the node
+storage I/O thread, which does nothing but read and write region files (§5.2).
 
 ## 2. Plugin lifecycle
 
@@ -40,7 +41,10 @@ Main class: `MultiverseNets extends JavaPlugin` (singleton via `MultiverseNets.i
 2. `SlimefunBridge.registerSerializationAliases()` and `SlimefunBridge.init(...)` — the Slimefun
    integration activates only if Slimefun is installed.
 3. `ProtectionBridge.init(...)` — registers every protection provider whose plugin is present.
-4. `Items.registerRecipes(this)` and `NodeStore.init(this)` (controller registry).
+4. `Items.registerRecipes(this)`, `NodeStore.init(this)` (storage I/O thread and controller
+   registry), `StorageListener`, `NodeStore.migrateLoadedChunks()` (moves the ≤ 5.2 chunk data of
+   already-loaded chunks into region files) and the autosave task (`NodeStore.autosave` every
+   `storage.autosave-seconds`).
 5. `new NetworkManager(this); networks.load()` — recreates the networks from the saved controllers.
 6. Registers `BlockListener`, `GuiListener`, `ChatPrompts` and `CraftingListener`.
 7. Re-registers the recipes one tick later and again after 100 ticks (so datapack reloads cannot
@@ -49,12 +53,13 @@ Main class: `MultiverseNets extends JavaPlugin` (singleton via `MultiverseNets.i
    `protection.cache-ticks`, then starts `NetworkTicker` and registers `/mvnets`.
 
 **`onDisable()`**: stops the ticker and the protection task, removes every hologram, and runs
-`networks.saveAll()` (controller registry).
+`networks.saveAll()` (controller registry), then `NodeStore.shutdown()`: writes every region with
+changes and waits up to 30 s for the I/O thread.
 
 ## 3. Persistent keys (`util/Keys`)
 
-Single registry for every `NamespacedKey` used in the `PersistentDataContainer` (PDC) of chunks and
-items (namespace `multiversenets:`):
+Single registry for every `NamespacedKey` used in the `PersistentDataContainer` (PDC) of items
+(and, up to 5.2, of chunks; namespace `multiversenets:`):
 
 | Constant | Key | Usage |
 | --- | --- | --- |
@@ -62,7 +67,7 @@ items (namespace `multiversenets:`):
 | `WIRELESS_BIND` | `wireless_bind` | Controller coordinates bound to a Wireless Terminal. |
 | `RECEIVER_BIND` | `receiver_bind` | Bridge link on a Receiver or Transmitter item (`world;x;y;z` of the other end). |
 | `BLUEPRINT_RECIPE` | `blueprint_recipe` | Legacy recipe key stored on an old blueprint. |
-| `CHUNK_HAS_NODES` | `chunk_has_nodes` | Fast "this chunk may contain nodes" marker. |
+| `CHUNK_HAS_NODES` | `chunk_has_nodes` | Legacy (≤ 5.2) marker: the chunk still holds node data in its PDC. Only the migration reads it, and deletes it. |
 | `TERMINAL_DISPLAY` | `terminal_display` | Terminal search/sort display settings. |
 | `CELL_CARGO` | `cell_cargo` | Serialized (Base64) `NodeBlob` embedded in a broken device's item. |
 | `BLUEPRINT_DATA` | `blueprint_data` | `RecipeData` encoded in Base64 on a Blueprint. |
@@ -103,8 +108,8 @@ fields:
 | `greedySamples` / `greedyAmounts` | `List<ItemStack>` / `List<Long>` | Greedy Cell multi-item buffer. |
 | `virtualCacheTier` / `virtualSamples` / `virtualAmounts` | `int` / lists | Item memory module stock: a DRAM Bay with an item module, or a legacy Controller cache. |
 | `recoveredModules` | `List<ItemStack>` | Controller only: modules that were inside it before the DRAM Bay, taken out by `Network.scan()` (`MemoryModules.migrateControllerCache`) with their stock; the Terminal lists them first and hands them out; breaking the controller drops them. |
-| `installedModule` | `String` | DRAM Bay: `DeviceType` name of the installed module, null when empty. |
-| `dramFluids` / `dramFluidAmounts` | `List<String>` / `List<Long>` | DRAM Bay with a Fluid DRAM Module: several fluids (mB). |
+| `bayModules` / `installedModule` | `List<NodeBlob>` / `String` | DRAM Bay: up to 16 installed modules, one blob each (module type in `typeName`, stock in `virtualSamples`/`virtualAmounts` + `virtualCacheTier`, or `dramFluids`/`dramFluidAmounts`). `installedModule` is the legacy single-module field; `migrateSingleModuleBay()` (called by `NodeStore.normalize` and `MemoryModules.modules`) moves it into the list. |
+| `dramFluids` / `dramFluidAmounts` | `List<String>` / `List<Long>` | A Fluid DRAM Module (inside a DRAM Bay's `bayModules`): several fluids (mB). |
 | `chickenActive` / `chickenPull` / `chickenProducts` / `chickenMinTier` / `chickenMaxTier` / `chickenKnown` / `chickenAge` / `chickenMinStrength` / `chickenPureOnly` | various | Genetic Chicken Sorter rules (see §19). |
 | `quotaSample` / `quotaLimit` / `quotaActive` | `ItemStack` / `long` / `boolean` | Quota Limiter. |
 | `fluidType` / `fluidAmount` | `String` / `long` | Quantum Fluid Cell (mB). |
@@ -112,22 +117,53 @@ fields:
 | `ownerUuid` | `String` | Controller only: the network's owner. |
 | `crayon` | `boolean` | Legacy field, unused. |
 
-### 5.2 Per-chunk read/write: `NodeStore`
-State lives on the **chunk PDC**, per block:
-- `"n" + x + "_" + y + "_" + z` → full blob (Base64).
-- `"t" + x + "_" + y + "_" + z` → type name only, so the scan can classify a block without
-  deserializing.
+### 5.2 Node storage: `NodeStore` and region files
+Nothing is stored in the chunk. Every node lives in a **region file inside the world folder**:
+`<world>/multiversenets/r.<rx>.<rz>.mvn`, 32×32 chunks per file (when the server does not expose the
+folder: `<dataFolder>/nodes/<world-uuid>/`). Every class is package-private except the facade:
 
-Every `put()` also stamps `CHUNK_HAS_NODES` on the chunk.
+| Class | Role |
+| --- | --- |
+| `NodeStore` | Public facade (the API the plugin always used) and controller registry. Main thread only. |
+| `WorldNodes` | One world: which regions exist on disk (listed once), which are in memory and which are being read in the background. `region(cx, cz, create)`, `prefetch`, `flush`, `evictIdle`. |
+| `NodeRegion` | The nodes of one region keyed by packed position, plus per-chunk counters (`total`, `ticking`) so `countNodesInChunk`, `countTickingInChunk` and `chunkHasNodes` are O(1). `dirty` flag and `writesInFlight`. |
+| `NodeRecord` | One node: type name, encoded blob (`null` = the default blob of that type) and the shared decoded instance (`live`). Replaced wholesale on every write. |
+| `RegionFile` | Binary format: magic `MVNR`, version, rx/rz, type table, then per node `x y z typeIndex length bytes`, and a CRC32 at the end. Blobs are already gzip-compressed, so the file is not compressed again; a cable costs 20 bytes. |
+| `NodeIO` | The single I/O thread (`MultiverseNets-NodeIO`). One thread so reads and writes of a file run in queue order. Writes go to `.tmp` and replace the file with an atomic move; an unreadable file is renamed `.corrupt-<time>` and the region starts empty. After shutdown, late work runs on the caller. |
+| `LegacyChunkData` | Reads and deletes the ≤ 5.2 chunk PDC entries (`n<x>_<y>_<z>` blob, `t<x>_<y>_<z>` type, `chunk_has_nodes` marker). |
 
-API: `put` / `get` (copy-on-read; null if the chunk is not loaded) / `canonical` / `getType` /
-`hasNode` / `remove` / `countNodesInChunk` / `encode` / `decode`.
-- **`canonical(Block)`** returns a shared, already-decoded instance. `NetworkStorage` reads every
-  cell on every deposit and withdrawal, and decoding Base64 + `BukkitObjectInputStream` there was the
-  plugin's heaviest cost. Every `put` replaces the shared instance, so it is never older than the last
-  write (`NodeStoreCanonicalTest`). The cache is dropped wholesale past 8,192 entries.
+**Life of a region.** On `ChunkLoadEvent` (`StorageListener`, priority LOWEST) a chunk that carries
+the legacy marker is migrated; any other chunk starts reading its region in the background
+(`prefetch`). The first lookup joins that read; a region nobody prefetched is read on demand through
+the same I/O thread, which keeps the order with any queued write. `NodeStore.autosave()` (every
+`storage.autosave-seconds`) serializes the dirty regions on the main thread — it only copies bytes —
+and queues the writes; a region left empty deletes its file. Then `evictIdle` drops every region that
+is saved, has no write in flight and has no loaded chunk with nodes. `WorldSaveEvent` saves that
+world, `WorldUnloadEvent` saves and forgets it, and `onDisable` saves everything and waits.
+
+**Default blobs.** `put` encodes the blob as before and compares it with the encoding of
+`NodeBlob.create(type)` (cached per type). When they are equal only the type is stored, and `get`
+builds a fresh default blob. Every cable and every device nobody configured costs a type and a
+position.
+
+API for the rest of the plugin (unchanged): `put` / `get` (copy-on-read; null if the chunk is not
+loaded) / `canonical` / `getType` / `hasNode` / `remove` / `countNodesInChunk` /
+`countTickingInChunk` / `chunkHasNodes` / `encode` / `decode`. Lifecycle: `init`, `shutdown`,
+`autosave`, `flush(World)`, `flushAll(wait)`, `onChunkLoad`, `onWorldUnload`, `migrateLoadedChunks`,
+`migrateLegacy(Chunk)` and `stats()`.
+- **`put`** loads the block's chunk when it is not loaded (the old `block.getChunk()` did the same),
+  so a node just written is never read back as missing. It throws `IllegalStateException` when the
+  blob cannot be serialized, as before.
+- **`canonical(Block)`** returns the shared, already-decoded instance kept in the node's record.
+  `NetworkStorage` reads every cell on every deposit and withdrawal, and decoding there was the
+  plugin's heaviest cost. Every `put` replaces the record and makes the caller's object the live
+  instance, so it is never older than the last write (`NodeStoreCanonicalTest`); it goes away with
+  its region.
 - **`decode`** treats a corrupt entry as missing, silently and cheaply (`NodeStoreCorruptionTest`);
   it also migrates legacy blobs (null lists, single-item Greedy Cells).
+- **No per-chunk limit.** The only density control is the optional
+  `network.max-active-devices-per-chunk`, checked on `BlockPlaceEvent` with `countTickingInChunk`
+  for devices whose `DeviceType.isTicking()` is true (`NodeStoreRegionTest`).
 
 ### 5.3 Controller registry (`networks.yml`)
 `Map<UUID, List<String>>` (world → `"x,y,z"`) persisted to `<dataFolder>/networks.yml`. `save()`
@@ -142,6 +178,8 @@ networks from it at startup.
 - `scan()` — **BFS** from the controller over the 6 axis-aligned neighbours. It:
   - never loads chunks (unloaded neighbours are skipped; an unloaded controller leaves the network
     untouched);
+  - classifies each neighbour with one in-memory lookup (`NodeStore.getType`): no chunk object, no
+    decoding, the same cost in a dense chunk as in an empty one;
   - clears the network if the controller block no longer has a blob (`controller missing`);
   - takes the owner from the controller blob and refuses to expand into land that owner cannot use
     (`ProtectionBridge.mayActorUse`), counting the refusals (`linksBlockedByProtection()`);
@@ -168,8 +206,9 @@ networks from it at startup.
 
 ## 7. Item storage: `NetworkStorage`
 
-One "vault" over every storage of the network: the **memory modules** (one per DRAM Bay holding an
-item module, plus a legacy module inside the Controller), **Quantum Cells**, **Infinity Barrels**,
+One "vault" over every storage of the network: the **memory modules** (every item module in every DRAM
+Bay, up to 16 per bay, plus a legacy module inside the Controller; each one is saved through the bay
+that contains it), **Quantum Cells**, **Infinity Barrels**,
 **Greedy Cells** and **Slimefun barrels**. All methods are
 `synchronized`; blobs are read with `NodeStore.canonical` and only dirty ones are written back.
 
@@ -232,7 +271,7 @@ whole bucket, bottle or source block only on `0`. `withdraw`, `count`, `getFluid
     and, failing that, drop next to the device.
   - **Liquid Pump** (`pumpTick`): one source block below, only if `deposit` returns 0.
 - **`doVacuum`**: dropped `Item` entities without pickup delay within `vacuum.radius`.
-- **`doCrafting`**: every Auto-Crafter (and Slimefun Auto-Crafter if `sf-crafter.enabled`) tries each
+- **`doCrafting`**: every Auto-Crafter (and Slimefun Auto-Crafter if `Settings.sfCrafterEnabled()`) tries each
   installed Blueprint once.
 - Every block touched passes `denied(net, block)` → `ProtectionBridge.mayActorUse(block, owner)`.
 
@@ -243,7 +282,8 @@ whole bucket, bottle or source block only on `0`. `withdraw`, `count`, `getFluid
 `isLiquidPump()`, `isRequestTerminal()`, `isAutoCrafter()`, `isRequestCrafter()`,
 `isSlimefunCrafter()`, `filterable()` (grabbers, pushers, vacuum, greedy cell, purger, receiver,
 transmitter), `isImporter()`/`isExporter()`, `isDirectional()`, `isRouter()`, `isCacheModule()`,
-`isMemoryModule()` (cache modules + Fluid DRAM), `cacheTier()`. `parse(name)` accepts `MVN_…`, the unprefixed form and `wireless`.
+`isMemoryModule()` (cache modules + Fluid DRAM), `isTicking()` (devices the ticker works every cycle;
+what `network.max-active-devices-per-chunk` counts), `cacheTier()`. `parse(name)` accepts `MVN_…`, the unprefixed form and `wireless`.
 
 | Constant | Material | Display name | Placeable |
 | --- | --- | --- | --- |
@@ -324,9 +364,9 @@ Abstract `InventoryHolder`. `open(size, title)` creates the inventory, calls `dr
 | Menu | Size | Usage / details |
 | --- | --- | --- |
 | `TerminalMenu` | 54 | Terminal (block, wireless, transmitter/receiver buttons). Input `INPUT_SLOT=8`, purger view `17`, sort `26`, fluids page `35`, pages `44`/`53`; 48 items per page. Fluid deposits/withdrawals with buckets and bottles. |
-| `ControllerMenu` | 27 | Controller status, router status; slot `11` explains that modules go in a DRAM Bay and how many recovered modules wait in the Terminal. |
-| `DramBayMenu` | 27 | Stats `11`, module `13` (install from cursor/shift-click, or eject), eject `15`. Reads the blob on every click, so two viewers cannot both eject. |
-| `ChickenSorterMenu` | 54 | Products `0–17`, running `27`, push/pull `28`, face `29`, min/max tier `31`/`32`, strength `33`, DNA `34`, age `35`, pure `40`, clear `44`, help `49`. |
+| `ControllerMenu` | 27 | Controller status, router status; slot `11` shows the network memory: DRAM Bays and modules installed out of 16 per bay. |
+| `DramBayMenu` | 54 | Summary `4`, a 4×4 grid of module slots `11–14`, `20–23`, `29–32`, `38–41` (click a module to take it out with its stock; click a free slot with a module on the cursor, or shift-click one, to install), close `49`. No eject button. Reads the blob on every click, so two viewers cannot take out the same module. |
+| `ChickenSorterMenu` | 54 | Control bar: running `1`, push/pull `3`, summary book `4`, side `5`, help `7`. Products `9–26` (each shows its own item). Divider `27–35`. Gene rules: min/max tier `37`/`38`, strength `40`, pure `41`, DNA `43`, age `44` — value in the name and the stack size, glint while active, left +1, right −1, shift resets, the tier range is kept valid. Actions: clear products `46`, reset rules `49`, close `52`. |
 | `MonitorMenu` | 27 | Live diagnostics (refresh task while open). |
 | `FilterMenu` | 27 | Grabbers, pushers, vacuum, purger, greedy cell, receiver and transmitter: up to 17 templates, mode `17`, clear `25`, help `26`. Slot `24`: face selector for Advanced devices, "open adjacent block" for simple ones, "open terminal" for Transmitter/Receiver. |
 | `CellMenu` / `BarrelMenu` | 18 | Template `4`, deposit all `11`, set item `13`, extract all `15`. The barrel's *Set Item* right-click clears the registration when empty. |
@@ -356,12 +396,14 @@ membership), installs memory modules in a DRAM Bay and handles the fluid-cell qu
 
 | Event | Behaviour |
 | --- | --- |
-| `BlockPlaceEvent` | Blocked worlds and `max-nodes-per-chunk` checked; registers the node, restores the embedded state (`CELL_CARGO`), applies a bridge link from the item (Receiver or Transmitter), records the Controller's owner, then registers the controller or rescans the neighbours. |
-| `BlockBreakEvent` | Drops the Encoder's stored Blueprints and a DRAM Bay's module (with its stock, also in creative), drops the device with its state embedded (nothing in creative), removes the node and rescans. |
+| `BlockPlaceEvent` | Blocked worlds checked, then the optional `max-active-devices-per-chunk` cap (ticking devices only; there is no other per-chunk limit); registers the node, restores the embedded state (`CELL_CARGO`), applies a bridge link from the item (Receiver or Transmitter), records the Controller's owner, then registers the controller or rescans the neighbours. |
+| `BlockBreakEvent` | Drops the Encoder's stored Blueprints and every module of a DRAM Bay (with its stock, also in creative), drops the device with its state embedded (nothing in creative), removes the node and rescans. |
 | `PlayerInteractEvent` | Air click with a Wireless Terminal (combat lock, range/world unless Router, access check). Block click: access check, then Probe, Rake (returns the device), Wrench, bindings (wireless on controller/terminal; Receiver item on Transmitter and Transmitter item on Receiver), sneaking never opens menus, cable status message, a module on a Controller only shows a hint, module install on an empty DRAM Bay, fluid cell quick interact, device menu. |
 | `InventoryMoveItemEvent` | Cancelled whenever the source or the destination is a network node, without touching either inventory. Hoppers never interact with the plugin; the old Infinity Barrel path called `removeItem` while Paper had shrunk the hopper slot to the moved amount, which deleted the whole stack. |
 | Pistons / explosions | Nodes cannot be moved and are removed from explosion block lists. |
 | `EntityDamageByEntityEvent` | Records combat time for the Wireless Terminal lock. |
+| `ChunkLoadEvent` (`StorageListener`) | Migrates the chunk's ≤ 5.2 PDC data, or starts reading its node region in the background. |
+| `WorldSaveEvent` / `WorldUnloadEvent` (`StorageListener`) | Saves that world's node regions (so `/save-all` saves networks too); on unload it also forgets them. |
 
 `CraftingListener` re-registers recipes after reloads and unlocks them on join. On
 `PrepareItemCraftEvent` it only acts when the server matched a recipe: for this plugin's recipes the
@@ -371,8 +413,10 @@ recipe with a device in the grid gets a null result.
 
 ## 14. Command `/mvnets` (`command/MvnetsCommand`)
 
-Subcommands: `help`, `info`, `guide`, `devices` (open) and `give <id> [n]`, `doctor`, `stats`,
-`inspect`, `repair`, `recipes`, `reload` (**`multiversenets.admin`**). The tab completer completes
+Subcommands: `help`, `guide` (open) and `give <id> [n]`, `doctor`, `stats`,
+`inspect`, `repair`, `recipes`, `save`, `reload` (**`multiversenets.admin`**). `stats` also prints
+the node storage numbers (`NodeStore.stats()`); `save` queues a write of every region with changes.
+The tab completer completes
 subcommands, `en|es` for `guide` (it opens `GuideMenu`), and device ids for `give` (`type.id()`, e.g. `mvn_controller`;
 `give` also accepts the unprefixed form).
 
@@ -430,7 +474,8 @@ All reads go through `Settings` over `plugin.getConfig()` (refreshed in `onEnabl
 | --- | --- | --- | --- |
 | `scanIntervalTicks()` | `network.scan-interval-ticks` | 20 | ≥ 5 |
 | `maxNodes()` | `network.max-nodes` | 16,384 | ≥ 16 |
-| `maxNodesPerChunk()` | `network.max-nodes-per-chunk` | 64 | ≥ 1 |
+| `maxActiveDevicesPerChunk()` | `network.max-active-devices-per-chunk` | 0 (off) | ≥ 0 |
+| `storageAutosaveSeconds()` | `storage.autosave-seconds` | 30 | ≥ 5 |
 | `transferIntervalTicks()` | `network.op-interval-ticks.transfer` | 5 | ≥ 1 |
 | `vacuumIntervalTicks()` | `network.op-interval-ticks.vacuum` | 10 | ≥ 1 |
 | `craftIntervalTicks()` | `network.op-interval-ticks.craft` | 20 | ≥ 1 |
@@ -449,7 +494,9 @@ All reads go through `Settings` over `plugin.getConfig()` (refreshed in `onEnabl
 | `wirelessCombatCooldownSeconds()` | `wireless.combat-cooldown-seconds` | 10 | ≥ 1 |
 | `blockedWorld(world)` | `blocked-worlds` | `[]` | case-insensitive |
 | `compatSlimefun()` | `compat.slimefun` | `true` | — |
-| `sfEncoderEnabled()` / `sfCrafterEnabled()` | `sf-encoder.enabled` / `sf-crafter.enabled` | `true` | — |
+| `sfMachinesEnabled()` | `slimefun-machines.enabled` | `true` | master switch of the three Slimefun machines |
+| `sfEncoderEnabled()` / `sfCrafterEnabled()` | `slimefun-machines.encoder` / `slimefun-machines.crafters` | `true` | `false` when the master switch is off; falls back to the old `sf-encoder.enabled` / `sf-crafter.enabled` |
+| `deviceEnabled(type)` | — | — | the two above for the Slimefun machines, `true` for every other device. Checked on placing (`BlockListener`), menus, ticker and Request Terminal |
 | `protectionEnabled()` | `protection.enabled` | `true` | — |
 | `protectionProviderEnabled(id)` | `protection.providers` | empty list = all | case-insensitive |
 | `protectionAllowClaims()` | `protection.allow-claims` | `false` | absent config = `false` |
@@ -472,7 +519,8 @@ plus "known"), `gce_pocket_chicken_adapter` (JSON, `baby`) and `gce_expanded_spe
 species, tier 7-9). `read(item)` returns product (`TYPE:<typing>` or `SPECIES:<id>`), tier
 (recessive genes), DNA strength (`6 − recessive − mixed`), pure, known and adult, mirroring the
 addon's `PocketChickenData`. `matches(blob, item)` applies the sorter's rules (all must pass; defaults
-accept every chicken, non-chickens never pass).
+accept every chicken, non-chickens never pass). `productId(key)` and `productTier(key)` give the raw
+id and the tier of a product key; the menu uses them for each product's icon and lore.
 
 ## 20. Item matching (`util/StackUtils`)
 

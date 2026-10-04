@@ -468,8 +468,10 @@ class BlockFlowsTest {
     }
 
     /**
-     * [EN] Fast type and presence lookups in NodeStore operate accurately and self-heal missing type tags.
-     * [ES] Las consultas rápidas de tipo y presencia en NodeStore funcionan con precisión y autoreparan tags ausentes.
+     * [EN] Fast type and presence lookups in NodeStore answer without decoding, and nothing is written
+     * to the chunk itself any more.
+     * [ES] Las consultas rápidas de tipo y presencia en NodeStore responden sin decodificar, y ya no se
+     * escribe nada en el propio chunk.
      */
     @Test
     void nodeStoreFastTypeAndPresenceOperations() {
@@ -479,15 +481,12 @@ class BlockFlowsTest {
         assertTrue(NodeStore.hasNode(cable));
         assertFalse(NodeStore.hasNode(empty));
         assertEquals(DeviceType.MVN_CABLE, NodeStore.getType(cable));
+        assertTrue(cable.getChunk().getPersistentDataContainer().getKeys().isEmpty(),
+                "node data lives in the region files, never in the chunk PDC");
 
-        // Test self-healing fallback when nodeTypeKey is removed
-        org.bukkit.NamespacedKey typeKey = new org.bukkit.NamespacedKey(plugin, "t10_64_10");
-        cable.getChunk().getPersistentDataContainer().remove(typeKey);
-        assertFalse(cable.getChunk().getPersistentDataContainer().has(typeKey, PersistentDataType.STRING));
-
-        // getType should fall back to blob decode and restore typeKey
-        assertEquals(DeviceType.MVN_CABLE, NodeStore.getType(cable));
-        assertTrue(cable.getChunk().getPersistentDataContainer().has(typeKey, PersistentDataType.STRING));
+        NodeStore.remove(cable);
+        assertFalse(NodeStore.hasNode(cable));
+        assertNull(NodeStore.getType(cable));
     }
 
     /**

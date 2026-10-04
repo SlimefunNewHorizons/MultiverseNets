@@ -26,6 +26,7 @@ public class MultiverseNets extends JavaPlugin {
     private NetworkTicker ticker;
     private BlockListener blockListener;
     private org.bukkit.scheduler.BukkitTask protectionTask;
+    private org.bukkit.scheduler.BukkitTask storageTask;
 
     /**
      * @return Global singleton plugin instance / Instancia singleton global del plugin
@@ -70,6 +71,12 @@ public class MultiverseNets extends JavaPlugin {
         com.chagui68.multiversenets.compat.ProtectionBridge.init(getLogger());
         Items.registerRecipes(this);
         NodeStore.init(this);
+        // Antes de escanear redes: los chunks ya cargados pasan sus datos antiguos del PDC a las
+        // regiones, y los que carguen despues lo hacen en StorageListener.
+        new com.chagui68.multiversenets.listen.StorageListener(this);
+        NodeStore.migrateLoadedChunks();
+        long autosaveTicks = Settings.storageAutosaveSeconds() * 20L;
+        storageTask = getServer().getScheduler().runTaskTimer(this, NodeStore::autosave, autosaveTicks, autosaveTicks);
 
         networks = new NetworkManager(this);
         networks.load();
@@ -118,10 +125,16 @@ public class MultiverseNets extends JavaPlugin {
             protectionTask.cancel();
             protectionTask = null;
         }
+        if (storageTask != null) {
+            storageTask.cancel();
+            storageTask = null;
+        }
         com.chagui68.multiversenets.net.NetworkHologramManager.clearAll(this);
         if (networks != null) {
             networks.saveAll();
         }
+        // Escribe las regiones pendientes y espera a que terminen antes de que el servidor siga.
+        NodeStore.shutdown();
         getLogger().info("MultiverseNets disabled.");
     }
 }

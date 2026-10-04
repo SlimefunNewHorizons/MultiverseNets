@@ -16,8 +16,8 @@
 
 **MultiverseNets** implementa una red de logística estilo Networks **100% standalone**: sin Slimefun
 ni ninguna otra dependencia. Cada dispositivo es un ítem personalizado (identificado por PDC), cada
-dispositivo colocado es un bloque etiquetado cuyo estado vive en el chunk, y el almacenamiento de la
-red es virtual y persistente.
+dispositivo colocado guarda su estado en archivos de región dentro de la carpeta del mundo
+([sin límite por chunk](#almacenamiento)), y el almacenamiento de la red es virtual y persistente.
 
 Una red es **un Controlador de Red más todos los bloques de MultiverseNets conectados a él**, cara
 con cara. Los cables son la forma barata de conectar, pero todos los dispositivos conducen: un
@@ -33,8 +33,8 @@ grabber pegado a una celda pegada al controlador ya es una red.
    Configura sus filtros con clic derecho.
 5. Usa `/mvnets doctor` o una **Network Probe** si algo no conecta.
 
-Cada id de dispositivo de abajo se puede dar con `/mvnets give <id>`; `/mvnets devices` los lista
-todos. Las recetas de todo están en [Recetas y funciones](Recipes.md).
+Cada id de dispositivo de abajo se puede dar con `/mvnets give <id>` (pulsa Tab para completar los
+ids). Las recetas de todo están en [Recetas y funciones](Recipes.md).
 
 ---
 
@@ -60,7 +60,7 @@ Las cantidades son los valores por defecto de `config.yml`; todas se pueden conf
 
 | Dispositivo | id · bloque | Qué hace | Cómo se usa |
 |---|---|---|---|
-| **DRAM Bay** | `mvn_dram_bay` · Bombilla de cobre encerada | Bloque de red que aloja **un módulo de memoria**. El módulo es el almacenamiento: mientras está instalado, su stock forma parte de la red. Puedes poner tantos bays como quieras. | Clic derecho con un módulo en la mano (bay vacío) para instalarlo, o clic derecho para abrir su menú: ver el stock, instalar desde el cursor o con shift+clic, y **Eject Module**. Romperlo (o el Rake) suelta el bay y el módulo **con todo su stock**. |
+| **DRAM Bay** | `mvn_dram_bay` · Bombilla de cobre encerada | Bloque de red que aloja **hasta 16 módulos de memoria**, cada uno con su propio stock. Los módulos son el almacenamiento: mientras están instalados, su stock forma parte de la red. Puedes poner tantos bays como quieras. | Clic derecho con un módulo en la mano para instalarlo en el siguiente hueco libre, o clic derecho para abrir su menú: una cuadrícula de 4×4 con un hueco por módulo y un resumen del bay. Instala desde el cursor o con shift+clic; **haz clic en un módulo instalado para sacarlo** con todo su stock. Romperlo (o el Rake) suelta el bay y todos sus módulos **con todo su stock**. |
 | **Módulos de memoria de ítems** | `mvn_cache_l1` · `_l2` · `_l3` · `_dram` · `_quantum` · ítems | Almacenamiento multi-ítem: 2.048 / 8.192 / 32.768 / 131.072 / 524.288 ítems en total (`virtual-cache.tier-1` … `tier-5`), de cualquier mezcla de tipos. | Instálalo en un DRAM Bay. **Al sacarlo se lleva todos sus ítems**: desaparecen de esa red y aparecen en la red del DRAM Bay donde lo instales. Mejorar un módulo cargado en la mesa de crafteo conserva sus ítems. |
 | **Fluid DRAM Module** | `mvn_fluid_dram` · ítem (Corazón del mar) | Módulo **exclusivo para fluidos**: guarda varios fluidos a la vez hasta `fluids.dram-capacity-mb` (512.000 mB = 512 cubos) en total. | Igual que los de ítems: va en un DRAM Bay, suma su capacidad al almacenamiento de fluidos de la red y al sacarlo se lleva sus fluidos a otra red. |
 
@@ -128,9 +128,9 @@ entero.
 |---|---|---|---|
 | **Blueprint** | `mvn_blueprint` · ítem (Libro) | Una receta: cuadrícula 3×3 + resultado en su PDC. Craftear nunca lo consume. | Codifícalo en un Recipe Encoder e instálalo en un crafter. Instalarlo lo mueve al crafter; quitarlo, reemplazarlo o *Clear All* lo devuelve. |
 | **Recipe Encoder** | `mvn_encoder` · Mesa de herrería | Monta una receta en una plantilla 3×3 (hacer clic solo marca huecos, no gasta ítems) y la escribe en un Blueprint (en blanco o ya codificado). | Rellena la plantilla, pon un Blueprint en la ranura azul y pulsa *Encode*. Clic en un Blueprint codificado carga su receta en la plantilla. Los Blueprints que dejes en sus ranuras se guardan en el bloque (solo un jugador a la vez los ve). |
-| **Slimefun Recipe Encoder** | `mvn_sf_encoder` · Mesa de encantamientos | Igual para recetas de Slimefun. También guarda en el bloque los Blueprints que dejes en sus ranuras, así no hay que traer planos en blanco cada vez. | Necesita Slimefun; se desactiva con `sf-encoder.enabled`. |
+| **Slimefun Recipe Encoder** | `mvn_sf_encoder` · Mesa de encantamientos | Igual para recetas de Slimefun. También guarda en el bloque los Blueprints que dejes en sus ranuras, así no hay que traer planos en blanco cada vez. | Necesita Slimefun; se desactiva con `slimefun-machines.encoder` (o todas las máquinas de Slimefun con `slimefun-machines.enabled`). |
 | **Auto-Crafter** | `mvn_crafter` · Mesa de crafteo | Cada 20 ticks intenta una vez cada Blueprint vanilla instalado (hasta `crafter.max-recipes`, 18). Todo o nada: si falta un ingrediente no se toca nada, y si el resultado no cabe el crafteo entero se deshace. | Clic derecho y clic en los Blueprints para instalarlos. Rechaza Blueprints de Slimefun. |
-| **Slimefun Auto-Crafter** | `mvn_sf_crafter` · Obsidiana llorosa | Igual, y acepta **Blueprints de Slimefun y vanilla**: puedes mezclar ambos en la misma máquina. | `sf-crafter.enabled: false` lo desactiva por completo (menú y crafteo). |
+| **Slimefun Auto-Crafter** | `mvn_sf_crafter` · Obsidiana llorosa | Igual, y acepta **Blueprints de Slimefun y vanilla**: puedes mezclar ambos en la misma máquina. | `slimefun-machines.crafters: false` o `slimefun-machines.enabled: false` lo desactivan por completo (receta, colocación, menú y crafteo). |
 | **Request Crafter** | `mvn_request_crafter` · Mesa de flechas | Guarda Blueprints vanilla que **solo** se craftean bajo demanda desde un Request Terminal (nunca automáticamente). | Instala Blueprints igual que en un Auto-Crafter. |
 | **Slimefun Request Crafter** | `mvn_sf_request_crafter` · Pilar de púrpura | Igual, con Blueprints de Slimefun y vanilla. | — |
 | **Request Terminal** | `mvn_request_terminal` · Atril | Lista todo lo que pueden fabricar los Request Crafters de la red y lo craftea bajo demanda, resolviendo cadenas (troncos → tablones → mesa de crafteo) con el stock de la red. | Clic izquierdo 1 lote, shift+clic izquierdo 10, clic derecho 64, shift+clic derecho pide un número por chat. Alterna la entrega a tu inventario o a la red. |
@@ -147,7 +147,7 @@ entero.
 
 | Dispositivo | id · bloque | Qué hace | Cómo se usa |
 |---|---|---|---|
-| **Genetic Chicken Sorter** | `mvn_chicken_sorter` · Bala de heno | Máquina dedicada **solo** a los pollos de bolsillo del addon GeneticChickengineering. Lee sus genes y mueve únicamente los pollos que cumplen **todas** sus reglas; cualquier otro ítem se ignora. Hasta 16 pollos por ciclo. | Clic derecho. **Push**: de la red al bloque al que mira (p. ej. un Roost o una máquina del addon). **Pull**: de ese bloque a la red. Reglas: lista de productos (clic con un pollo en el cursor o shift+clic a uno del inventario; vacía = cualquiera), nivel mínimo/máximo (genes recesivos; especies especiales 7-9), fuerza de ADN mínima (0-6), solo genes puros (sin Aa), ADN conocido/desconocido y edad (adulto/bebé). Selector de cara. **Empieza parado**: actívalo cuando esté configurado. |
+| **Genetic Chicken Sorter** | `mvn_chicken_sorter` · Bala de heno | Máquina dedicada **solo** a los pollos de bolsillo del addon GeneticChickengineering. Lee sus genes y mueve únicamente los pollos que cumplen **todas** sus reglas; cualquier otro ítem se ignora. Hasta 16 pollos por ciclo. | Clic derecho. El menú se lee de arriba abajo: **barra de control** (arrancar/parar, dirección **Push** red → bloque o **Pull** bloque → red, lado, un libro de resumen que dice en palabras simples qué pollos pasan ahora mismo, y ayuda), **productos aceptados** (18 huecos con el ítem propio de cada producto; clic en uno con un pollo de bolsillo en el cursor o shift+clic a un pollo del inventario, clic en un producto para quitarlo; vacía = cualquier producto) y **reglas de genes** agrupadas en nivel (mín/máx; genes recesivos, especies especiales 7-9), genes (fuerza de ADN mínima 0-6, solo genes puros) e identidad (ADN secuenciado/sin secuenciar, adulto/bebé). Cada regla muestra su valor en el nombre y en el tamaño del stack y brilla mientras está activa: izquierdo +1, derecho −1, shift+clic la reinicia. El rango de niveles nunca puede quedar vacío. Fila inferior: vaciar productos, reiniciar reglas, cerrar. **Empieza parado**: actívalo cuando esté configurado. |
 
 Con este addon instalado, cada pollo es un ítem único (lleva su propio ADN). La red ya no fusiona dos
 pollos distintos en un solo stack: antes un pollo podía salir con el ADN de otro.
@@ -166,6 +166,8 @@ En cada escaneo (cada `network.scan-interval-ticks`, y justo después de colocar
 controlador recorre todos los bloques de MultiverseNets conectados, cara con cara. El escaneo:
 
 * nunca carga chunks — los nodos de chunks sin cargar no forman parte de la red hasta que cargan;
+* lee cada vecino desde memoria (una búsqueda, sin decodificar nada), así que un escaneo cuesta lo
+  mismo en un chunk denso que en uno disperso;
 * se detiene en otro controlador (`foreign controller at x,y,z`);
 * se detiene en el terreno que el dueño de la red no puede usar (ver [Protección](#proteccion));
 * con Slimefun instalado, también atraviesa bloques de Slimefun cuyo id contiene `CABLE` o `BRIDGE`
@@ -278,13 +280,46 @@ se consume si cabe su volumen entero, así una red casi llena nunca se queda con
 
 * Romper un nodo guarda su estado en el ítem (carga de la celda, filtros, cara, búfer de tránsito,
   Blueprints, plantilla, enlace del puente, limitador, fluido, filtro de la bomba, reglas del
-  clasificador de pollos) y colocarlo lo restaura. El Rake hace lo mismo. Un DRAM Bay suelta su módulo
-  aparte, con todo su stock dentro.
+  clasificador de pollos) y colocarlo lo restaura. El Rake hace lo mismo. Un DRAM Bay suelta cada uno de
+  sus módulos aparte, con todo su stock dentro.
 * Los pushers nunca dejan más de un stack en una ranura y nunca meten nada en otro nodo de la red.
 * Las tolvas no pueden tocar ningún dispositivo.
 * Todos los menús tienen protección anti-dupe y devuelven al cerrar lo que quede en ranuras reales.
 * El crafteo es todo o nada, también cuando solo cabe parte del resultado.
 * Los nodos son inmunes a pistones y explosiones.
+
+---
+
+<a id="almacenamiento"></a>
+## 💾 Almacenamiento y rendimiento
+
+Cada dispositivo colocado guarda su estado (filtros, carga, reglas, enlaces…) en **archivos de región
+dentro de la carpeta del mundo**: `<mundo>/multiversenets/r.<rx>.<rz>.mvn`, un archivo por cada
+32×32 chunks, como los archivos de región del propio Minecraft. No se escribe nada en el chunk.
+
+* **Sin límite por chunk.** Un chunk admite todos los cables y dispositivos que quepan en él. El
+  guardado del propio chunk no cambia, así que una construcción densa nunca hace pesado guardar o
+  cargar un chunk.
+* **Los cables casi no cuestan nada.** Un nodo en su estado por defecto — todos los cables, todo
+  dispositivo que nadie configuró — guarda solo su tipo y su posición (20 bytes). Solo los
+  dispositivos configurados guardan su estado completo.
+* **Fuera del hilo principal.** Una región se lee en segundo plano en cuanto carga uno de sus chunks.
+  Solo se escriben las regiones que cambiaron: cada `storage.autosave-seconds` (30 s), con
+  `/save-all`, con `/mvnets save` y al apagar. Cada escritura va a un archivo temporal que reemplaza
+  al viejo de un solo movimiento, así un crash deja el archivo viejo o el nuevo, nunca mitad y mitad.
+* **En memoria solo mientras se usa.** Una región sigue cargada mientras alguno de sus chunks con
+  dispositivos lo esté, y se suelta después de guardarla.
+* **Un archivo dañado nunca detiene el servidor.** Un archivo cuya suma de comprobación falla se
+  renombra a `.corrupt-<hora>` (se conserva para inspeccionarlo) y esa región empieza vacía.
+* **Los datos viajan con el mundo.** Copiar o respaldar la carpeta del mundo conserva sus redes.
+* **Migración automática.** Los chunks escritos por la 5.2 o anteriores sacan sus datos del chunk la
+  primera vez que cargan tras actualizar; no hay que hacer nada. La migración es de ida: un jar 5.2
+  ya no vería esos dispositivos.
+
+El único control de densidad que queda es opcional: `network.max-active-devices-per-chunk` limita,
+por chunk, los dispositivos que la red trabaja en cada ciclo (grabbers, pushers, vacuums, purgadores,
+bombas, crafters, puentes, Greedy Cells, clasificadores de pollos). Vale `0` (desactivado) por
+defecto; cables, celdas, terminales y demás bloques pasivos nunca cuentan.
 
 ---
 
@@ -316,7 +351,7 @@ vidrio…) no vale. Las mejoras de celdas y de módulos conservan su carga; cual
 un dispositivo que aún guarde algo, así nada se pierde crafteando. Y ningún dispositivo sirve como
 ingrediente de una receta vanilla (un Terminal Inalámbrico ya no se gasta como Estrella del Nether). Los tres dispositivos
 de Slimefun (Slimefun Recipe Encoder, Slimefun Auto-Crafter, Slimefun Request Crafter) solo tienen
-receta mientras `sf-encoder.enabled` / `sf-crafter.enabled` estén en `true`.
+receta mientras la sección `slimefun-machines` de `config.yml` las tenga activadas (por defecto).
 
 | Dispositivo | Cuadrícula (3×3) | Ingredientes |
 |---|---|---|
@@ -368,15 +403,14 @@ receta mientras `sf-encoder.enabled` / `sf-crafter.enabled` estén en `true`.
 | Comando | Descripción | Permiso |
 |---|---|---|
 | `/mvnets help` | Lista de comandos | `multiversenets.use` |
-| `/mvnets info` | Versión | `multiversenets.use` |
 | `/mvnets guide [en\|es]` | Abre el menú de la guía: cada dispositivo con su receta, qué hace y cómo se usa, más cómo funcionan las redes. Botón para cambiar entre inglés y español | `multiversenets.use` |
-| `/mvnets devices` | Lista los ids de dispositivos | `multiversenets.use` |
 | `/mvnets give <id> [n]` | Da un dispositivo | `multiversenets.admin` |
 | `/mvnets doctor` | Reescanea y diagnostica todas las redes (y dice si la integración con Slimefun está activa) | `multiversenets.admin` |
-| `/mvnets stats` | Estadísticas globales | `multiversenets.admin` |
+| `/mvnets stats` | Estadísticas globales, incluido el almacenamiento de nodos (regiones en memoria, en disco y pendientes de guardar) | `multiversenets.admin` |
 | `/mvnets inspect` | Inspecciona el bloque que miras (tipo, red, contenido, filtro) | `multiversenets.admin` |
 | `/mvnets repair` | Fuerza un reescaneo de la red que miras | `multiversenets.admin` |
 | `/mvnets recipes` | Vuelve a registrar y desbloquear todas las recetas | `multiversenets.admin` |
+| `/mvnets save` | Guarda ya los archivos de región de nodos en vez de esperar al autoguardado | `multiversenets.admin` |
 | `/mvnets reload` | Recarga la configuración, los proveedores de protección y las recetas | `multiversenets.admin` |
 
 <a id="configuracion"></a>
@@ -389,7 +423,8 @@ español):
 |---|---|---|
 | `network.scan-interval-ticks` | 20 | Intervalo de reescaneo de topología |
 | `network.max-nodes` | 16384 | Nodos máximos por red |
-| `network.max-nodes-per-chunk` | 64 | Dispositivos máximos por chunk |
+| `network.max-active-devices-per-chunk` | 0 | Tope opcional de dispositivos trabajados en cada ciclo, por chunk (0 = desactivado). Cables y bloques pasivos nunca cuentan; no hay ningún otro límite por chunk |
+| `storage.autosave-seconds` | 30 | Intervalo del guardado en segundo plano de los archivos de región de nodos |
 | `network.op-interval-ticks.transfer` / `vacuum` / `craft` | 5 / 10 / 20 | Intervalos de cada familia de operaciones |
 | `transfer.items-per-op` | 128 | Ítems por operación de Grabber/Pusher/Purger/puente |
 | `transfer.ht-multiplier` | 8 | Multiplicador de los Grabbers/Pushers avanzados |
@@ -403,7 +438,8 @@ español):
 | `wireless.local-range-without-router` | 64 | Alcance del Terminal Inalámbrico sin Router |
 | `wireless.combat-cooldown-seconds` | 10 | Bloqueo del Terminal Inalámbrico tras combate |
 | `compat.slimefun` | true | Integración con máquinas, cables y barriles de Slimefun |
-| `sf-encoder.enabled` / `sf-crafter.enabled` | true | Codificador / crafters de Slimefun |
+| `slimefun-machines.enabled` | true | Interruptor general de las tres máquinas de Slimefun (codificador, Auto-Crafter, Request Crafter): apagado = sin receta, no se pueden colocar, sin menú, sin trabajo |
+| `slimefun-machines.encoder` / `slimefun-machines.crafters` | true | Cada máquina de Slimefun por separado (las claves antiguas `sf-encoder.enabled` / `sf-crafter.enabled` siguen funcionando) |
 | `blocked-worlds` | [] | Mundos donde no se pueden colocar dispositivos |
 | `protection.*` | — | Ver [Protección](#proteccion) |
 
@@ -465,6 +501,7 @@ compat:
 | Nodos huérfanos | Posibles | **Estructuralmente imposibles**: cada escaneo reconstruye la topología |
 | Diagnóstico | Añadido después (`/networks doctor`) | `/mvnets doctor`, Probe, Monitor, holograma |
 | Ticker | El ciclo de Slimefun | Propio, con intervalos por operación en la config |
+| Datos de nodos | El BlockStorage de Slimefun | Archivos de región propios en la carpeta del mundo, guardados fuera del hilo principal; cables y dispositivos sin configurar solo guardan su tipo |
 
 El precio es que escanear cuesta un BFS sobre hasta `max-nodes` bloques cada `scan-interval-ticks`:
 trabajo predecible y acotado a cambio de no tener estado que se pueda corromper.

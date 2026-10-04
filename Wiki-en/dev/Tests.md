@@ -41,7 +41,9 @@ Most tests use **[MockBukkit](https://github.com/MockBukkit/MockBukkit)**, an in
 
 That allows placing blocks, firing events (`server.getPluginManager().callEvent(...)`), simulating
 inventory clicks, explosions and pistons, running the ticker
-(`new NetworkTicker(plugin, plugin.networks()).tick()`) and reading the state stored in chunk PDCs.
+(`new NetworkTicker(plugin, plugin.networks()).tick()`) and reading node state back with `NodeStore`.
+Region files go to the plugin data folder (MockBukkit does not expose world folders), one folder per
+world UUID, so tests never see each other's files.
 
 Things to know:
 - A test that places a device by hand must also store its blob
@@ -54,16 +56,16 @@ Things to know:
 - `src/test/java/dev/espi/protectionstones/PSRegion.java` is a stub of the ProtectionStones API that
   the provider tests load by reflection.
 
-## 3. Overview: 36 classes, 265 tests
+## 3. Overview: 38 classes, 287 tests
 
 | Class (package `com.chagui68.multiversenets` unless stated) | Tests | Covers |
 | --- | --- | --- |
 | `BlockFlowsTest` | 24 | Break/place with embedded state, pistons, explosions, wireless binding, rake, wrench, sneaking guard, dimensions, bridge linking from the Transmitter item, cable status. |
 | `BlueprintDupeTest` | 3 | Encoder Blueprints are never duplicated (two viewers, breaking with the menu open); installing a Blueprint consumes it and *Clear All* returns it. |
 | `CellGuiTest` | 9 | Quantum Cell menu: template, quick deposit, withdrawal, capacity, no duplication when the ticker runs. |
-| `ChickenSorterTest` | 3 | GeneticChickengineering genes read like the addon (product, tier, strength, purity, age, special species); every rule must pass; the sorter moves only matching chickens, only while running, and never other items. |
+| `ChickenSorterTest` | 6 | GeneticChickengineering genes read like the addon (product, tier, strength, purity, age, special species); every rule must pass; the sorter moves only matching chickens, only while running, and never other items. Menu: the summary spells out what passes, products show their own item, a cursor chicken adds its product and clicking removes it; rule buttons step, reset, glow and keep the tier range valid; the control bar toggles status, direction and side (backwards with right-click). |
 | `CrafterGuiTest` | 10 | Crafter menu: install/uninstall/clear; Slimefun crafters accept Slimefun and vanilla Blueprints, standard crafters refuse Slimefun ones. |
-| `DramBayTest` | 8 | A module in a DRAM Bay stores items; an ejected module moves its stock to another network; breaking the bay drops the module with its stock; the Fluid DRAM holds several fluids and travels with them; a controller no longer takes modules; an old controller module waits in the Terminal as a temporary item and goes back with its items; the Terminal lore shows the total and its breakdown by storage (cells + Greedy add up, counted once); breaking a controller drops uncollected modules. |
+| `DramBayTest` | 12 | A module in a DRAM Bay stores items; a module taken out moves its stock to another network; breaking the bay drops every module with its stock; the Fluid DRAM holds several fluids and travels with them; a controller no longer takes modules; an old controller module waits in the Terminal; a bay holds 16 modules (a 17th stays in the hand) and the network fills all of them; clicking a module in the menu takes out only that one; a bay saved with a single module keeps it and its stock. |
 | `DeviceTypeTest` | 7 | `DeviceType` classification: filterable devices, Greedy Cell is not a cell, hand items, directional devices, request and Slimefun crafters. |
 | `FilterGuiTest` | 15 | Filter menu: add/remove templates, whitelist/blacklist, shift-click, faces, clear. |
 | `FluidAndRequesterTest` | 13 | Fluid storage and fluid cell quick interaction, Liquid Pump, terminal fluid page, Request Terminal (orders, chat amount, recursive chains, ignores Auto-Crafters, Slimefun Request Crafter), Slimefun Auto-Crafter. |
@@ -79,21 +81,23 @@ Things to know:
 | `PluginResourcesTest` | 3 | `plugin.yml` and `config.yml` on the classpath; version sanity check. |
 | `PosUtilTest` | 2 | Coordinate packing round-trips, including world borders and negative Y. |
 | `QuantumWorkbenchTest` | 2 | Cell upgrade keeps the cargo; ingredients are returned on close. |
-| `RecipeTest` | 7 | Every recipe registered once, cable and cell recipes craft, a cell with cargo matches its upgrade recipe and keeps the cargo. |
+| `RecipeTest` | 9 | Every recipe registered once, cable and cell recipes craft, a cell with cargo matches its upgrade recipe and keeps the cargo. |
 | `RecipeValidationTest` | 5 | Device ingredients are tracked per recipe; a plain material cannot stand in for a device; cell and module upgrades keep their cargo; a fluid cell that still holds fluid is refused; devices never feed vanilla recipes. |
 | `ReportedIssuesTest` | 8 | Advanced Pusher never loses items (one stack per slot); a multi-item whitelist leaves room for every ingredient; blacklisted items stay in the network; nothing goes into an Infinity Barrel's block inventory; hoppers never touch a device; custom items match after their name is stored differently; the barrel takes back a custom item it handed out; the Slimefun Recipe Encoder keeps its Blueprints. |
 | `SettingsCellCapacityTest` | 9 | `Settings` defaults and edge cases (capacities, clamps, null config). |
+| `SlimefunMachinesSwitchTest` | 3 | The `slimefun-machines` section: on by default; the master switch removes the recipes (also on reload) and blocks placing every Slimefun machine but no vanilla one; per-machine keys and the old `sf-crafter.enabled` key still work. |
 | `SlimefunBridgeTest` | 5 | The Slimefun bridge is inert and never throws without Slimefun. |
 | `ToolsTest` | 3 | Wrench and Rake are hand tools; the Receiver is filterable; filters default to whitelist. |
 | `TransmissionFixesTest` | 13 | Item and fluid transmission: all-or-nothing fluid deposits, the pump never duplicates fluid, bridge with template-only filter, bridge never drains Greedy Cells, a device shared by two controllers works once per cycle, partial crafting results are undone, wrench pastes exact templates, rake returns the device, filters/face/transit buffer survive break and place, transit buffers above 99 units are saved without crashing. |
-| `UpgradedFeaturesTest` | 6 | Memory module in a DRAM Bay, Router, per-chunk node limit, grabber transit buffer, cache kept on break, creative breaking drops nothing. |
+| `UpgradedFeaturesTest` | 6 | Memory module in a DRAM Bay, Router, per-chunk node counting, grabber transit buffer, cache kept on break, creative breaking drops nothing. |
 | `compat.NetworkOwnershipTest` | 9 | A network runs inside its owner's claim; other networks and a null owner are strangers; public land stays open; broken or unwired providers grant nothing; owner answers never leak between networks. |
 | `compat.ProtectionStonesProviderTest` | 18 | The ProtectionStones provider against the real API shape (`PSRegion.fromLocation*`, exact signatures), owner/member certification, fail-closed behaviour; WorldGuard region lookup fails safe. |
 | `compat.ProtectionWhitelistTest` | 15 | Protection defaults and `exempt-locations` parsing and geometry; the bridge is inert without providers. |
 | `listen.SneakingRightClickTest` | 3 | Sneaking + right-click never opens a device menu and still allows vanilla placement. |
 | `net.ScanCostTest` | 2 | The BFS neighbour walk allocates nothing per node and a large scan stays linear. |
 | `persist.NodeStoreCanonicalTest` | 5 | The shared decoded blob is never older than the last write. |
-| `persist.NodeStoreCorruptionTest` | 5 | Corrupt PDC entries read as missing, silently and cheaply, and can be overwritten. |
+| `persist.NodeStoreCorruptionTest` | 6 | Corrupt stored blobs read as missing, silently and cheaply, stay in place and can be overwritten; a large blob still fits the item PDC string limit. |
+| `persist.NodeStoreRegionTest` | 9 | Region storage: thousands of nodes in one chunk (no ceiling), default blobs store only their type, data survives a restart (negative regions too), an emptied region deletes its file, a corrupt file is moved aside, the ticking counter, the optional active-device cap (passive blocks never count), migration out of the 5.2 chunk PDC, unloaded chunks answer "no node". |
 
 ## 4. Notes on some suites
 

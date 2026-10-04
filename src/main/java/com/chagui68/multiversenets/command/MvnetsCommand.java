@@ -28,7 +28,7 @@ import java.util.Locale;
 public class MvnetsCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> SUBCOMMANDS =
-            List.of("help", "guide", "info", "reload", "give", "devices", "doctor", "stats", "inspect", "repair", "recipes");
+            List.of("help", "guide", "reload", "give", "doctor", "stats", "inspect", "repair", "recipes", "save");
 
     private final MultiverseNets plugin;
 
@@ -48,15 +48,14 @@ public class MvnetsCommand implements CommandExecutor, TabCompleter {
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "help" -> sendHelp(sender);
             case "guide" -> guide(sender, args);
-            case "info" -> sendInfo(sender);
             case "reload" -> reload(sender);
             case "give" -> give(sender, args);
-            case "devices" -> sendDevices(sender);
             case "doctor" -> doctor(sender);
             case "stats" -> stats(sender);
             case "inspect" -> inspect(sender);
             case "repair" -> repair(sender);
             case "recipes" -> recipes(sender);
+            case "save" -> save(sender);
             default -> sender.sendMessage(Text.msg("Unknown subcommand. Use /" + label + " help.", NamedTextColor.RED));
         }
         return true;
@@ -74,10 +73,8 @@ public class MvnetsCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(Component.text("=== MultiverseNets ===", NamedTextColor.AQUA));
         sender.sendMessage(Component.text("/mvnets guide [en|es]", NamedTextColor.YELLOW)
                 .append(Component.text(" - Open the guide: every device, its recipe and how it works.", NamedTextColor.GRAY)));
-        sender.sendMessage(Component.text("/mvnets devices", NamedTextColor.YELLOW)
-                .append(Component.text(" - List of devices.", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/mvnets give <id> [n]", NamedTextColor.YELLOW)
-                .append(Component.text(" - Get a device.", NamedTextColor.GRAY)));
+                .append(Component.text(" - Get a device (Tab completes the ids).", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/mvnets doctor", NamedTextColor.YELLOW)
                 .append(Component.text(" - Network diagnostics.", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/mvnets stats", NamedTextColor.YELLOW)
@@ -90,6 +87,8 @@ public class MvnetsCommand implements CommandExecutor, TabCompleter {
                 .append(Component.text(" - Reload configuration and crafting recipes.", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/mvnets recipes", NamedTextColor.YELLOW)
                 .append(Component.text(" - Synchronize and inspect all crafting recipes.", NamedTextColor.GRAY)));
+        sender.sendMessage(Component.text("/mvnets save", NamedTextColor.YELLOW)
+                .append(Component.text(" - Save network data now (it also autosaves).", NamedTextColor.GRAY)));
     }
 
     /**
@@ -121,11 +120,6 @@ public class MvnetsCommand implements CommandExecutor, TabCompleter {
         }
         new com.chagui68.multiversenets.gui.GuideMenu(plugin, player, spanish).openMenu();
         player.playSound(player.getLocation(), org.bukkit.Sound.ITEM_BOOK_PAGE_TURN, 1f, 1f);
-    }
-
-    private void sendInfo(CommandSender sender) {
-        sender.sendMessage(Text.msg("MultiverseNets v" + plugin.getPluginMeta().getVersion()
-                + " by Chagui68. Standalone digital logistics, no Slimefun.", NamedTextColor.AQUA));
     }
 
     private void reload(CommandSender sender) {
@@ -163,17 +157,6 @@ public class MvnetsCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(Text.msg("Recipes synchronized: " + active + "/" + Items.recipeCount() + " active in Bukkit.", NamedTextColor.GREEN));
     }
 
-    private void sendDevices(CommandSender sender) {
-        StringBuilder ids = new StringBuilder();
-        for (DeviceType type : DeviceType.values()) {
-            if (!ids.isEmpty()) {
-                ids.append(", ");
-            }
-            ids.append(type.id());
-        }
-        sender.sendMessage(Text.msg(ids.toString(), NamedTextColor.AQUA));
-    }
-
     private void give(CommandSender sender, String[] args) {
         if (!requireAdmin(sender) || !(sender instanceof Player player)) {
             return;
@@ -187,7 +170,7 @@ public class MvnetsCommand implements CommandExecutor, TabCompleter {
             type = DeviceType.MVN_WIRELESS_TERMINAL;
         }
         if (type == null) {
-            sender.sendMessage(Text.msg("Unknown device. Use /mvnets devices.", NamedTextColor.RED));
+            sender.sendMessage(Text.msg("Unknown device. Press Tab after /mvnets give to see the ids.", NamedTextColor.RED));
             return;
         }
         int amount = 1;
@@ -249,6 +232,23 @@ public class MvnetsCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(Text.msg("Networks: " + manager.all().size()
                 + " | Nodes: " + manager.totalNodes()
                 + " | Stored items: " + Items.formatAmount(items), NamedTextColor.AQUA));
+        var storage = com.chagui68.multiversenets.persist.NodeStore.stats();
+        sender.sendMessage(Text.msg("Storage: " + storage.loadedRegions() + " region(s) in memory ("
+                + storage.loadedNodes() + " nodes), " + storage.regionsOnDisk() + " on disk, "
+                + storage.unsavedRegions() + " waiting to be saved.", NamedTextColor.GRAY));
+    }
+
+    /**
+     * EN: Saves the node region files now instead of waiting for the next autosave.
+     * ES: Guarda ya los archivos de región de nodos en vez de esperar al siguiente autoguardado.
+     */
+    private void save(CommandSender sender) {
+        if (!requireAdmin(sender)) {
+            return;
+        }
+        int unsaved = com.chagui68.multiversenets.persist.NodeStore.stats().unsavedRegions();
+        com.chagui68.multiversenets.persist.NodeStore.flushAll(false);
+        sender.sendMessage(Text.msg("Saving " + unsaved + " node region(s) in the background.", NamedTextColor.GREEN));
     }
 
     private String coord(Network net) {

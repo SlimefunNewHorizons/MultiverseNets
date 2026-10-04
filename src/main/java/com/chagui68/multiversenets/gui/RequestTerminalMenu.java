@@ -101,7 +101,9 @@ public class RequestTerminalMenu extends MenuHolder {
     private void scanCraftables() {
         options.clear();
         network.forEach(DeviceType.MVN_REQUEST_CRAFTER, (pos, type) -> scanCrafter(pos));
-        network.forEach(DeviceType.MVN_SF_REQUEST_CRAFTER, (pos, type) -> scanCrafter(pos));
+        if (com.chagui68.multiversenets.util.Settings.sfCrafterEnabled()) {
+            network.forEach(DeviceType.MVN_SF_REQUEST_CRAFTER, (pos, type) -> scanCrafter(pos));
+        }
     }
 
     private void scanCrafter(long pos) {

@@ -2,8 +2,8 @@ package com.chagui68.multiversenets.gui;
 
 import com.chagui68.multiversenets.MultiverseNets;
 import com.chagui68.multiversenets.item.DeviceType;
+import com.chagui68.multiversenets.net.MemoryModules;
 import com.chagui68.multiversenets.net.Network;
-import com.chagui68.multiversenets.persist.NodeBlob;
 import com.chagui68.multiversenets.persist.NodeStore;
 import com.chagui68.multiversenets.util.PosUtil;
 import com.chagui68.multiversenets.util.Text;
@@ -20,8 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Controller Management Menu: displays network status, CPU Virtual Cache tiers & upgrades,
- * and router antenna broadcasting state.
+ * Controller Management Menu: displays network status, the network's memory (DRAM Bays and their
+ * modules) and router antenna broadcasting state.
  */
 public class ControllerMenu extends MenuHolder {
 
@@ -41,9 +41,8 @@ public class ControllerMenu extends MenuHolder {
 
     @Override
     protected void draw() {
-        NodeBlob blob = NodeStore.get(block);
         inv.setItem(4, controllerIcon());
-        inv.setItem(11, virtualCacheIcon(blob));
+        inv.setItem(11, memoryIcon());
         inv.setItem(13, routerIcon());
         inv.setItem(15, button(Material.BEACON, "Open Terminal Grid"));
         inv.setItem(22, button(Material.SUNFLOWER, "Rescan Network"));
@@ -65,27 +64,27 @@ public class ControllerMenu extends MenuHolder {
     }
 
     /**
-     * EN: Memory modules no longer go in the Controller. This only explains where they go and,
-     * for networks built before the DRAM Bay, how many old modules wait in the Terminal.
-     * ES: Los módulos de memoria ya no van en el Controlador. Esto solo explica dónde van y, en
-     * redes anteriores al DRAM Bay, cuántos módulos antiguos esperan en el Terminal.
+     * EN: Where the network's memory lives: its DRAM Bays and how many modules they hold.
+     * ES: Dónde vive la memoria de la red: sus DRAM Bays y cuántos módulos tienen.
      */
-    private ItemStack virtualCacheIcon(NodeBlob blob) {
-        int recovered = blob == null || blob.recoveredModules == null ? 0 : blob.recoveredModules.size();
-        int bays = network.count(DeviceType.MVN_DRAM_BAY);
+    private ItemStack memoryIcon() {
+        int[] bays = {0};
+        int[] modules = {0};
+        network.forEach(DeviceType.MVN_DRAM_BAY, (pos, type) -> {
+            bays[0]++;
+            if (network.world().isChunkLoaded(PosUtil.unpackX(pos) >> 4, PosUtil.unpackZ(pos) >> 4)) {
+                modules[0] += MemoryModules.modules(NodeStore.canonical(network.block(pos))).size();
+            }
+        });
         ItemStack item = new ItemStack(Material.WAXED_COPPER_BULB);
         var meta = item.getItemMeta();
         meta.displayName(Component.text("Network Memory", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
         List<Component> lore = new ArrayList<>();
-        lore.add(Component.text("Memory modules go in a DRAM Bay", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
-        lore.add(Component.text("connected to this network, not here.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
-        lore.add(Component.text("DRAM Bays in this network: " + bays, NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
-        if (recovered > 0) {
-            lore.add(Component.empty());
-            lore.add(Component.text(recovered + " old module(s) were inside this Controller.", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
-            lore.add(Component.text("They wait in the Terminal as temporary", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
-            lore.add(Component.text("items, with all their items inside.", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
-        }
+        lore.add(Component.text("DRAM Bays: " + bays[0], NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+        lore.add(Component.text("Modules installed: " + modules[0] + " / " + (bays[0] * MemoryModules.BAY_SLOTS),
+                NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+        lore.add(Component.text("Each DRAM Bay holds up to " + MemoryModules.BAY_SLOTS + " modules.",
+                NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
         meta.lore(lore);
         item.setItemMeta(meta);
         return item;

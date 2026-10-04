@@ -150,12 +150,14 @@ I Q I
 > I = **Lingote de hierro** · Q = **Cuarzo** · R = **Redstone** · C = **Bloque de cobre**
 
 - **Resultado**: 1× DRAM Bay (Bombilla de cobre encerada)
-- **Función**: Bloque de red que aloja **un módulo de memoria** (cualquiera de los módulos de ítems de
-  abajo, o el Fluid DRAM). Mientras está instalado, el stock del módulo forma parte de la red. Clic
-  derecho a un bay vacío con un módulo en la mano para instalarlo, o clic derecho para abrir su menú
-  (stock, instalar desde el cursor o con shift+clic, **Eject Module**). Un módulo expulsado conserva
-  todo su stock: instálalo en un DRAM Bay de otra red y el stock aparece allí y desaparece de la
-  primera. Al romper el bay suelta el bay y su módulo (con el stock) por separado.
+- **Función**: Bloque de red que aloja **hasta 16 módulos de memoria** (cualquier mezcla de los
+  módulos de ítems de abajo y Fluid DRAMs), cada uno con su propio stock. Mientras están instalados,
+  su stock forma parte de la red. Clic derecho al bay con un módulo en la mano para instalarlo en el
+  siguiente hueco libre, o clic derecho para abrir su menú: una cuadrícula de 4×4, un hueco por
+  módulo, más un resumen. Instala desde el cursor o con shift+clic; **haz clic en un módulo instalado
+  para sacarlo**. Un módulo sacado conserva todo su stock: instálalo en un DRAM Bay de otra red y el
+  stock aparece allí y desaparece de la primera. Al romper el bay suelta el bay y cada módulo (con su
+  stock) por separado.
 
 ---
 
@@ -579,8 +581,9 @@ E P E
 
 - **Resultado**: 1× Slimefun Recipe Encoder (Mesa de encantamientos)
 - **Función**: Igual que el Recipe Encoder para recetas de Slimefun. Los Blueprints que dejes en sus
-  ranuras se quedan guardados en el bloque al cerrarlo. Necesita Slimefun. Su receta y su menú solo
-  existen con `sf-encoder.enabled: true`.
+  ranuras se quedan guardados en el bloque al cerrarlo. Necesita Slimefun. Su receta, su colocación y
+  su menú solo existen con `slimefun-machines.enabled` y `slimefun-machines.encoder` en `true` (por
+  defecto).
 
 ---
 
@@ -614,7 +617,8 @@ R C R
 
 - **Resultado**: 1× Slimefun Auto-Crafter (Obsidiana llorosa)
 - **Función**: Igual que el Auto-Crafter y acepta **Blueprints de Slimefun y vanilla**.
-  `sf-crafter.enabled: false` quita su receta, su menú y su crafteo.
+  `slimefun-machines.crafters: false` (o `slimefun-machines.enabled: false`) quita su receta, su
+  colocación, su menú y su crafteo.
 
 ---
 
@@ -646,7 +650,7 @@ R C R
 
 - **Resultado**: 1× Slimefun Request Crafter (Pilar de púrpura)
 - **Función**: Igual que el Request Crafter, con Blueprints de Slimefun y vanilla. Depende de
-  `sf-crafter.enabled`.
+  `slimefun-machines.crafters` y `slimefun-machines.enabled`.
 
 ---
 
@@ -700,11 +704,19 @@ F E F
 - **Resultado**: 1× Genetic Chicken Sorter (Bala de heno)
 - **Función**: Mueve **solo** los pollos de bolsillo del addon GeneticChickengineering, elegidos por
   sus genes; cualquier otro ítem se ignora. **Push** envía los pollos que cumplen de la red al bloque
-  al que mira; **Pull** los trae de ese bloque a la red (hasta 16 por ciclo). Reglas, todas deben
-  cumplirse: productos aceptados (añade uno haciendo clic con un pollo en el cursor o con shift+clic a
-  uno del inventario; lista vacía = cualquiera), nivel mínimo/máximo, fuerza de ADN mínima, solo genes
-  puros, ADN conocido/desconocido, adulto/bebé. Empieza **parado**, así no puede vaciar una red antes
-  de configurarlo.
+  al que mira; **Pull** los trae de ese bloque a la red (hasta 16 por ciclo).
+- **Menú** (clic derecho), de arriba abajo:
+  - **Barra de control**: arrancar/parar, dirección (Push/Pull), lado, un libro de resumen que dice
+    en palabras simples qué pollos pasan ahora mismo, y ayuda.
+  - **Productos aceptados**: 18 huecos, cada uno con el ítem propio del producto. Haz clic en un hueco
+    con un pollo de bolsillo en el cursor, o shift+clic a un pollo del inventario, para añadir su
+    producto; clic en un producto para quitarlo. Lista vacía = cualquier producto.
+  - **Reglas de genes** (todas deben cumplirse), en tres parejas: nivel (mín/máx), genes (fuerza de
+    ADN mínima, solo genes puros) e identidad (ADN secuenciado/sin secuenciar, adulto/bebé). Cada
+    regla muestra su valor en el nombre y en el tamaño del stack y brilla mientras está activa: clic
+    izquierdo +1, derecho −1, shift+clic la reinicia. El rango de niveles nunca puede quedar vacío.
+  - **Fila inferior**: vaciar productos, reiniciar reglas, cerrar.
+- Empieza **parado**, así no puede vaciar una red antes de configurarlo.
 
 ---
 

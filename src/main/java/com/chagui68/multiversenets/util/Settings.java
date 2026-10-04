@@ -52,8 +52,25 @@ public final class Settings {
         return cfg != null ? Math.max(16, cfg.getInt("network.max-nodes", 16384)) : 16384;
     }
 
-    public static int maxNodesPerChunk() {
-        return cfg != null ? Math.max(1, cfg.getInt("network.max-nodes-per-chunk", 64)) : 64;
+    /**
+     * EN: Optional cap on devices the network loop works every cycle (grabbers, pushers, vacuums,
+     * crafters...) per chunk. 0 = no cap. Cables, cells and other passive blocks never count.
+     *
+     * ES: Tope opcional de dispositivos que el bucle de la red trabaja en cada ciclo (grabbers,
+     * pushers, vacuums, crafters...) por chunk. 0 = sin tope. Cables, celdas y bloques pasivos nunca
+     * cuentan.
+     */
+    public static int maxActiveDevicesPerChunk() {
+        return cfg != null ? Math.max(0, cfg.getInt("network.max-active-devices-per-chunk", 0)) : 0;
+    }
+
+    /**
+     * EN: Seconds between background saves of the node region files.
+     *
+     * ES: Segundos entre guardados en segundo plano de los archivos de región de nodos.
+     */
+    public static int storageAutosaveSeconds() {
+        return cfg != null ? Math.max(5, cfg.getInt("storage.autosave-seconds", 30)) : 30;
     }
 
     public static long virtualCacheCapacity(int tier) {
@@ -221,19 +238,51 @@ public final class Settings {
     }
 
     /**
-     * EN: Returns true if the Slimefun Recipe Encoder machine is enabled in config.
-     * ES: Devuelve true si el Codificador de Recetas de Slimefun está habilitado en config.
+     * EN: Master switch of the machines made for Slimefun (Slimefun Recipe Encoder, Slimefun
+     * Auto-Crafter, Slimefun Request Crafter). Off: no recipes, they cannot be placed, their menus
+     * stay closed and they do no work.
+     * ES: Interruptor general de las máquinas hechas para Slimefun (Codificador, Auto-Crafter y
+     * Crafter bajo pedido de Slimefun). Apagado: sin recetas, no se pueden colocar, sus menús no
+     * abren y no trabajan.
+     */
+    public static boolean sfMachinesEnabled() {
+        return cfg == null || cfg.getBoolean("slimefun-machines.enabled", true);
+    }
+
+    /**
+     * EN: Returns true if the Slimefun Recipe Encoder machine is enabled in config. Reads the old
+     * {@code sf-encoder.enabled} key when the new one is absent, so existing configs keep working.
+     * ES: Devuelve true si el Codificador de Recetas de Slimefun está habilitado en config. Si falta
+     * la clave nueva lee la antigua {@code sf-encoder.enabled}, así las configs existentes siguen igual.
      */
     public static boolean sfEncoderEnabled() {
-        return cfg == null || cfg.getBoolean("sf-encoder.enabled", true);
+        return sfMachinesEnabled() && (cfg == null
+                || cfg.getBoolean("slimefun-machines.encoder", cfg.getBoolean("sf-encoder.enabled", true)));
     }
 
     /**
      * EN: Returns true if Slimefun Crafters (Auto-Crafter & Request Crafter) are enabled in config.
-     * ES: Devuelve true si los Crafteadores de Slimefun están habilitados en config.
+     * Falls back to the old {@code sf-crafter.enabled} key.
+     * ES: Devuelve true si los Crafteadores de Slimefun están habilitados en config. Si falta la clave
+     * nueva lee la antigua {@code sf-crafter.enabled}.
      */
     public static boolean sfCrafterEnabled() {
-        return cfg == null || cfg.getBoolean("sf-crafter.enabled", true);
+        return sfMachinesEnabled() && (cfg == null
+                || cfg.getBoolean("slimefun-machines.crafters", cfg.getBoolean("sf-crafter.enabled", true)));
+    }
+
+    /**
+     * EN: Whether a Slimefun machine of this type may exist and work right now. Every other device
+     * answers true.
+     * ES: Si una máquina de Slimefun de este tipo puede existir y trabajar ahora. Cualquier otro
+     * dispositivo responde true.
+     */
+    public static boolean deviceEnabled(com.chagui68.multiversenets.item.DeviceType type) {
+        return switch (type) {
+            case MVN_SF_ENCODER -> sfEncoderEnabled();
+            case MVN_SF_CRAFTER, MVN_SF_REQUEST_CRAFTER -> sfCrafterEnabled();
+            default -> true;
+        };
     }
 
     /**

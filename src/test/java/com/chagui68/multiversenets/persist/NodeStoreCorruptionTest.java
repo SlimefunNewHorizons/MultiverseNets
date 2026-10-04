@@ -1,10 +1,7 @@
 package com.chagui68.multiversenets.persist;
 
 import com.chagui68.multiversenets.MultiverseNets;
-import org.bukkit.Chunk;
-import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
-import org.bukkit.persistence.PersistentDataType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,7 +9,6 @@ import org.mockbukkit.mockbukkit.MockBukkit;
 import org.mockbukkit.mockbukkit.ServerMock;
 import org.mockbukkit.mockbukkit.world.WorldMock;
 
-import java.util.Base64;
 import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -22,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * The server log showed this on every tick:
  *   java.io.EOFException ... at NodeStore.decode(NodeStore.java:100) ... printStackTrace()
- * A chunk PDC entry held a Base64 string whose decoded bytes did not make a full serialization
+ * A stored entry held bytes that did not make a full serialization
  * stream, and {@code decode(String)} answered by printing the stack trace and returning null on
  * every single tick forever. That is not a useful way to handle data that is known to be corrupt:
  * the entry stays, the tickers keep reading it, and the log turns into noise.
@@ -38,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * El log del servidor mostraba esto a cada tick:
  *   java.io.EOFException ... at NodeStore.decode ... printStackTrace()
- * Una entrada PDC del chunk tenia una Base64 cuyos bytes no formaban un flujo de serializacion
+ * Una entrada guardada tenia bytes que no formaban un flujo de serializacion
  * completo, y decode respondia imprimiendo la pila y devolviendo null en cada tick de por vida.
  */
 class NodeStoreCorruptionTest {
@@ -84,7 +80,7 @@ class NodeStoreCorruptionTest {
 
         assertNull(NodeStore.get(target),
                 "a truncated blob must read as 'no node here' so the tickers can move on");
-        assertEquals(truncatedBlob(), readRaw(target),
+        assertArrayEquals(truncatedBlob(), readRaw(target),
                 "decode must not rewrite or drop the corrupt entry; only the read side calms down");
     }
 
@@ -113,7 +109,7 @@ class NodeStoreCorruptionTest {
     @Test
     void nullDecodeReadsAsMissingSilently() {
         Block target = world.getBlockAt(2, 64, 2);
-        writeRaw(target, Base64.getEncoder().encodeToString(new byte[]{0x7F, 0x0E, 0x00}));
+        writeRaw(target, new byte[]{0x7F, 0x0E, 0x00});
 
         assertNull(NodeStore.get(target),
                 "any decode failure must surface as 'no node here', not as a stack trace replay");
@@ -147,25 +143,16 @@ class NodeStoreCorruptionTest {
                 + "took " + elapsedMs + " ms");
     }
 
-    private static String truncatedBlob() {
-        return Base64.getEncoder().encodeToString(new byte[]{0x00});
+    private static byte[] truncatedBlob() {
+        return new byte[]{0x00};
     }
 
-    private static void writeRaw(Block target, String data) {
-        Chunk chunk = target.getChunk();
-        chunk.getPersistentDataContainer().set(
-                nodeKey(target),
-                PersistentDataType.STRING,
-                data);
+    /** Stores bytes as the node's blob, exactly as a damaged region entry would hold them. */
+    private static void writeRaw(Block target, byte[] data) {
+        NodeStore.putRaw(target, "MVN_CELL_T1", data);
     }
 
-    private static String readRaw(Block target) {
-        return target.getChunk().getPersistentDataContainer().get(
-                nodeKey(target), PersistentDataType.STRING);
-    }
-
-    private static org.bukkit.NamespacedKey nodeKey(Block target) {
-        return new org.bukkit.NamespacedKey(MultiverseNets.instance(),
-                "n" + target.getX() + "_" + target.getY() + "_" + target.getZ());
+    private static byte[] readRaw(Block target) {
+        return NodeStore.rawData(target);
     }
 }

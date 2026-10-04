@@ -22,7 +22,10 @@ public final class Keys {
     public static NamespacedKey RECEIVER_BIND;
     /** EN: Legacy recipe identifier / ES: Identificador de receta antigua. */
     public static NamespacedKey BLUEPRINT_RECIPE;
-    /** EN: Chunk marker flag indicating presence of nodes / ES: Marca rápida de chunk con nodos. */
+    /**
+     * EN: Legacy (≤ 5.2) chunk marker: the chunk still holds node data in its PDC and must be migrated.
+     * ES: Marca antigua (≤ 5.2): el chunk aún tiene datos de nodos en su PDC y hay que migrarlo.
+     */
     public static NamespacedKey CHUNK_HAS_NODES;
     /** EN: Terminal search/sort display settings / ES: Ajustes de visualización y búsqueda de terminal. */
     public static NamespacedKey TERMINAL_DISPLAY;

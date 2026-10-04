@@ -12,7 +12,7 @@ softdepend: [Slimefun, ProtectionStones, WorldGuard, WorldEdit, Lands, Towny, Gr
 commands:
   mvnets:
     description: Main MultiverseNets command.
-    usage: /mvnets [help|guide|info|devices|give|doctor|stats|reload]
+    usage: /mvnets [help|guide|give|doctor|stats|inspect|repair|recipes|save|reload]
     permission: multiversenets.use
 
 permissions:
@@ -20,7 +20,7 @@ permissions:
     description: Allows using the base /mvnets command.
     default: true
   multiversenets.admin:
-    description: Access to administration (give, doctor, stats, reload).
+    description: Access to administration (give, doctor, stats, inspect, repair, recipes, save, reload).
     default: op
     children:
       multiversenets.use: true

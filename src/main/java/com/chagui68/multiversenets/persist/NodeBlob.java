@@ -107,14 +107,26 @@ public class NodeBlob implements Serializable {
     /** EN: Retained encoded blueprint output inside Recipe Encoder / ES: Plano codificado guardado en la salida. */
     public ItemStack encoderOutput;
     /**
-     * EN: DRAM Bay only: DeviceType name of the installed memory module, or null when empty. An
-     * item module keeps its stock in {@link #virtualSamples}/{@link #virtualAmounts} with
-     * {@link #virtualCacheTier} set to the module tier; the Fluid DRAM uses {@link #dramFluids}.
-     * ES: Solo DRAM Bay: nombre del DeviceType del módulo instalado, o null si está vacío. Un módulo
-     * de ítems guarda su stock en {@link #virtualSamples}/{@link #virtualAmounts} con
-     * {@link #virtualCacheTier} igual a su nivel; el Fluid DRAM usa {@link #dramFluids}.
+     * EN: Legacy (single-module DRAM Bay): DeviceType name of the one installed module. Bays now keep
+     * their modules in {@link #bayModules}; {@link #migrateSingleModuleBay()} moves an old bay there.
+     * ES: Antiguo (DRAM Bay de un solo módulo): nombre del DeviceType del módulo instalado. Ahora los
+     * bays guardan sus módulos en {@link #bayModules}; {@link #migrateSingleModuleBay()} mueve ahí un
+     * bay antiguo.
      */
     public String installedModule;
+    /**
+     * EN: DRAM Bay only: the installed memory modules (up to 16), one blob each. A module blob has
+     * the module's DeviceType as {@link #typeName}; an item module keeps its stock in
+     * {@link #virtualSamples}/{@link #virtualAmounts} with {@link #virtualCacheTier} set to its tier,
+     * the Fluid DRAM in {@link #dramFluids}/{@link #dramFluidAmounts}. Same layout as the stock a
+     * module item carries.
+     * ES: Solo DRAM Bay: los módulos de memoria instalados (hasta 16), un blob cada uno. El blob de un
+     * módulo lleva su DeviceType en {@link #typeName}; un módulo de ítems guarda su stock en
+     * {@link #virtualSamples}/{@link #virtualAmounts} con {@link #virtualCacheTier} igual a su nivel,
+     * el Fluid DRAM en {@link #dramFluids}/{@link #dramFluidAmounts}. El mismo formato que el stock
+     * que lleva el ítem de un módulo.
+     */
+    public List<NodeBlob> bayModules = new ArrayList<>();
     /**
      * EN: Controller only: memory modules that were installed inside it before the DRAM Bay
      * existed, taken out with their stock and waiting in the Terminal for a player to collect.
@@ -439,5 +451,37 @@ public class NodeBlob implements Serializable {
         NodeBlob blob = new NodeBlob();
         blob.typeName = typeName;
         return blob;
+    }
+
+    /**
+     * EN: A DRAM Bay saved when it held a single module keeps that module (and its stock) on its
+     * own fields. This moves it into {@link #bayModules} as module 1 and clears those fields. Does
+     * nothing for anything else. True when something moved.
+     *
+     * ES: Un DRAM Bay guardado cuando solo admitía un módulo tiene ese módulo (y su stock) en sus
+     * propios campos. Esto lo pasa a {@link #bayModules} como módulo 1 y limpia esos campos. No hace
+     * nada con lo demás. True si se movió algo.
+     */
+    public boolean migrateSingleModuleBay() {
+        if (bayModules == null) {
+            bayModules = new ArrayList<>();
+        }
+        if (installedModule == null || !("MVN_DRAM_BAY".equals(typeName) || "DRAM_BAY".equals(typeName))) {
+            return false;
+        }
+        NodeBlob module = create(installedModule);
+        module.virtualCacheTier = virtualCacheTier;
+        module.virtualSamples = virtualSamples != null ? virtualSamples : new ArrayList<>();
+        module.virtualAmounts = virtualAmounts != null ? virtualAmounts : new ArrayList<>();
+        module.dramFluids = dramFluids != null ? dramFluids : new ArrayList<>();
+        module.dramFluidAmounts = dramFluidAmounts != null ? dramFluidAmounts : new ArrayList<>();
+        bayModules.add(0, module);
+        installedModule = null;
+        virtualCacheTier = 0;
+        virtualSamples = new ArrayList<>();
+        virtualAmounts = new ArrayList<>();
+        dramFluids = new ArrayList<>();
+        dramFluidAmounts = new ArrayList<>();
+        return true;
     }
 }

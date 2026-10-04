@@ -45,7 +45,7 @@ public class GuideMenu extends MenuHolder {
     public static final int TOPICS_SLOT = 19;
     public static final int[] CATEGORY_SLOTS = {21, 22, 23, 24, 25, 30, 31, 32};
     public static final int[] LIST_SLOTS = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34};
-    public static final int[] TOPIC_SLOTS = {19, 20, 21, 22, 23, 24, 25};
+    public static final int[] TOPIC_SLOTS = {19, 20, 21, 22, 23, 24, 25, 31};
     public static final int[] GRID_SLOTS = {10, 11, 12, 19, 20, 21, 28, 29, 30};
     public static final int TABLE_SLOT = 22;
     public static final int RESULT_SLOT = 24;
@@ -233,10 +233,10 @@ public class GuideMenu extends MenuHolder {
         Recipe recipe = key == null ? null : Bukkit.getRecipe(key);
         if (!(recipe instanceof ShapedRecipe shaped)) {
             ItemStack none = icon(Material.BARRIER, spanish ? "Sin receta" : "No recipe", NamedTextColor.RED, wrap(spanish
-                    ? "Esta receta está desactivada en config.yml (sf-encoder.enabled / sf-crafter.enabled) o el "
-                    + "ítem no se craftea."
-                    : "This recipe is disabled in config.yml (sf-encoder.enabled / sf-crafter.enabled) or the item "
-                    + "is not crafted."));
+                    ? "Esta máquina está desactivada en config.yml (sección slimefun-machines) o el ítem no se "
+                    + "craftea."
+                    : "This machine is disabled in config.yml (slimefun-machines section) or the item is not "
+                    + "crafted."));
             for (int slot : GRID_SLOTS) {
                 inv.setItem(slot, none);
             }

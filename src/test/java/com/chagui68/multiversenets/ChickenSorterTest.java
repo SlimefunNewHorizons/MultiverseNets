@@ -1,6 +1,7 @@
 package com.chagui68.multiversenets;
 
 import com.chagui68.multiversenets.compat.ChickenGenetics;
+import com.chagui68.multiversenets.gui.ChickenSorterMenu;
 import com.chagui68.multiversenets.item.DeviceType;
 import com.chagui68.multiversenets.net.Network;
 import com.chagui68.multiversenets.net.NetworkTicker;
@@ -10,6 +11,10 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryAction;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
@@ -18,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockbukkit.mockbukkit.MockBukkit;
 import org.mockbukkit.mockbukkit.ServerMock;
+import org.mockbukkit.mockbukkit.entity.PlayerMock;
 import org.mockbukkit.mockbukkit.world.WorldMock;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -185,5 +191,113 @@ class ChickenSorterTest {
         assertEquals(1, chickens);
         assertEquals(5, net.storage().count(i -> i.getType() == Material.DIRT), "other items are never touched");
         assertEquals(1, net.storage().count(ChickenGenetics::isPocketChicken), "the mixed chicken stays");
+    }
+
+    // ------------------------------------------------------------------ menu
+
+    private PlayerMock openSorterMenu(Block sorter) {
+        PlayerMock player = server.addPlayer();
+        new ChickenSorterMenu(plugin, player, sorter).openMenu();
+        return player;
+    }
+
+    private void click(PlayerMock player, int raw, ClickType type) {
+        InventoryAction action = type.isShiftClick() ? InventoryAction.MOVE_TO_OTHER_INVENTORY : InventoryAction.PICKUP_ALL;
+        server.getPluginManager().callEvent(new InventoryClickEvent(player.getOpenInventory(),
+                InventoryType.SlotType.CONTAINER, raw, type, action));
+    }
+
+    private static String lore(ItemStack item) {
+        StringBuilder out = new StringBuilder();
+        for (var line : item.getItemMeta().lore()) {
+            out.append(net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(line)).append(System.lineSeparator());
+        }
+        return out.toString();
+    }
+
+    private static String name(ItemStack item) {
+        return net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
+                .serialize(item.getItemMeta().displayName());
+    }
+
+    @Test
+    void theMenuSpellsOutWhatPassesAndShowsRealProductIcons() {
+        Block sorter = place(0, 64, 0, DeviceType.MVN_CHICKEN_SORTER);
+        PlayerMock player = openSorterMenu(sorter);
+        var top = player.getOpenInventory().getTopInventory();
+
+        assertEquals("● Stopped", name(top.getItem(ChickenSorterMenu.ACTIVE_SLOT)), "a fresh sorter is stopped");
+        assertTrue(lore(top.getItem(ChickenSorterMenu.SUMMARY_SLOT)).contains("every pocket chicken passes"));
+        assertEquals(Material.LIME_STAINED_GLASS_PANE, top.getItem(ChickenSorterMenu.FIRST_PRODUCT_SLOT).getType(),
+                "an empty list says that every product passes");
+
+        player.setItemOnCursor(chicken(new int[]{3, 3, 3, 3, 3, 3}, true, false, null));
+        click(player, ChickenSorterMenu.FIRST_PRODUCT_SLOT + 4, ClickType.LEFT);
+
+        assertEquals(java.util.List.of("TYPE:63"), NodeStore.get(sorter).chickenProducts);
+        top = player.getOpenInventory().getTopInventory();
+        assertEquals(Material.FEATHER, top.getItem(ChickenSorterMenu.FIRST_PRODUCT_SLOT).getType(),
+                "the product shows its own item, not a generic egg");
+        assertTrue(lore(top.getItem(ChickenSorterMenu.SUMMARY_SLOT)).contains("Products: Feather"));
+
+        click(player, ChickenSorterMenu.FIRST_PRODUCT_SLOT, ClickType.LEFT);
+        assertTrue(NodeStore.get(sorter).chickenProducts.isEmpty(), "clicking a product removes it");
+    }
+
+    @Test
+    void ruleButtonsStepResetAndKeepTheTierRangeValid() {
+        Block sorter = place(0, 64, 0, DeviceType.MVN_CHICKEN_SORTER);
+        PlayerMock player = openSorterMenu(sorter);
+
+        click(player, ChickenSorterMenu.MIN_TIER_SLOT, ClickType.LEFT);
+        click(player, ChickenSorterMenu.MIN_TIER_SLOT, ClickType.LEFT);
+        assertEquals(2, NodeStore.get(sorter).chickenMinTier);
+        var minIcon = player.getOpenInventory().getTopInventory().getItem(ChickenSorterMenu.MIN_TIER_SLOT);
+        assertEquals(2, minIcon.getAmount(), "the stack size shows the value");
+        assertTrue(Boolean.TRUE.equals(minIcon.getItemMeta().getEnchantmentGlintOverride()), "an active rule glows");
+
+        // Bajar el maximo por debajo del minimo arrastra el minimo: el rango nunca queda vacio.
+        click(player, ChickenSorterMenu.MAX_TIER_SLOT, ClickType.RIGHT);
+        assertEquals(9, NodeStore.get(sorter).chickenMaxTier, "from 'no limit' one step down is 9");
+        for (int i = 0; i < 8; i++) {
+            click(player, ChickenSorterMenu.MAX_TIER_SLOT, ClickType.RIGHT);
+        }
+        NodeBlob rules = NodeStore.get(sorter);
+        assertEquals(1, rules.chickenMaxTier);
+        assertEquals(1, rules.chickenMinTier, "min follows max down");
+
+        click(player, ChickenSorterMenu.STRENGTH_SLOT, ClickType.LEFT);
+        click(player, ChickenSorterMenu.KNOWN_SLOT, ClickType.RIGHT);
+        assertEquals("UNKNOWN", NodeStore.get(sorter).chickenKnown, "right-click walks the options backwards");
+        click(player, ChickenSorterMenu.STRENGTH_SLOT, ClickType.SHIFT_LEFT);
+        assertEquals(0, NodeStore.get(sorter).chickenMinStrength, "shift-click resets one rule");
+
+        click(player, ChickenSorterMenu.RESET_SLOT, ClickType.LEFT);
+        rules = NodeStore.get(sorter);
+        assertNull(rules.chickenMinTier);
+        assertNull(rules.chickenMaxTier);
+        assertNull(rules.chickenKnown);
+        assertTrue(ChickenGenetics.matches(rules, chicken(new int[]{0, 0, 0, 0, 0, 0}, false, true, null)),
+                "after a reset every chicken passes again");
+    }
+
+    @Test
+    void controlBarTogglesStatusDirectionAndSide() {
+        Block sorter = place(0, 64, 0, DeviceType.MVN_CHICKEN_SORTER);
+        PlayerMock player = openSorterMenu(sorter);
+
+        click(player, ChickenSorterMenu.ACTIVE_SLOT, ClickType.LEFT);
+        click(player, ChickenSorterMenu.MODE_SLOT, ClickType.LEFT);
+        click(player, ChickenSorterMenu.FACE_SLOT, ClickType.LEFT);
+        NodeBlob blob = NodeStore.get(sorter);
+        assertTrue(blob.chickenActive);
+        assertTrue(blob.chickenPull);
+        assertEquals("NORTH", blob.targetFace);
+
+        click(player, ChickenSorterMenu.FACE_SLOT, ClickType.RIGHT);
+        click(player, ChickenSorterMenu.FACE_SLOT, ClickType.RIGHT);
+        assertEquals("DOWN", NodeStore.get(sorter).targetFace, "right-click cycles the sides backwards");
+        assertTrue(lore(player.getOpenInventory().getTopInventory().getItem(ChickenSorterMenu.SUMMARY_SLOT))
+                .contains("Moves: down → network"));
     }
 }

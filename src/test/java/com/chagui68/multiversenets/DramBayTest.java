@@ -114,7 +114,7 @@ class DramBayTest {
 
         new DramBayMenu(plugin, player, bayA).openMenu();
         server.getPluginManager().callEvent(new InventoryClickEvent(player.getOpenInventory(),
-                InventoryType.SlotType.CONTAINER, DramBayMenu.EJECT_SLOT, ClickType.LEFT, InventoryAction.PICKUP_ALL));
+                InventoryType.SlotType.CONTAINER, DramBayMenu.MODULE_SLOTS[0], ClickType.LEFT, InventoryAction.PICKUP_ALL));
         player.closeInventory();
 
         assertNull(MemoryModules.installed(NodeStore.get(bayA)), "the bay is empty");
@@ -282,5 +282,105 @@ class DramBayTest {
                 && Items.typeOf(item.getItemStack()) == DeviceType.MVN_CACHE_L1
                 && MemoryModules.cargoOf(item.getItemStack()) != null);
         assertTrue(dropped, "the recovered module drops with its items");
+    }
+
+    // ------------------------------------------------------------------ 16 modules per bay
+
+    @Test
+    void aBayHoldsSixteenModulesAndTheNetworkUsesAllOfThem() {
+        Block controller = place(0, 64, 0, DeviceType.MVN_CONTROLLER);
+        Block bay = place(1, 64, 0, DeviceType.MVN_DRAM_BAY);
+        Network net = network(controller);
+        for (int i = 0; i < MemoryModules.BAY_SLOTS; i++) {
+            rightClick(bay, Items.create(DeviceType.MVN_CACHE_L1));
+        }
+        assertEquals(16, MemoryModules.modules(NodeStore.get(bay)).size());
+
+        ItemStack extra = Items.create(DeviceType.MVN_CACHE_L1);
+        rightClick(bay, extra);
+        assertEquals(16, MemoryModules.modules(NodeStore.get(bay)).size(), "a 17th module is refused");
+        assertEquals(DeviceType.MVN_CACHE_L1, Items.typeOf(player.getInventory().getItemInMainHand()),
+                "and stays in the hand");
+
+        // 16 x 2.048 = 32.768: mas de lo que cabe en un solo modulo.
+        int stored = 0;
+        for (int i = 0; i < 40; i++) {
+            stored += 1000 - net.storage().deposit(new ItemStack(Material.COBBLESTONE, 1000));
+        }
+        assertEquals(16 * 2048, stored, "every module of the bay fills up");
+        assertEquals(16L * 2048, net.storage().count(i -> i.getType() == Material.COBBLESTONE));
+    }
+
+    @Test
+    void clickingAModuleTakesOutOnlyThatOne() {
+        Block controller = place(0, 64, 0, DeviceType.MVN_CONTROLLER);
+        Block bay = place(1, 64, 0, DeviceType.MVN_DRAM_BAY);
+        Network net = network(controller);
+        rightClick(bay, Items.create(DeviceType.MVN_CACHE_L1));
+        net.storage().deposit(new ItemStack(Material.DIRT, 2048));
+        rightClick(bay, Items.create(DeviceType.MVN_CACHE_L2));
+        net.storage().deposit(new ItemStack(Material.STONE, 500));
+        player.getInventory().clear();
+
+        new DramBayMenu(plugin, player, bay).openMenu();
+        server.getPluginManager().callEvent(new InventoryClickEvent(player.getOpenInventory(),
+                InventoryType.SlotType.CONTAINER, DramBayMenu.MODULE_SLOTS[1], ClickType.LEFT, InventoryAction.PICKUP_ALL));
+
+        var left = MemoryModules.modules(NodeStore.get(bay));
+        assertEquals(1, left.size(), "one module left");
+        assertEquals(DeviceType.MVN_CACHE_L1, MemoryModules.typeOf(left.get(0)));
+        assertEquals(2048, net.storage().count(i -> i.getType() == Material.DIRT), "its stock stays");
+        assertEquals(0, net.storage().count(i -> i.getType() == Material.STONE), "the taken module's stock left");
+        ItemStack taken = null;
+        for (ItemStack it : player.getInventory().getContents()) {
+            if (Items.typeOf(it) == DeviceType.MVN_CACHE_L2) {
+                taken = it;
+            }
+        }
+        assertNotNull(taken);
+        assertEquals(500L, MemoryModules.cargoOf(taken).totalVirtualAmount());
+    }
+
+    @Test
+    void breakingAFullBayDropsEveryModule() {
+        Block controller = place(0, 64, 0, DeviceType.MVN_CONTROLLER);
+        Block bay = place(1, 64, 0, DeviceType.MVN_DRAM_BAY);
+        network(controller);
+        for (int i = 0; i < 3; i++) {
+            rightClick(bay, Items.create(DeviceType.MVN_CACHE_L1));
+        }
+        rightClick(bay, Items.create(DeviceType.MVN_FLUID_DRAM));
+
+        server.getPluginManager().callEvent(new BlockBreakEvent(bay, player));
+
+        long modules = world.getEntities().stream()
+                .filter(e -> e instanceof org.bukkit.entity.Item item
+                        && Items.typeOf(item.getItemStack()) != null
+                        && Items.typeOf(item.getItemStack()).isMemoryModule())
+                .count();
+        assertEquals(4, modules, "all four modules drop");
+    }
+
+    @Test
+    void aBaySavedWithOneModuleKeepsItAndItsStock() {
+        Block controller = place(0, 64, 0, DeviceType.MVN_CONTROLLER);
+        Block bay = place(1, 64, 0, DeviceType.MVN_DRAM_BAY);
+        Network net = network(controller);
+        // Formato anterior: el modulo y su stock en los campos del propio bay.
+        NodeBlob legacy = NodeBlob.create(DeviceType.MVN_DRAM_BAY.name());
+        legacy.installedModule = DeviceType.MVN_CACHE_L3.name();
+        legacy.virtualCacheTier = 3;
+        legacy.addVirtualItem(new ItemStack(Material.EMERALD), 321);
+        NodeBlob decoded = NodeStore.decode(NodeStore.encode(legacy));
+        NodeStore.put(bay, decoded);
+        net.storage().invalidate();
+
+        var modules = MemoryModules.modules(NodeStore.get(bay));
+        assertEquals(1, modules.size());
+        assertEquals(DeviceType.MVN_CACHE_L3, MemoryModules.typeOf(modules.get(0)));
+        assertNull(NodeStore.get(bay).installedModule, "the old field is cleared");
+        assertEquals(321, net.storage().count(i -> i.getType() == Material.EMERALD));
+        rightClick(bay, Items.create(DeviceType.MVN_CACHE_L1));
+        assertEquals(2, MemoryModules.modules(NodeStore.get(bay)).size(), "and the bay takes more modules");
     }
 }

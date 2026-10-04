@@ -24,10 +24,11 @@ MultiverseNets/
 │   │   │   ├─ gui/          # Todos los menús (base MenuHolder + una clase por dispositivo)
 │   │   │   ├─ item/         # DeviceType (todos los dispositivos), Items (ítems, lore, recetas), GuideContent
 │   │   │   ├─ listen/       # BlockListener (eventos), DeviceInteractions (qué abre cada dispositivo),
-│   │   │   │                #   CraftingListener (libro de recetas, mejora de celdas en la mesa)
+│   │   │   │                #   CraftingListener (libro de recetas, mejora de celdas en la mesa),
+│   │   │   │                #   StorageListener (carga de chunks / guardado del mundo para los nodos)
 │   │   │   ├─ net/          # Network, NetworkManager, NetworkTicker, NetworkStorage,
 │   │   │   │                #   NetworkFluidStorage, holograma y medidor de flujo
-│   │   │   ├─ persist/      # Persistencia por chunk (NodeBlob, NodeStore)
+│   │   │   ├─ persist/      # Almacenamiento de nodos: fachada NodeStore + regiones en la carpeta del mundo
 │   │   │   └─ util/         # Keys, PosUtil, Settings, StackUtils, Text
 │   │   └─ resources/        # config.yml y plugin.yml
 │   └─ test/java/            # Tests JUnit 5 + MockBukkit (mismos paquetes que main, más stubs)
@@ -60,8 +61,12 @@ MultiverseNets/
 - **`net/`** – Núcleo de red: topología (`Network`), registro (`NetworkManager`), el latido
   (`NetworkTicker`), almacenamiento de ítems y fluidos, `MemoryModules` (instalar/expulsar módulos del
   DRAM Bay con su stock), holograma del controlador y medición de flujo.
-- **`persist/`** – `NodeBlob` (estado serializable de un nodo) y `NodeStore` (almacenamiento en el PDC
-  del chunk, registro de controladores y caché de decodificación).
+- **`persist/`** – `NodeBlob` (estado serializable de un nodo) y `NodeStore` (la fachada que usa todo
+  el plugin, más el registro de controladores). Detrás: `WorldNodes` (las regiones de un mundo),
+  `NodeRegion` (una región de 32×32 chunks en memoria, con contadores por chunk), `NodeRecord` (un
+  nodo), `RegionFile` (el formato binario `r.<rx>.<rz>.mvn`), `NodeIO` (el único hilo de E/S) y
+  `LegacyChunkData` (migración de ida desde el PDC del chunk de la 5.2). Ya no se guarda nada en los
+  chunks.
 - **`src/main/resources/`** – `config.yml` (comentado en inglés y español) y `plugin.yml`.
 - **`src/test/java/`** – Tests JUnit; `dev/espi/protectionstones/PSRegion` es un stub de la API de
   ProtectionStones que usan los tests del provider. Se ejecutan con `mvn test`.
