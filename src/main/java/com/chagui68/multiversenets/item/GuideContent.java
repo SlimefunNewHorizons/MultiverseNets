@@ -304,11 +304,16 @@ public final class GuideContent {
                         + "vaciarse. Los ítems de Slimefun y otros plugins se reconocen por su id, así lo que sacas "
                         + "siempre vuelve a entrar.",
                 "Right-click: click Set Item with an item on the cursor to register it; right-click Set Item with "
-                        + "an empty cursor clears it (only when empty). Quick deposit / take out buttons. Hoppers do "
-                        + "not interact with it.",
+                        + "an empty cursor clears it (only when empty). Quick deposit / take out buttons. Shift+click "
+                        + "Set Item toggles Void excess: when full, the network destroys extra items of its type. "
+                        + "Hoppers do not interact with it. Touching any network block (a Grabber too) makes it part "
+                        + "of that network: its items are already in the Terminal, a Grabber has nothing to pull.",
                 "Clic derecho: clic en Set Item con un ítem en el cursor para registrarlo; clic derecho en Set Item "
-                        + "con el cursor vacío lo borra (solo vacío). Botones de depósito y retirada rápida. Las "
-                        + "tolvas no interactúan con él.");
+                        + "con el cursor vacío lo borra (solo vacío). Botones de depósito y retirada rápida. "
+                        + "Mayús+clic en Set Item activa Void excess: lleno, la red destruye lo que sobre de su "
+                        + "ítem. Las tolvas no interactúan con él. Si toca cualquier bloque de la red (también un "
+                        + "Grabber) pasa a formar parte de ella: sus ítems ya están en el Terminal y un Grabber no "
+                        + "tiene nada que sacar.");
         add(DeviceType.MVN_GREEDY_CELL, Category.STORAGE, "Celda Codiciosa",
                 "With a filter: a priority sink. Matching items go to it before any other storage, it pulls more "
                         + "from the network every cycle and pushes them into the containers next to it (not into "
@@ -436,8 +441,12 @@ public final class GuideContent {
                 "Without a filter it deletes nothing, on purpose. Use it for machine waste.",
                 "Sin filtro no borra nada, a propósito. Úsalo para los residuos de las máquinas.");
         add(DeviceType.MVN_LIMITER, Category.TRANSPORT, "Limitador de Cuota",
-                "Caps how much of one item the network may hold. Every deposit stops at the cap.",
-                "Limita cuánto de un ítem puede guardar la red. Todo depósito se detiene en el tope.",
+                "Caps how much of one item the network may hold. Automatic imports (Grabbers, Vacuums, "
+                        + "Crafters...) stop at the cap; a player depositing by hand in a Terminal or a storage's "
+                        + "menu is not limited.",
+                "Limita cuánto de un ítem puede guardar la red. La importación automática (Grabbers, Vacuums, "
+                        + "Crafters...) se detiene en el tope; un jugador que deposita a mano en un Terminal o en el "
+                        + "menú de un almacén no tiene límite.",
                 "Right-click: target item, limit (buttons or chat) and on/off. With several limiters on the same "
                         + "item the lowest wins.",
                 "Clic derecho: ítem objetivo, límite (botones o chat) y activar/desactivar. Con varios limitadores "

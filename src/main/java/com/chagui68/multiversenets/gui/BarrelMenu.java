@@ -67,16 +67,7 @@ public class BarrelMenu extends MenuHolder {
             inv.setItem(slot, background);
         }
 
-        ItemStack setItem = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
-        var metaSet = setItem.getItemMeta();
-        metaSet.displayName(Component.text("Set Item", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
-        metaSet.lore(List.of(
-                passiveText("Click with an item on your cursor to register it."),
-                passiveText("Right-Click (empty cursor): Clear registered item."),
-                Component.empty(),
-                Component.text("Shift+Click: Toggle void excess", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)));
-        setItem.setItemMeta(metaSet);
-        inv.setItem(SET_SLOT, setItem);
+        drawSetItem();
 
         ItemStack depositAll = new ItemStack(Material.CYAN_STAINED_GLASS_PANE);
         var metaDep = depositAll.getItemMeta();
@@ -98,6 +89,24 @@ public class BarrelMenu extends MenuHolder {
         inv.setItem(EXTRACT_ALL_SLOT, extractAll);
 
         updateDisplay();
+    }
+
+    private void drawSetItem() {
+        NodeBlob blob = NodeStore.get(block);
+        boolean voidExcess = blob != null && blob.filterBlacklist;
+        ItemStack setItem = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
+        var metaSet = setItem.getItemMeta();
+        metaSet.displayName(Component.text("Set Item", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
+        metaSet.lore(List.of(
+                passiveText("Click with an item on your cursor to register it."),
+                passiveText("Right-Click (empty cursor): Clear registered item."),
+                Component.empty(),
+                Component.text("Void excess: " + (voidExcess ? "ON" : "OFF"),
+                        voidExcess ? NamedTextColor.RED : NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
+                passiveText("When full, the network destroys extra items of this type."),
+                Component.text("Shift+Click: Toggle void excess", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)));
+        setItem.setItemMeta(metaSet);
+        inv.setItem(SET_SLOT, setItem);
     }
 
     private Component passiveText(String text) {
@@ -185,6 +194,7 @@ public class BarrelMenu extends MenuHolder {
             if (event.getClick() == ClickType.SHIFT_LEFT || event.getClick() == ClickType.SHIFT_RIGHT) {
                 blob.filterBlacklist = !blob.filterBlacklist;
                 NodeStore.put(block, blob);
+                drawSetItem();
                 player.sendMessage(Text.msg(blob.filterBlacklist
                         ? "Void excess items: ENABLED" : "Void excess items: DISABLED", NamedTextColor.GREEN));
                 return;

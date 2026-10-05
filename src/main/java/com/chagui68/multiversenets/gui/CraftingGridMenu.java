@@ -329,7 +329,8 @@ public class CraftingGridMenu extends MenuHolder {
                 taken.add(got);
             }
             if (taken.size() < countInputs(plan)) {
-                network.storage().depositAll(taken);
+                // Vuelve lo recién sacado: sin cuota, o un Limiter lleno lo perdería.
+                taken.forEach(network.storage()::depositManual);
                 if (n == 0) {
                     player.sendMessage(Text.msg("Not enough ingredients in the network.", NamedTextColor.RED));
                 }
@@ -340,7 +341,7 @@ public class CraftingGridMenu extends MenuHolder {
             int leftover = NetworkManager.insertInto(player.getInventory(), result);
             if (leftover > 0) {
                 result.setAmount(leftover);
-                network.storage().deposit(result);
+                network.storage().depositManual(result);
             }
             crafted++;
         }
@@ -369,7 +370,7 @@ public class CraftingGridMenu extends MenuHolder {
         int initialAmount = actual.getAmount();
         int playerSlot = playerInventorySlot(event);
         player.getInventory().setItem(playerSlot, null);
-        int leftover = network.storage().deposit(actual);
+        int leftover = network.storage().depositManual(actual);
         if (leftover > 0) {
             actual.setAmount(leftover);
             player.getInventory().setItem(playerSlot, actual);

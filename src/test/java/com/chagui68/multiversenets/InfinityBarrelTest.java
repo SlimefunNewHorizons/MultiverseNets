@@ -139,6 +139,81 @@ class InfinityBarrelTest {
         assertEquals(4936, blob.cellAmount, "4936 diamonds must remain in barrel");
     }
 
+    private Network networkWithBarrelAndEmptyCell(Block barrel, Block cell) {
+        Block ctrl = world.getBlockAt(0, 64, 0);
+        ctrl.setType(Material.LODESTONE);
+        NodeStore.put(ctrl, NodeBlob.create(DeviceType.MVN_CONTROLLER.name()));
+        plugin.networks().registerController(ctrl);
+        barrel.setType(Material.BARREL);
+        cell.setType(Material.GLASS);
+        NodeStore.put(cell, NodeBlob.create(DeviceType.MVN_CELL_T1.name()));
+        Network net = plugin.networks().networkAt(ctrl);
+        net.scan();
+        return net;
+    }
+
+    private NodeBlob nearlyFullDiamondBarrel(boolean voidExcess) {
+        NodeBlob blob = NodeBlob.create(DeviceType.MVN_INFINITY_BARREL.name());
+        blob.cellSample = new ItemStack(Material.DIAMOND);
+        blob.cellAmount = Items.capacityOf(DeviceType.MVN_INFINITY_BARREL) - 10;
+        blob.filterBlacklist = voidExcess;
+        return blob;
+    }
+
+    /** "Void excess" no hacía nada: el sobrante ocupaba una celda vacía en vez de destruirse. */
+    @Test
+    void voidExcessDestroysOverflowInsteadOfTakingAnEmptyCell() {
+        Block barrel = world.getBlockAt(1, 64, 0);
+        Block cell = world.getBlockAt(0, 64, 1);
+        NodeStore.put(barrel, nearlyFullDiamondBarrel(true));
+        Network net = networkWithBarrelAndEmptyCell(barrel, cell);
+
+        assertEquals(0, net.storage().deposit(new ItemStack(Material.DIAMOND, 100)));
+        assertEquals(Items.capacityOf(DeviceType.MVN_INFINITY_BARREL), NodeStore.get(barrel).cellAmount);
+        assertNull(NodeStore.get(cell).cellSample, "the empty cell stays free");
+    }
+
+    @Test
+    void withoutVoidExcessOverflowGoesToAnEmptyCell() {
+        Block barrel = world.getBlockAt(1, 64, 0);
+        Block cell = world.getBlockAt(0, 64, 1);
+        NodeStore.put(barrel, nearlyFullDiamondBarrel(false));
+        Network net = networkWithBarrelAndEmptyCell(barrel, cell);
+
+        assertEquals(0, net.storage().deposit(new ItemStack(Material.DIAMOND, 100)));
+        assertEquals(90, NodeStore.get(cell).cellAmount);
+    }
+
+    /** Un ítem con el mismo material pero otro nombre es otro ítem: el Terminal lo dice, no "sin espacio". */
+    @Test
+    void terminalExplainsWhyASimilarItemIsRefused() {
+        Block barrel = world.getBlockAt(1, 64, 0);
+        Block cell = world.getBlockAt(0, 64, 1);
+        NodeBlob stored = NodeBlob.create(DeviceType.MVN_INFINITY_BARREL.name());
+        stored.cellSample = named(Material.GOLD_INGOT, "Blistering Ingot");
+        stored.cellAmount = 7096;
+        NodeStore.put(barrel, stored);
+        Network net = networkWithBarrelAndEmptyCell(barrel, cell);
+        NodeBlob full = NodeStore.get(cell);
+        full.cellSample = new ItemStack(Material.COBBLESTONE);
+        full.cellAmount = 5;
+        NodeStore.put(cell, full);
+        net.storage().invalidate();
+
+        ItemStack other = named(Material.GOLD_INGOT, "Blistering Ingot (66%)");
+        assertEquals(10, net.storage().deposit(other.asQuantity(10)));
+        String reason = new com.chagui68.multiversenets.gui.TerminalMenu(plugin, player, net).refusalReason(other);
+        assertTrue(reason.contains("not the same item"), reason);
+    }
+
+    private static ItemStack named(Material material, String name) {
+        ItemStack item = new ItemStack(material);
+        var meta = item.getItemMeta();
+        meta.displayName(net.kyori.adventure.text.Component.text(name));
+        item.setItemMeta(meta);
+        return item;
+    }
+
     /**
      * [EN] Breaking and placing an Infinity Barrel preserves stored item amount and type.
      * [ES] Romper y colocar una barrica infinita preserva la cantidad y tipo de items guardados.

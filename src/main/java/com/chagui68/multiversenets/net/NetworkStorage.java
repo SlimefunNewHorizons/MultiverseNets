@@ -290,6 +290,21 @@ public class NetworkStorage {
     }
 
     public synchronized int deposit(ItemStack item) {
+        return deposit(item, true);
+    }
+
+    /**
+     * EN: What a player puts in by hand (Terminal, Crafting Grid). Quota Limiters only cap automatic
+     * imports (Grabbers, Vacuums, Crafters...), never the player.
+     *
+     * ES: Lo que un jugador mete a mano (Terminal, Crafting Grid). Los Quota Limiters solo limitan la
+     * importación automática (Grabbers, Vacuums, Crafters...), nunca al jugador.
+     */
+    public synchronized int depositManual(ItemStack item) {
+        return deposit(item, false);
+    }
+
+    private int deposit(ItemStack item, boolean applyQuota) {
         if (item == null || item.getType().isAir() || item.getAmount() <= 0) {
             return 0;
         }
@@ -300,7 +315,7 @@ public class NetworkStorage {
         List<VirtualCacheState> vCaches = loadVirtualCaches();
         List<Block> sfBarrels = loadSfBarrels();
 
-        long quotaHeadroom = remainingQuota(item, states, vCaches, sfBarrels);
+        long quotaHeadroom = applyQuota ? remainingQuota(item, states, vCaches, sfBarrels) : Long.MAX_VALUE;
         if (quotaHeadroom <= 0) {
             return item.getAmount();
         }
@@ -356,15 +371,23 @@ public class NetworkStorage {
         }
 
         // 4. Normal cells with same type
+        boolean voidExcess = false;
         if (remaining > 0) {
             for (CellState state : states) {
                 if (state.greedy || state.blob.cellSample == null
                         || !StackUtils.itemsMatch(state.blob.cellSample, item)) {
                     continue;
                 }
+                // filterBlacklist es el interruptor "Void excess" de las celdas y los Infinity Barrels.
+                voidExcess |= state.blob.filterBlacklist;
                 remaining = pour(state, item, remaining);
                 if (remaining <= 0) break;
             }
+        }
+        // Una celda o barril de este ítem con "Void excess" activo destruye lo que no cabe en vez de
+        // dejar que ocupe celdas vacías.
+        if (voidExcess) {
+            remaining = 0;
         }
 
         // 5. Memory modules (empty / new item space)

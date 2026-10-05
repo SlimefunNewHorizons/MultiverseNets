@@ -711,7 +711,7 @@ public class TerminalMenu extends MenuHolder {
                 int leftover = NetworkManager.insertInto(player.getInventory(), withdrawn);
                 if (leftover > 0) {
                     withdrawn.setAmount(leftover);
-                    int unreturned = network.storage().deposit(withdrawn);
+                    int unreturned = network.storage().depositManual(withdrawn);
                     if (unreturned > 0) {
                         withdrawn.setAmount(unreturned);
                         giveOrDrop(withdrawn);
@@ -797,15 +797,14 @@ public class TerminalMenu extends MenuHolder {
         int initialAmount = actual.getAmount();
         int playerSlot = playerInventorySlot(event);
         player.getInventory().setItem(playerSlot, null);
-        int leftover = network.storage().deposit(actual);
+        int leftover = network.storage().depositManual(actual);
         if (leftover <= 0) {
             player.sendMessage(Text.msg("Deposited " + Items.formatAmount(initialAmount) + " items.", NamedTextColor.GREEN));
         } else {
             if (leftover < initialAmount) {
                 player.sendMessage(Text.msg("Deposited " + Items.formatAmount(initialAmount - leftover) + " items.", NamedTextColor.GREEN));
             } else {
-                player.sendMessage(Text.msg("Nothing deposited: the network needs a Quantum Cell "
-                        + "with free space for this item.", NamedTextColor.RED));
+                player.sendMessage(Text.msg(refusalReason(actual), NamedTextColor.RED));
             }
             ItemStack returned = actual.clone();
             returned.setAmount(leftover);
@@ -813,6 +812,21 @@ public class TerminalMenu extends MenuHolder {
         }
         draw();
         player.updateInventory();
+    }
+
+    /**
+     * Por qué la red no aceptó nada. Las celdas guardan un solo tipo de ítem: uno con otro nombre,
+     * lore o datos (p. ej. Blistering Ingot 33% frente al final) es otro ítem y necesita una celda vacía.
+     */
+    public String refusalReason(ItemStack item) {
+        for (NetworkStorage.View view : network.storage().view()) {
+            if (view.sample().getType() == item.getType() && !StackUtils.itemsMatch(view.sample(), item)) {
+                return "Nothing deposited: this is not the same item as the stored "
+                        + readableName(view.sample()) + " (different name, lore or data), and there is "
+                        + "no empty Quantum Cell for a new item type.";
+            }
+        }
+        return "Nothing deposited: no Quantum Cell holds this item and there is no empty Quantum Cell.";
     }
 
     private void liveTick() {
@@ -846,7 +860,7 @@ public class TerminalMenu extends MenuHolder {
                     }
                 }
             } else {
-                int leftover = network.storage().deposit(input);
+                int leftover = network.storage().depositManual(input);
                 if (leftover <= 0) {
                     inv.setItem(INPUT_SLOT, null);
                 } else {
@@ -869,7 +883,7 @@ public class TerminalMenu extends MenuHolder {
             inv.setItem(INPUT_SLOT, null);
             return;
         }
-        int leftover = network.storage().deposit(input);
+        int leftover = network.storage().depositManual(input);
         inv.setItem(INPUT_SLOT, null);
         if (leftover > 0) {
             input.setAmount(leftover);
