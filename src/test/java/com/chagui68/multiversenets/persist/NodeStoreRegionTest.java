@@ -203,6 +203,30 @@ class NodeStoreRegionTest {
         assertTrue(place(player, 14, DeviceType.MVN_VACUUM), "0 disables the cap");
     }
 
+    @Test
+    @DisplayName("a placed Slimefun Request Crafter with heavy blueprints keeps its type after a restart")
+    void sfRequestCrafterSurvivesRestart() {
+        // #56: en la 5.2 el blob vivia en el PDC del chunk; un chunk con blueprints pesados superaba
+        // el limite UTF de NBT (#35), no se guardaba y el crafter volvia como bloque vanilla.
+        PlayerMock player = server.addPlayer();
+        assertTrue(place(player, 0, DeviceType.MVN_SF_REQUEST_CRAFTER));
+        Block crafter = world.getBlockAt(0, 64, 5);
+        NodeBlob blob = NodeStore.get(crafter);
+        String heavy = "x".repeat(70_000);
+        for (int i = 0; i < 18; i++) {
+            blob.blueprintData.add(heavy + i);
+        }
+        NodeStore.put(crafter, blob);
+
+        restart();
+
+        assertEquals(DeviceType.MVN_SF_REQUEST_CRAFTER, NodeStore.getType(crafter),
+                "the crafter is still the Slimefun variant, not a vanilla block");
+        NodeBlob back = NodeStore.get(crafter);
+        assertEquals(18, back.blueprintData.size());
+        assertEquals(heavy + 17, back.blueprintData.get(17));
+    }
+
     private boolean place(PlayerMock player, int x, DeviceType type) {
         Block target = world.getBlockAt(x, 64, 5);
         BlockState previous = target.getState();
