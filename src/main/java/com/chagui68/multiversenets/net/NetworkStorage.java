@@ -507,6 +507,63 @@ public class NetworkStorage {
         return withdraw(matcher, want, excludePos, true);
     }
 
+    public synchronized ItemStack peek(Predicate<ItemStack> matcher, long excludePos, boolean includeGreedy) {
+        List<CellState> states = load();
+        List<VirtualCacheState> vCaches = loadVirtualCaches();
+        List<Block> sfBarrels = loadSfBarrels();
+
+        // Pass 0: Memory modules (DRAM Bays and a legacy Controller cache)
+        for (VirtualCacheState vCache : vCaches) {
+            if (vCache.blob.virtualSamples == null) {
+                continue;
+            }
+            for (int i = 0; i < vCache.blob.virtualSamples.size(); i++) {
+                ItemStack sample = vCache.blob.virtualSamples.get(i);
+                Long amount = vCache.blob.virtualAmounts.get(i);
+                if (sample != null && amount != null && amount > 0 && matcher.test(sample)) {
+                    return StackUtils.getAsQuantity(sample, 1);
+                }
+            }
+        }
+
+        // Pass 1: Quantum Cells & Infinity Barrels
+        for (CellState state : states) {
+            if (state.greedy || state.pos == excludePos || blobEmpty(state.blob) || !matcher.test(state.blob.cellSample)) {
+                continue;
+            }
+            if (state.blob.cellAmount > 0) {
+                return StackUtils.getAsQuantity(state.blob.cellSample, 1);
+            }
+        }
+
+        // Pass 2: Slimefun Barrels
+        if (!sfBarrels.isEmpty()) {
+            for (Block barrel : sfBarrels) {
+                ItemStack sample = SlimefunBridge.getBarrelStoredItem(barrel);
+                if (sample != null && matcher.test(sample)) {
+                    return StackUtils.getAsQuantity(sample, 1);
+                }
+            }
+        }
+
+        // Pass 3: Greedy cells (output buffer sink)
+        if (includeGreedy) {
+            for (CellState state : states) {
+                if (!state.greedy || state.pos == excludePos || state.blob.greedySamples == null || state.blob.greedyAmounts == null) {
+                    continue;
+                }
+                for (int i = 0; i < state.blob.greedySamples.size(); i++) {
+                    ItemStack sample = state.blob.greedySamples.get(i);
+                    Long amount = state.blob.greedyAmounts.get(i);
+                    if (sample != null && amount != null && amount > greedyReserve(state.blob, sample) && matcher.test(sample)) {
+                        return StackUtils.getAsQuantity(sample, 1);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     public synchronized ItemStack withdraw(Predicate<ItemStack> matcher, int want, long excludePos, boolean includeGreedy) {
         if (want <= 0) {
             return null;

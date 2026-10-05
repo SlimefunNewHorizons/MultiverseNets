@@ -374,7 +374,7 @@ public class NetworkTicker {
             }
 
             // 2. Vanilla container fallback
-            if (isPotentialContainer(mat) && target.getState() instanceof InventoryHolder holder) {
+            if (isPotentialContainer(mat) && target.getState(false) instanceof InventoryHolder holder) {
                 Inventory inv = holder.getInventory();
                 ItemStack extracted = NetworkManager.extractMatching(inv, pred, rate);
                 if (extracted == null) {
@@ -450,13 +450,18 @@ public class NetworkTicker {
         Block self = net.block(pos);
         // Solo las caras con un contenedor real: nunca otro nodo de la red (un Infinity Barrel es un
         // barril vanilla por dentro y lo que se metia ahi quedaba oculto), nunca tierra ajena.
-        List<BlockFace> targets = new ArrayList<>();
+        List<PushTarget> targets = new ArrayList<>();
+        boolean anyRoom = false;
         for (BlockFace face : facesFor(blob)) {
-            if (isPushTarget(net, self.getRelative(face))) {
-                targets.add(face);
+            PushTarget pt = resolvePushTarget(net, self, face);
+            if (pt != null) {
+                targets.add(pt);
+                if (!anyRoom && pt.hasAnyRoom()) {
+                    anyRoom = true;
+                }
             }
         }
-        if (targets.isEmpty()) {
+        if (targets.isEmpty() || !anyRoom) {
             backoffCycles.put(pos, Math.min(30, backoff + 1));
             return;
         }
@@ -472,8 +477,27 @@ public class NetworkTicker {
             int attempts = kinds > 1 ? 1 : 4;
             for (int attempt = 0; attempt < attempts && budget > 0; attempt++) {
                 Predicate<ItemStack> pred = base.and(item -> notTried(tried, item));
-                // Los Pushers tambien sacan de las Greedy Cells (que siempre conservan 1 de cada
-                // item definido en su filtro).
+
+                // Inspección sin mutar estado: ¿hay ítem disponible en almacenamiento?
+                ItemStack peekSample = net.storage().peek(pred, -1L, true);
+                if (peekSample == null) {
+                    break;
+                }
+
+                // Verificar si algún destino tiene espacio para este ítem antes de extraerlo
+                boolean canAccept = false;
+                for (PushTarget pt : targets) {
+                    if (pt.canAccept(peekSample)) {
+                        canAccept = true;
+                        break;
+                    }
+                }
+                if (!canAccept) {
+                    tried.add(StackUtils.getAsQuantity(peekSample, 1));
+                    continue;
+                }
+
+                // Extracción real hacia los contenedores
                 ItemStack stack = net.storage().withdraw(pred, budget, -1L, true);
                 if (stack == null) {
                     break;
@@ -481,8 +505,8 @@ public class NetworkTicker {
                 tried.add(StackUtils.getAsQuantity(stack, 1));
                 int initialAmount = stack.getAmount();
                 int left = initialAmount;
-                for (BlockFace face : targets) {
-                    left = insertToTarget(net, self, face, stack, left, kinds);
+                for (PushTarget pt : targets) {
+                    left = pt.insert(stack, left, kinds);
                     if (left <= 0) {
                         break;
                     }
@@ -582,6 +606,75 @@ public class NetworkTicker {
         return preds;
     }
 
+    private record PushTarget(Block block, BlockFace face, boolean isSlimefun, Inventory inventory) {
+        boolean canAccept(ItemStack sample) {
+            if (isSlimefun) {
+                return true;
+            }
+            if (inventory == null) {
+                return false;
+            }
+            if (inventory.firstEmpty() != -1) {
+                return true;
+            }
+            for (ItemStack is : inventory.getStorageContents()) {
+                if (is != null && StackUtils.itemsMatch(is, sample) && is.getAmount() < is.getMaxStackSize()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        boolean hasAnyRoom() {
+            if (isSlimefun) {
+                return true;
+            }
+            if (inventory == null) {
+                return false;
+            }
+            if (inventory.firstEmpty() != -1) {
+                return true;
+            }
+            for (ItemStack is : inventory.getStorageContents()) {
+                if (is != null && is.getAmount() < is.getMaxStackSize()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        int insert(ItemStack sample, int amount, int kinds) {
+            if (amount <= 0) {
+                return 0;
+            }
+            if (isSlimefun) {
+                int left = SlimefunBridge.insert(block, StackUtils.getAsQuantity(sample, amount), kinds);
+                return Math.max(0, Math.min(amount, left));
+            }
+            if (inventory != null) {
+                return NetworkManager.insertSmart(inventory, sample, amount, face, kinds);
+            }
+            return amount;
+        }
+    }
+
+    private static PushTarget resolvePushTarget(Network net, Block self, BlockFace face) {
+        Block target = self.getRelative(face);
+        if (NodeStore.hasNode(target) || denied(net, target)) {
+            return null;
+        }
+        if (Settings.compatSlimefun() && SlimefunBridge.isAvailable() && SlimefunBridge.isMachine(target)) {
+            return new PushTarget(target, face, true, null);
+        }
+        if (isPotentialContainer(target.getType())) {
+            org.bukkit.block.BlockState state = target.getState(false);
+            if (state instanceof InventoryHolder holder) {
+                return new PushTarget(target, face, false, holder.getInventory());
+            }
+        }
+        return null;
+    }
+
     /** Un bloque al que un pusher puede entregar: contenedor o maquina, no un nodo, no ajeno. */
     private static boolean isPushTarget(Network net, Block target) {
         if (NodeStore.hasNode(target) || denied(net, target)) {
@@ -590,7 +683,7 @@ public class NetworkTicker {
         if (Settings.compatSlimefun() && SlimefunBridge.isAvailable() && SlimefunBridge.isMachine(target)) {
             return true;
         }
-        return isPotentialContainer(target.getType()) && target.getState() instanceof InventoryHolder;
+        return isPotentialContainer(target.getType()) && target.getState(false) instanceof InventoryHolder;
     }
 
     /**
@@ -602,18 +695,11 @@ public class NetworkTicker {
         if (amount <= 0) {
             return 0;
         }
-        Block target = self.getRelative(face);
-        if (!isPushTarget(net, target)) {
+        PushTarget pt = resolvePushTarget(net, self, face);
+        if (pt == null) {
             return amount;
         }
-        if (Settings.compatSlimefun() && SlimefunBridge.isAvailable() && SlimefunBridge.isMachine(target)) {
-            int left = SlimefunBridge.insert(target, StackUtils.getAsQuantity(sample, amount), kinds);
-            return Math.max(0, Math.min(amount, left));
-        }
-        if (target.getState() instanceof InventoryHolder holder) {
-            return NetworkManager.insertSmart(holder.getInventory(), sample, amount, face, kinds);
-        }
-        return amount;
+        return pt.insert(sample, amount, kinds);
     }
 
     /** Pocket chickens are one of a kind (each carries its own DNA): this many per cycle at most. */
