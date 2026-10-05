@@ -713,11 +713,13 @@ public class RequestTerminalMenu extends MenuHolder {
             ItemStack is = it.next();
             if (is != null && StackUtils.itemsMatch(is, sample, false)) {
                 int take = Math.min(is.getAmount(), needed - taken);
-                is.setAmount(is.getAmount() - take);
-                taken += take;
+                // Clonar antes de restar: en Paper un stack con cantidad 0 pasa a AIR sin meta y
+                // SlimefunItemStack.clone() lanza NPE, perdiendo lo ya extraído de la red (#54).
                 if (extracted != null) {
                     extracted.add(StackUtils.getAsQuantity(is, take));
                 }
+                is.setAmount(is.getAmount() - take);
+                taken += take;
                 if (is.getAmount() <= 0) {
                     it.remove();
                 }

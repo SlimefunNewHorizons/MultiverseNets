@@ -330,6 +330,46 @@ class FluidAndRequesterTest {
         assertEquals(0, net.storage().count(i -> i.getType() == Material.CRAFTING_TABLE));
     }
 
+    /** Como en Paper + SlimefunItemStack: clonar un stack ya vaciado (cantidad 0 = AIR sin meta) lanza NPE. */
+    private static final class PaperLikeStack extends ItemStack {
+        PaperLikeStack(Material type, int amount) {
+            super(type, amount);
+        }
+
+        @Override
+        public ItemStack clone() {
+            if (getAmount() <= 0) {
+                throw new NullPointerException("getItemMeta() is null on emptied stack");
+            }
+            return super.clone();
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void takeFromBufferClonesBeforeEmptyingStack() throws Exception {
+        Block ctrl = place(0, 64, 0, DeviceType.MVN_CONTROLLER);
+        plugin.networks().registerController(ctrl);
+        Block reqTerm = place(0, 64, -1, DeviceType.MVN_REQUEST_TERMINAL);
+        Network net = plugin.networks().networkByController(ctrl.getLocation());
+        net.scan();
+        RequestTerminalMenu menu = new RequestTerminalMenu(plugin, player, net, reqTerm);
+
+        java.lang.reflect.Method take = RequestTerminalMenu.class.getDeclaredMethod(
+                "takeFromBuffer", List.class, ItemStack.class, int.class, List.class);
+        take.setAccessible(true);
+
+        List<ItemStack> buffer = new java.util.ArrayList<>(List.of(new PaperLikeStack(Material.OAK_PLANKS, 4)));
+        List<ItemStack> extracted = new java.util.ArrayList<>();
+        int taken = (int) take.invoke(menu, buffer, new ItemStack(Material.OAK_PLANKS), 4, extracted);
+
+        assertEquals(4, taken);
+        assertTrue(buffer.isEmpty(), "El stack consumido entero sale del buffer");
+        assertEquals(1, extracted.size());
+        assertEquals(Material.OAK_PLANKS, extracted.get(0).getType());
+        assertEquals(4, extracted.get(0).getAmount(), "Lo extraído conserva tipo y cantidad para poder devolverlo");
+    }
+
     @Test
     void terminalMenuFluidsViewAndWithdrawal() {
         Block ctrl = place(0, 64, 0, DeviceType.MVN_CONTROLLER);
