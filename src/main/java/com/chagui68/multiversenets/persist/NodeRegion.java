@@ -2,9 +2,11 @@ package com.chagui68.multiversenets.persist;
 
 import com.chagui68.multiversenets.item.DeviceType;
 import com.chagui68.multiversenets.util.PosUtil;
+import org.bukkit.NamespacedKey;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -44,6 +46,27 @@ final class NodeRegion {
     volatile boolean dirty;
     /** Writes queued or running for this region; it is never evicted while above 0 / Escrituras pendientes. */
     final AtomicInteger writesInFlight = new AtomicInteger();
+    /**
+     * EN: Chunks migrated from the PDC whose old keys are still there, by chunk key. An entry leaves
+     * once a write that includes it is on disk and the keys are removed. Main thread only; the
+     * region is never evicted while it is not empty.
+     *
+     * ES: Chunks migrados desde el PDC cuyas claves antiguas siguen ahí, por clave de chunk. Una
+     * entrada sale cuando una escritura que la incluye está en disco y se borran las claves. Solo
+     * hilo principal; la región no se suelta mientras no esté vacío.
+     */
+    final Map<Long, LegacyCleanup> legacyPending = new HashMap<>();
+
+    /** PDC keys still to delete for one migrated chunk / Claves del PDC por borrar de un chunk migrado. */
+    static final class LegacyCleanup {
+        final List<NamespacedKey> keys;
+        /** A write with these nodes is on disk / Ya hay en disco una escritura con estos nodos. */
+        boolean written;
+
+        LegacyCleanup(List<NamespacedKey> keys) {
+            this.keys = keys;
+        }
+    }
 
     NodeRegion(int rx, int rz) {
         this.rx = rx;

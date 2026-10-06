@@ -257,6 +257,11 @@ class NodeStoreRegionTest {
         pdc.set(Keys.CHUNK_HAS_NODES, PersistentDataType.BYTE, (byte) 1);
 
         assertEquals(3, NodeStore.migrateLegacy(chunk));
+        assertTrue(pdc.has(Keys.CHUNK_HAS_NODES, PersistentDataType.BYTE),
+                "the PDC copy stays until the region file is written");
+        assertEquals(0, NodeStore.migrateLegacy(chunk), "a pending chunk is not imported twice");
+
+        NodeStore.flushAll(true);
 
         assertTrue(pdc.getKeys().isEmpty(), "the chunk no longer carries node data");
         NodeBlob back = NodeStore.get(cell);
@@ -269,6 +274,80 @@ class NodeStoreRegionTest {
 
         restart();
         assertEquals(999L, NodeStore.get(cell).cellAmount, "and it is on disk");
+    }
+
+    @Test
+    @DisplayName("a failed region write keeps the legacy PDC data, and it migrates again later")
+    void failedWriteKeepsLegacyData() throws IOException {
+        WorldMock broken = server.addSimpleWorld("broken-io");
+        Block cell = broken.getBlockAt(2, 64, 2);
+        Chunk chunk = cell.getChunk();
+        NodeBlob cellBlob = NodeBlob.create(DeviceType.MVN_CELL_T2.name());
+        cellBlob.cellSample = new ItemStack(Material.GOLD_INGOT);
+        cellBlob.cellAmount = 4242;
+        PersistentDataContainer pdc = chunk.getPersistentDataContainer();
+        writeLegacy(pdc, cell, NodeStore.encode(cellBlob), DeviceType.MVN_CELL_T2.name());
+        pdc.set(Keys.CHUNK_HAS_NODES, PersistentDataType.BYTE, (byte) 1);
+
+        // Un archivo donde debería ir la carpeta de regiones: toda escritura falla.
+        Path folder = NodeStore.folder(broken);
+        deleteRecursively(folder);
+        Files.createDirectories(folder.getParent());
+        Files.writeString(folder, "not a directory");
+        try {
+            assertEquals(1, NodeStore.migrateLegacy(chunk));
+            NodeStore.flushAll(true);
+            assertTrue(pdc.has(Keys.CHUNK_HAS_NODES, PersistentDataType.BYTE),
+                    "a failed write must not delete the legacy marker");
+            assertEquals(3, pdc.getKeys().size(), "both legacy keys and the marker are still there");
+
+            restart(); // el proceso "cae": lo que había en memoria se pierde
+        } finally {
+            Files.delete(folder);
+        }
+
+        assertEquals(1, NodeStore.migrateLegacy(chunk), "the legacy data is still recoverable");
+        NodeStore.flushAll(true);
+        assertTrue(pdc.getKeys().isEmpty(), "cleaned once the region is on disk");
+        restart();
+        assertEquals(4242L, NodeStore.get(cell).cellAmount, "and the node survived the failure");
+    }
+
+    @Test
+    @DisplayName("re-importing a legacy chunk never overwrites the newer region record")
+    void reimportKeepsRegionRecord() {
+        Block cell = world.getBlockAt(18, 64, 18);
+        Chunk chunk = cell.getChunk();
+        NodeBlob newer = NodeBlob.create(DeviceType.MVN_CELL_T2.name());
+        newer.cellSample = new ItemStack(Material.DIAMOND);
+        newer.cellAmount = 7;
+        NodeStore.put(cell, newer);
+        NodeStore.flushAll(true);
+
+        // PDC antiguo que sobrevivió (crash tras escribir la región y antes de guardar el chunk).
+        NodeBlob stale = NodeBlob.create(DeviceType.MVN_CELL_T2.name());
+        stale.cellSample = new ItemStack(Material.DIRT);
+        stale.cellAmount = 1;
+        PersistentDataContainer pdc = chunk.getPersistentDataContainer();
+        writeLegacy(pdc, cell, NodeStore.encode(stale), DeviceType.MVN_CELL_T2.name());
+        pdc.set(Keys.CHUNK_HAS_NODES, PersistentDataType.BYTE, (byte) 1);
+
+        assertEquals(1, NodeStore.migrateLegacy(chunk));
+        NodeStore.flushAll(true);
+
+        assertEquals(Material.DIAMOND, NodeStore.get(cell).cellSample.getType(), "the region copy wins");
+        assertTrue(pdc.getKeys().isEmpty());
+    }
+
+    private static void deleteRecursively(Path path) throws IOException {
+        if (!Files.exists(path)) {
+            return;
+        }
+        try (Stream<Path> walk = Files.walk(path)) {
+            for (Path p : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                Files.delete(p);
+            }
+        }
     }
 
     private void writeLegacy(PersistentDataContainer pdc, Block block, String blob, String type) {

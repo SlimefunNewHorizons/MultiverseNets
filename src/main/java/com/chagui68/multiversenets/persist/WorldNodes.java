@@ -1,5 +1,6 @@
 package com.chagui68.multiversenets.persist;
 
+import org.bukkit.Chunk;
 import org.bukkit.World;
 
 import java.io.IOException;
@@ -12,8 +13,11 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 
 /**
@@ -38,10 +42,23 @@ final class WorldNodes {
     private final Map<Long, NodeRegion> loaded = new HashMap<>();
     private final Map<Long, CompletableFuture<NodeRegion>> loading = new HashMap<>();
     private final Set<Long> onDisk = new HashSet<>();
+    /** Writes on disk that carried migrated chunks; filled by the I/O thread / Escrituras confirmadas. */
+    private final Queue<Written> written = new ConcurrentLinkedQueue<>();
+    /** Called from the I/O thread when {@link #written} gets something / Aviso desde el hilo de E/S. */
+    private final Runnable onLegacyWritten;
+
+    private record Written(NodeRegion region, List<Long> chunks) {
+    }
 
     WorldNodes(Path folder, NodeIO io, Logger logger) {
+        this(folder, io, logger, () -> {
+        });
+    }
+
+    WorldNodes(Path folder, NodeIO io, Logger logger, Runnable onLegacyWritten) {
         this.folder = folder;
         this.io = io;
+        this.onLegacyWritten = onLegacyWritten;
         if (Files.isDirectory(folder)) {
             try (DirectoryStream<Path> files = Files.newDirectoryStream(folder, "r.*" + RegionFile.EXTENSION)) {
                 for (Path file : files) {
@@ -124,18 +141,63 @@ final class WorldNodes {
             } else {
                 onDisk.add(entry.getKey());
             }
+            // Los chunks migrados que entran en ESTA escritura: solo ellos quedan confirmados si sale bien.
+            List<Long> migrated = region.legacyPending.isEmpty()
+                    ? List.of() : List.copyOf(region.legacyPending.keySet());
             region.writesInFlight.incrementAndGet();
             Path file = file(region.rx, region.rz);
             writes.add(io.write(file, bytes).whenComplete((ok, error) -> {
                 region.writesInFlight.decrementAndGet();
                 if (error != null) {
-                    // Se reintenta en el siguiente autoguardado.
+                    // Se reintenta en el siguiente autoguardado; el PDC antiguo sigue intacto.
                     region.dirty = true;
                     logger.severe("Could not save node region " + file + ": " + error.getMessage());
+                } else if (!migrated.isEmpty()) {
+                    written.add(new Written(region, migrated));
+                    onLegacyWritten.run();
                 }
             }));
         }
         return writes;
+    }
+
+    /**
+     * EN: Main thread. Marks as written the migrated chunks whose region write landed and deletes
+     * their old PDC keys if the chunk is loaded; {@code cleared} gets every chunk it cleaned. A chunk
+     * that is not loaded stays pending, marked written, and is cleaned the next time it loads.
+     *
+     * ES: Hilo principal. Marca como escritos los chunks migrados cuya región ya está en disco y
+     * borra sus claves antiguas del PDC si el chunk está cargado; {@code cleared} recibe cada chunk
+     * limpiado. Uno sin cargar queda pendiente, marcado como escrito, y se limpia cuando vuelva a cargar.
+     */
+    void drainLegacyWritten(World world, Consumer<Chunk> cleared) {
+        Written done;
+        while ((done = written.poll()) != null) {
+            for (long chunkKey : done.chunks()) {
+                NodeRegion.LegacyCleanup cleanup = done.region().legacyPending.get(chunkKey);
+                if (cleanup == null) {
+                    continue;
+                }
+                cleanup.written = true;
+                int cx = NodeRegion.chunkX(chunkKey);
+                int cz = NodeRegion.chunkZ(chunkKey);
+                if (world != null && world.isChunkLoaded(cx, cz)) {
+                    Chunk chunk = world.getChunkAt(cx, cz);
+                    LegacyChunkData.clear(chunk, cleanup.keys);
+                    done.region().legacyPending.remove(chunkKey);
+                    cleared.accept(chunk);
+                }
+            }
+        }
+    }
+
+    /** Migrated chunks whose old PDC keys are still pending / Chunks migrados con claves pendientes. */
+    int legacyPending() {
+        int pending = 0;
+        for (NodeRegion region : loaded.values()) {
+            pending += region.legacyPending.size();
+        }
+        return pending;
     }
 
     /**
@@ -157,7 +219,7 @@ final class WorldNodes {
         Iterator<NodeRegion> regions = loaded.values().iterator();
         while (regions.hasNext()) {
             NodeRegion region = regions.next();
-            if (region.dirty || region.writesInFlight.get() > 0) {
+            if (region.dirty || region.writesInFlight.get() > 0 || !region.legacyPending.isEmpty()) {
                 continue;
             }
             boolean inUse = false;

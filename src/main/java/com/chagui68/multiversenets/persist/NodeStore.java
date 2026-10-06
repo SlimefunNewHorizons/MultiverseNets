@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -71,6 +72,8 @@ public final class NodeStore {
     private static final Map<UUID, WorldNodes> WORLDS = new HashMap<>();
     /** Encoded {@link NodeBlob#create} per type: a blob equal to it is stored as "default" / Blob por defecto. */
     private static final Map<String, byte[]> DEFAULT_ENCODINGS = new ConcurrentHashMap<>();
+    /** A main-thread task to clean migrated PDC data is already queued / Ya hay una limpieza en cola. */
+    private static final AtomicBoolean LEGACY_DRAIN_QUEUED = new AtomicBoolean();
 
     /** Numbers for {@code /mvnets stats} / Números para {@code /mvnets stats}. */
     public record StorageStats(int worlds, int loadedRegions, int regionsOnDisk, int loadedNodes, int unsavedRegions) {
@@ -125,6 +128,7 @@ public final class NodeStore {
      */
     public static void autosave() {
         flushAll(false);
+        drainLegacyWritten();
         Iterator<Map.Entry<UUID, WorldNodes>> worlds = WORLDS.entrySet().iterator();
         while (worlds.hasNext()) {
             Map.Entry<UUID, WorldNodes> entry = worlds.next();
@@ -165,6 +169,49 @@ public final class NodeStore {
             } catch (RuntimeException alreadyLogged) {
                 // Cada escritura fallida ya dejo su mensaje y su region marcada para reintentar.
             }
+            drainLegacyWritten();
+        }
+    }
+
+    /**
+     * EN: Deletes the old PDC data of migrated chunks whose region file is now on disk. Main thread.
+     * ES: Borra los datos antiguos del PDC de los chunks migrados cuya región ya está en disco.
+     */
+    static void drainLegacyWritten() {
+        LEGACY_DRAIN_QUEUED.set(false);
+        for (Map.Entry<UUID, WorldNodes> entry : WORLDS.entrySet()) {
+            entry.getValue().drainLegacyWritten(Bukkit.getWorld(entry.getKey()), NodeStore::releaseChunk);
+        }
+    }
+
+    /** I/O thread: asks the main thread to run {@link #drainLegacyWritten} / Pide la limpieza al hilo principal. */
+    private static void queueLegacyDrain() {
+        MultiverseNets owner = plugin;
+        if (owner == null || !owner.isEnabled() || !LEGACY_DRAIN_QUEUED.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            Bukkit.getScheduler().runTask(owner, NodeStore::drainLegacyWritten);
+        } catch (RuntimeException disabled) {
+            // Apagando: flushAll(true) limpia al terminar de esperar; si no, el siguiente autoguardado.
+            LEGACY_DRAIN_QUEUED.set(false);
+        }
+    }
+
+    /** Keeps a migrated chunk loaded until its old data is deleted / Mantiene cargado el chunk migrado. */
+    private static void holdChunk(Chunk chunk) {
+        try {
+            chunk.addPluginChunkTicket(plugin);
+        } catch (RuntimeException unsupported) {
+            // Sin tickets: si se descarga antes, se limpia la próxima vez que cargue.
+        }
+    }
+
+    private static void releaseChunk(Chunk chunk) {
+        try {
+            chunk.removePluginChunkTicket(plugin);
+        } catch (RuntimeException unsupported) {
+            // Nada que soltar.
         }
     }
 
@@ -210,29 +257,57 @@ public final class NodeStore {
     }
 
     /**
-     * EN: Moves the nodes version 5.2 or earlier left in this chunk's PDC into the region files and
-     * deletes them from the chunk. Returns how many nodes moved.
+     * EN: Moves the nodes version 5.2 or earlier left in this chunk's PDC into the region files.
+     * The PDC copy is deleted only after a region write with those nodes succeeds (see
+     * {@link #drainLegacyWritten}); until then the chunk is held loaded and a failed write or a crash
+     * leaves the old data to migrate again. A node already in the region is newer and is kept.
+     * Returns how many nodes were read from the PDC.
      *
-     * ES: Pasa a los archivos de región los nodos que la versión 5.2 o anterior dejó en el PDC
-     * de este chunk y los borra del chunk. Devuelve cuántos nodos se movieron.
+     * ES: Pasa a los archivos de región los nodos que la versión 5.2 o anterior dejó en el PDC del
+     * chunk. La copia del PDC solo se borra cuando una escritura de la región con esos nodos sale
+     * bien; hasta entonces el chunk se mantiene cargado, y una escritura fallida o un crash dejan los
+     * datos antiguos para migrarlos otra vez. Un nodo que ya está en la región es más nuevo y se
+     * conserva. Devuelve cuántos nodos se leyeron del PDC.
      */
     public static int migrateLegacy(Chunk chunk) {
         if (plugin == null || !LegacyChunkData.present(chunk)) {
             return 0;
         }
-        List<LegacyChunkData.Entry> entries = LegacyChunkData.extract(chunk, plugin.getName());
-        if (entries.isEmpty()) {
+        WorldNodes nodes = worldNodes(chunk.getWorld());
+        long chunkKey = NodeRegion.chunkKey(chunk.getX(), chunk.getZ());
+        NodeRegion known = nodes.region(chunk.getX(), chunk.getZ(), false);
+        NodeRegion.LegacyCleanup pending = known == null ? null : known.legacyPending.get(chunkKey);
+        if (pending != null) {
+            // Ya migrado en esta sesión: si su región ya está en disco, se termina la limpieza.
+            if (pending.written) {
+                LegacyChunkData.clear(chunk, pending.keys);
+                known.legacyPending.remove(chunkKey);
+                releaseChunk(chunk);
+            }
             return 0;
         }
-        NodeRegion region = worldNodes(chunk.getWorld()).region(chunk.getX(), chunk.getZ(), true);
-        for (LegacyChunkData.Entry entry : entries) {
+        LegacyChunkData.Snapshot legacy = LegacyChunkData.read(chunk, plugin.getName());
+        if (legacy.entries().isEmpty()) {
+            // Solo claves vacías o ilegibles: no hay nada que perder.
+            LegacyChunkData.clear(chunk, legacy.keys());
+            return 0;
+        }
+        NodeRegion region = nodes.region(chunk.getX(), chunk.getZ(), true);
+        for (LegacyChunkData.Entry entry : legacy.entries()) {
+            if (region.get(entry.x(), entry.y(), entry.z()) != null) {
+                continue;
+            }
             byte[] data = entry.data();
             if (data != null && isDefault(entry.type(), data)) {
                 data = null;
             }
             region.put(entry.x(), entry.y(), entry.z(), new NodeRecord(entry.type(), data));
         }
-        return entries.size();
+        // Aunque todo estuviera ya en la región, hace falta una escritura que confirme el borrado.
+        region.dirty = true;
+        region.legacyPending.put(chunkKey, new NodeRegion.LegacyCleanup(legacy.keys()));
+        holdChunk(chunk);
+        return legacy.entries().size();
     }
 
     public static StorageStats stats() {
@@ -409,7 +484,7 @@ public final class NodeStore {
                 // Algo pidio datos despues del apagado (otro plugin en su onDisable): se sirve igual.
                 io = new NodeIO(logger());
             }
-            nodes = new WorldNodes(folderFor(world), io, logger());
+            nodes = new WorldNodes(folderFor(world), io, logger(), NodeStore::queueLegacyDrain);
             WORLDS.put(world.getUID(), nodes);
         }
         return nodes;

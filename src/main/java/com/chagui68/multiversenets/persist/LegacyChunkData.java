@@ -18,14 +18,15 @@ import java.util.regex.Pattern;
 /**
  * [EN] Reads (and removes) the node data that versions up to 5.2 kept in the chunk's
  * PersistentDataContainer: {@code n<x>_<y>_<z>} held the Base64 blob, {@code t<x>_<y>_<z>} the type,
- * and {@code chunk_has_nodes} marked the chunk. Migration is one-way: once a chunk is moved to the
- * region files its PDC entries are deleted, which is what frees the chunk from carrying them.
+ * and {@code chunk_has_nodes} marked the chunk. Reading and deleting are separate steps: the PDC
+ * entries are only deleted once the region file that holds the migrated nodes is confirmed on disk,
+ * so a crash or a failed write never leaves the nodes in neither place.
  *
  * [ES] Lee (y borra) los datos de nodos que las versiones hasta la 5.2 guardaban en el
  * PersistentDataContainer del chunk: {@code n<x>_<y>_<z>} tenía el blob en Base64,
- * {@code t<x>_<y>_<z>} el tipo, y {@code chunk_has_nodes} marcaba el chunk. La migración es de ida:
- * en cuanto un chunk pasa a los archivos de región se borran sus entradas del PDC, que es lo que
- * libera al chunk de cargarlas.
+ * {@code t<x>_<y>_<z>} el tipo, y {@code chunk_has_nodes} marcaba el chunk. Leer y borrar son pasos
+ * separados: las entradas del PDC solo se borran cuando el archivo de región con los nodos migrados
+ * está confirmado en disco, así un crash o una escritura fallida nunca deja los nodos en ninguna parte.
  */
 final class LegacyChunkData {
 
@@ -33,6 +34,10 @@ final class LegacyChunkData {
 
     /** One legacy node; {@code data} is the decoded Base64 or null / Un nodo antiguo. */
     record Entry(int x, int y, int z, String type, byte[] data) {
+    }
+
+    /** What {@link #read} found: the nodes and the PDC keys that held them / Los nodos y sus claves. */
+    record Snapshot(List<Entry> entries, List<NamespacedKey> keys) {
     }
 
     private LegacyChunkData() {
@@ -44,10 +49,10 @@ final class LegacyChunkData {
     }
 
     /**
-     * EN: Every legacy node of the chunk, removing its keys and the marker as it goes.
-     * ES: Todos los nodos antiguos del chunk, borrando sus claves y la marca por el camino.
+     * EN: Every legacy node of the chunk and the keys it came from. Nothing is removed.
+     * ES: Todos los nodos antiguos del chunk y las claves de donde salieron. No borra nada.
      */
-    static List<Entry> extract(Chunk chunk, String namespace) {
+    static Snapshot read(Chunk chunk, String namespace) {
         PersistentDataContainer pdc = chunk.getPersistentDataContainer();
         Map<String, String[]> byPos = new LinkedHashMap<>();
         List<NamespacedKey> consumed = new ArrayList<>();
@@ -94,10 +99,23 @@ final class LegacyChunkData {
             entries.add(new Entry(Integer.parseInt(coords[0]), Integer.parseInt(coords[1]),
                     Integer.parseInt(coords[2]), type, data));
         }
-        for (NamespacedKey key : consumed) {
+        return new Snapshot(entries, consumed);
+    }
+
+    /**
+     * EN: Deletes the keys a {@link #read} returned and the marker. Main thread, and only after the
+     * region file with those nodes is written.
+     *
+     * ES: Borra las claves que devolvió {@link #read} y la marca. Hilo principal, y solo cuando el
+     * archivo de región con esos nodos ya está escrito.
+     */
+    static void clear(Chunk chunk, List<NamespacedKey> keys) {
+        PersistentDataContainer pdc = chunk.getPersistentDataContainer();
+        for (NamespacedKey key : keys) {
             pdc.remove(key);
         }
-        pdc.remove(Keys.CHUNK_HAS_NODES);
-        return entries;
+        if (Keys.CHUNK_HAS_NODES != null) {
+            pdc.remove(Keys.CHUNK_HAS_NODES);
+        }
     }
 }
