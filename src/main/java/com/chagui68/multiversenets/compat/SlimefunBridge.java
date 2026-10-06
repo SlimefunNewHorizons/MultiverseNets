@@ -238,20 +238,18 @@ public final class SlimefunBridge {
             return null;
         }
         if (!item.getType().isAir()) {
-            var meta = item.getItemMeta();
-            if (meta != null) {
-                var pdc = meta.getPersistentDataContainer();
-                String id = pdc.get(SLIMEFUN_ITEM_ID, org.bukkit.persistence.PersistentDataType.STRING);
-                if (id != null && !id.isBlank()) {
-                    return id;
-                }
-                // Retain compatibility with historical forks that used a different namespace.
-                for (org.bukkit.NamespacedKey key : pdc.getKeys()) {
-                    if ("slimefun_item".equalsIgnoreCase(key.getKey())) {
-                        String legacyId = pdc.get(key, org.bukkit.persistence.PersistentDataType.STRING);
-                        if (legacyId != null && !legacyId.isBlank()) {
-                            return legacyId;
-                        }
+            // Read-only PDC view: no ItemMeta clone on the network hot path (#87).
+            var pdc = item.getPersistentDataContainer();
+            String id = pdc.get(SLIMEFUN_ITEM_ID, org.bukkit.persistence.PersistentDataType.STRING);
+            if (id != null && !id.isBlank()) {
+                return id;
+            }
+            // Retain compatibility with historical forks that used a different namespace.
+            for (org.bukkit.NamespacedKey key : pdc.getKeys()) {
+                if ("slimefun_item".equalsIgnoreCase(key.getKey())) {
+                    String legacyId = pdc.get(key, org.bukkit.persistence.PersistentDataType.STRING);
+                    if (legacyId != null && !legacyId.isBlank()) {
+                        return legacyId;
                     }
                 }
             }

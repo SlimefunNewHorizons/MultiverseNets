@@ -210,11 +210,8 @@ public final class Items {
         if (item == null || item.getType().isAir()) {
             return null;
         }
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null) {
-            return null;
-        }
-        String name = meta.getPersistentDataContainer()
+        // Read-only PDC view: no ItemMeta clone on the network hot path (#87).
+        String name = item.getPersistentDataContainer()
                 .get(Keys.DEVICE_TYPE, PersistentDataType.STRING);
         return name == null ? null : DeviceType.parse(name);
     }

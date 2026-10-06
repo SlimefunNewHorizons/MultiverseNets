@@ -190,6 +190,31 @@ class FilterGuiTest {
     }
 
     /**
+     * [EN] PDC-view reads (#87) still tell a Slimefun item apart from vanilla of the same material.
+     * [ES] La lectura por vista PDC (#87) sigue distinguiendo un ítem Slimefun del vanilla del mismo material.
+     */
+    @Test
+    void filterDistinguishesSlimefunItemFromVanillaSameMaterial() {
+        ItemStack steel = new ItemStack(Material.IRON_INGOT);
+        var meta = steel.getItemMeta();
+        meta.getPersistentDataContainer().set(new org.bukkit.NamespacedKey("slimefun", "slimefun_item"),
+                org.bukkit.persistence.PersistentDataType.STRING, "STEEL_INGOT");
+        steel.setItemMeta(meta);
+        ItemStack iron = new ItemStack(Material.IRON_INGOT);
+
+        assertTrue(com.chagui68.multiversenets.net.NetworkManager.matchesFilter(steel, steel.clone()));
+        assertFalse(com.chagui68.multiversenets.net.NetworkManager.matchesFilter(steel, iron));
+        assertFalse(com.chagui68.multiversenets.net.NetworkManager.matchesFilter(iron, steel));
+        assertTrue(com.chagui68.multiversenets.net.NetworkManager.matchesFilter(iron, iron.clone()));
+
+        assertTrue(com.chagui68.multiversenets.net.NetworkManager.matchesMaterialOrId("IRON_INGOT", iron));
+        assertFalse(com.chagui68.multiversenets.net.NetworkManager.matchesMaterialOrId("IRON_INGOT", steel));
+        assertTrue(com.chagui68.multiversenets.net.NetworkManager.matchesMaterialOrId("SLIMEFUN:STEEL_INGOT", steel));
+        assertNull(com.chagui68.multiversenets.item.Items.typeOf(steel));
+        assertNull(com.chagui68.multiversenets.item.Items.typeOf(new ItemStack(Material.AIR)));
+    }
+
+    /**
      * [EN] Filter registers custom items into filterItems list upon shift click.
      * [ES] El filtro registra items custom en filterItems con shift-clic.
      */
