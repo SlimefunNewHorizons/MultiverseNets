@@ -207,10 +207,14 @@ public final class Items {
      * @return Resolved DeviceType or null / DeviceType resuelto o null
      */
     public static DeviceType typeOf(ItemStack item) {
-        if (item == null || !item.hasItemMeta()) {
+        if (item == null || item.getType().isAir()) {
             return null;
         }
-        String name = item.getItemMeta().getPersistentDataContainer()
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return null;
+        }
+        String name = meta.getPersistentDataContainer()
                 .get(Keys.DEVICE_TYPE, PersistentDataType.STRING);
         return name == null ? null : DeviceType.parse(name);
     }

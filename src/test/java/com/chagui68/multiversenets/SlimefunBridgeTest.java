@@ -77,4 +77,15 @@ class SlimefunBridgeTest {
         assertEquals("STEEL_INGOT", SlimefunBridge.getId(item));
         assertTrue(SlimefunBridge.isSlimefunItem(item));
     }
+
+    @Test
+    void testSlimefunItemIdentificationPreservesLegacyNamespaceFallback() {
+        org.bukkit.inventory.ItemStack item = new org.bukkit.inventory.ItemStack(org.bukkit.Material.IRON_INGOT);
+        var meta = item.getItemMeta();
+        meta.getPersistentDataContainer().set(new org.bukkit.NamespacedKey("legacy_slimefun", "slimefun_item"),
+                org.bukkit.persistence.PersistentDataType.STRING, "LEGACY_STEEL_INGOT");
+        item.setItemMeta(meta);
+
+        assertEquals("LEGACY_STEEL_INGOT", SlimefunBridge.getId(item));
+    }
 }
