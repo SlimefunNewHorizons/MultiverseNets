@@ -96,11 +96,12 @@ final class RegionFile {
                 out.writeInt(PosUtil.unpackY(pos));
                 out.writeInt(PosUtil.unpackZ(pos));
                 out.writeInt(record.type == null ? -1 : typeIndex.get(record.type));
-                if (record.data == null) {
+                byte[] data = record.data();
+                if (data == null) {
                     out.writeInt(-1);
                 } else {
-                    out.writeInt(record.data.length);
-                    out.write(record.data);
+                    out.writeInt(data.length);
+                    out.write(data);
                 }
             }
             CRC32 crc = new CRC32();

@@ -331,7 +331,8 @@ public final class NodeStore {
         if (record == null) {
             return null;
         }
-        return record.data == null ? defaultBlob(record.type) : decodeBytes(record.data);
+        byte[] data = record.data();
+        return data == null ? defaultBlob(record.type) : decodeBytes(data);
     }
 
     /**
@@ -351,7 +352,8 @@ public final class NodeStore {
             return null;
         }
         if (record.live == null) {
-            record.live = record.data == null ? defaultBlob(record.type) : decodeBytes(record.data);
+            byte[] data = record.data();
+            record.live = data == null ? defaultBlob(record.type) : decodeBytes(data);
         }
         return record.live;
     }
@@ -376,25 +378,25 @@ public final class NodeStore {
     /**
      * EN: Stores the node. The caller's object becomes the live instance served by
      * {@link #canonical}, so a shared reader can never hold something older than the last write.
-     * Throws {@link IllegalStateException} when the blob cannot be serialized, like before.
+     * Encoding waits until the bytes are needed (see {@link NodeRecord#data()}); a blob that cannot
+     * be serialized then keeps its last good bytes on disk and logs, instead of throwing here.
      *
      * ES: Guarda el nodo. El objeto del llamante pasa a ser la instancia viva que sirve
      * {@link #canonical}, así un lector compartido nunca tiene algo más viejo que la última
-     * escritura. Lanza {@link IllegalStateException} si el blob no se puede serializar.
+     * escritura. La codificación espera a que hagan falta los bytes; un blob no serializable
+     * conserva en disco sus últimos bytes buenos y deja aviso, en vez de lanzar aquí.
      */
     public static void put(Block block, NodeBlob blob) {
         if (blob == null) {
             remove(block);
             return;
         }
-        byte[] data = encodeBytes(blob);
-        if (isDefault(blob.typeName, data)) {
-            data = null;
-        }
-        NodeRecord record = new NodeRecord(blob.typeName, data);
-        record.live = blob;
         ensureLoaded(block);
-        region(block, true).put(block.getX(), block.getY(), block.getZ(), record);
+        NodeRegion region = region(block, true);
+        NodeRecord previous = region.get(block.getX(), block.getY(), block.getZ());
+        byte[] lastEncoded = previous == null ? null : previous.lastEncoded();
+        region.put(block.getX(), block.getY(), block.getZ(),
+                NodeRecord.unencoded(blob.typeName, blob, lastEncoded));
     }
 
     public static void remove(Block block) {
@@ -436,7 +438,12 @@ public final class NodeStore {
     /** Test hook: the stored bytes, null for a default blob / Gancho de test: los bytes guardados. */
     static byte[] rawData(Block block) {
         NodeRecord record = record(block);
-        return record == null ? null : record.data;
+        return record == null ? null : record.data();
+    }
+
+    /** Test hook: the loaded region holding a block / Gancho de test: la región cargada del bloque. */
+    static NodeRegion regionForTest(Block block) {
+        return region(block, false);
     }
 
     /** Test hook: where a world's region files go / Gancho de test: carpeta de regiones del mundo. */
@@ -562,6 +569,26 @@ public final class NodeStore {
                         + ": " + e.getMessage());
             }
             return null;
+        }
+    }
+
+    /**
+     * EN: The bytes a record stores for {@code blob}: null for the type's default blob. If the blob
+     * cannot be serialized, {@code fallback} (the last bytes that did) is kept.
+     * ES: Los bytes que guarda un registro para {@code blob}: null si es el de por defecto. Si no se
+     * puede serializar, se conserva {@code fallback} (los últimos bytes que sí).
+     */
+    static byte[] encodeRecord(String typeName, NodeBlob blob, byte[] fallback) {
+        try {
+            byte[] data = encodeBytes(blob);
+            return isDefault(typeName, data) ? null : data;
+        } catch (RuntimeException e) {
+            if (plugin != null) {
+                plugin.getLogger().warning("Could not serialize a " + typeName
+                        + " node; keeping its last saved state. " + e.getClass().getSimpleName()
+                        + ": " + e.getMessage());
+            }
+            return fallback;
         }
     }
 

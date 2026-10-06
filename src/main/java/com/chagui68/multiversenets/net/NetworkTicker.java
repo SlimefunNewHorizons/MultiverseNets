@@ -211,6 +211,16 @@ public class NetworkTicker {
         return NodeStore.get(net.block(pos));
     }
 
+    /**
+     * La instancia viva del nodo ({@link NodeStore#canonical}), sin decodificar una copia. Solo
+     * para quien lee o, si muta, siempre reescribe con {@link NodeStore#put}: grabOnce, pushOnce y
+     * streamToPushers. Decodificar el blob de cada grabber/pusher en cada ciclo era el coste
+     * dominante de MultiverseNets en el perfil spark del ticket #83.
+     */
+    private NodeBlob liveBlobOf(Network net, long pos) {
+        return NodeStore.canonical(net.block(pos));
+    }
+
     private BlockFace[] facesFor(NodeBlob blob) {
         if (blob != null && blob.targetFace != null) {
             if ("NONE".equalsIgnoreCase(blob.targetFace)) {
@@ -255,7 +265,7 @@ public class NetworkTicker {
         for (DeviceType pusherType : List.of(DeviceType.MVN_PUSHER_HT, DeviceType.MVN_PUSHER)) {
             net.forEach(pusherType, (pos, type) -> {
                 if (remaining[0] <= 0) return;
-                NodeBlob pBlob = blobOf(net, pos);
+                NodeBlob pBlob = liveBlobOf(net, pos);
                 if (pBlob == null) return;
                 boolean hasItems = pBlob.filterItems != null && !pBlob.filterItems.isEmpty();
                 boolean hasMats = pBlob.filterMaterials != null && !pBlob.filterMaterials.isEmpty();
@@ -309,7 +319,7 @@ public class NetworkTicker {
     }
 
     private void grabOnce(Network net, long pos, int rate) {
-        NodeBlob blob = blobOf(net, pos);
+        NodeBlob blob = liveBlobOf(net, pos);
         if (blob == null) {
             return;
         }
@@ -413,7 +423,7 @@ public class NetworkTicker {
      * ES: Exporta ítems desde la red hacia los contenedores adyacentes.
      */
     private void pushOnce(Network net, long pos, int rate) {
-        NodeBlob blob = blobOf(net, pos);
+        NodeBlob blob = liveBlobOf(net, pos);
         if (blob == null) {
             return;
         }
