@@ -607,6 +607,7 @@ public class RequestTerminalMenu extends MenuHolder {
 
         if (failedMidway && totalTargetCrafted <= 0) {
             player.sendMessage(Text.msg("Crafting Job Failed: Materials exhausted during multi-step execution.", NamedTextColor.RED));
+            player.sendMessage(Text.msg(lastStepFailure, NamedTextColor.GRAY));
             player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
             return;
         }
@@ -622,6 +623,9 @@ public class RequestTerminalMenu extends MenuHolder {
         }
     }
 
+    /** Why the last {@link #executeSingleCraftStep} returned false / Motivo del último fallo. */
+    private String lastStepFailure = "";
+
     private boolean executeSingleCraftStep(CraftableOption stepOpt, List<ItemStack> intermediateBuffer, List<ItemStack> outputSink) {
         List<IngredientNeed> needs = stepOpt.ingredients;
 
@@ -630,6 +634,8 @@ public class RequestTerminalMenu extends MenuHolder {
             long inBuf = countInBuffer(intermediateBuffer, need.sample());
             long inStore = network.storage().count(item -> StackUtils.itemsMatch(item, need.sample(), false));
             if (inBuf + inStore < need.amount()) {
+                lastStepFailure = stepOpt.name + ": missing " + need.amount() + "x " + describe(need.sample())
+                        + " (buffer " + inBuf + ", network " + inStore + ")";
                 return false;
             }
         }
@@ -647,6 +653,8 @@ public class RequestTerminalMenu extends MenuHolder {
                 }
             }
             if (remaining > 0) {
+                lastStepFailure = stepOpt.name + ": withdraw short on " + describe(need.sample())
+                        + " (needed " + need.amount() + ", missing " + remaining + ")";
                 // Rollback
                 for (ItemStack ext : extracted) {
                     addToBuffer(intermediateBuffer, ext);
@@ -686,6 +694,7 @@ public class RequestTerminalMenu extends MenuHolder {
         }
 
         if (result == null) {
+            lastStepFailure = stepOpt.name + ": recipe did not resolve to a result";
             for (ItemStack ext : extracted) {
                 addToBuffer(intermediateBuffer, ext);
             }
@@ -694,6 +703,14 @@ public class RequestTerminalMenu extends MenuHolder {
 
         addToBuffer(outputSink, result);
         return true;
+    }
+
+    private static String describe(ItemStack item) {
+        if (item == null) {
+            return "?";
+        }
+        String id = SlimefunBridge.getId(item);
+        return id != null ? id : item.getType().name();
     }
 
     private long countInBuffer(List<ItemStack> buffer, ItemStack sample) {
