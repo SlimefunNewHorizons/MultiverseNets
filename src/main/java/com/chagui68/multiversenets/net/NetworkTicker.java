@@ -55,10 +55,18 @@ public class NetworkTicker {
     private final java.util.Map<Long, Integer> backoffCycles = new java.util.concurrent.ConcurrentHashMap<>();
 
     // Cada familia cuenta sus ticks restantes; al llegar a 0 se ejecuta y se rearma.
-    private int scanIn;
     private int transferIn;
     private int vacuumIn;
     private int craftIn;
+    private int hologramIn;
+
+    /** Ticks advanced by this ticker; scans are stamped with it / Ticks que lleva el ticker. */
+    private static long clock;
+
+    /** Ticker time for {@link Network#scan()} stamps / Hora del ticker para sellar escaneos. */
+    static long clock() {
+        return clock;
+    }
 
     public NetworkTicker(MultiverseNets plugin, NetworkManager manager) {
         this.plugin = plugin;
@@ -80,17 +88,28 @@ public class NetworkTicker {
     }
 
     private void run() {
-        scanIn -= 5;
+        clock += 5;
         transferIn -= 5;
         vacuumIn -= 5;
         craftIn -= 5;
+        hologramIn -= 5;
         List<Network> networks = manager.all();
         // Orden estable: decide que red trabaja un nodo compartido (ver assignSharedNodes).
         networks.sort(java.util.Comparator
                 .comparing((Network n) -> n.world().getUID())
                 .thenComparingLong(Network::controllerPos));
+        // Antes cada red se reescaneaba entera (BFS + proteccion + Slimefun por vecino) cada
+        // scan-interval-ticks aunque nada hubiera cambiado. Ahora: una red sucia (se coloco o rompio
+        // algo suyo) se escanea ya; una "quiza cambiada" (cargo un chunk, se puso un bloque ajeno al
+        // lado) espera al menos scan-interval-ticks; y el resto solo cada full-rescan-ticks, que
+        // cubre lo que ningun evento avisa (reclamos de tierra, bloques de otros plugins).
+        int staleGap = Settings.scanIntervalTicks();
+        int fullGap = Settings.fullRescanTicks();
         for (Network net : networks) {
-            if (net.isDirty() || scanIn <= 0) {
+            long since = clock - net.lastScanClock();
+            if (net.isDirty()
+                    || (net.isStale() && since >= staleGap)
+                    || since >= fullGap + net.rescanJitter(fullGap)) {
                 net.scan();
             }
         }
@@ -108,10 +127,14 @@ public class NetworkTicker {
             if (craftIn <= 0) {
                 doCrafting(net);
             }
-            updateHologramSafely(net);
+            // Cosmetico: una vez por segundo basta; cada 5 ticks rehacia la vista del almacenamiento
+            // y reenviaba el texto a todos los jugadores cercanos.
+            if (hologramIn <= 0) {
+                updateHologramSafely(net);
+            }
         }
-        if (scanIn <= 0) {
-            scanIn = Settings.scanIntervalTicks();
+        if (hologramIn <= 0) {
+            hologramIn = 20;
         }
         if (transferIn <= 0) {
             transferIn = Settings.transferIntervalTicks();
@@ -207,8 +230,13 @@ public class NetworkTicker {
         forEachWorked(net, DeviceType.MVN_CHICKEN_SORTER, pos -> chickenSortOnce(net, pos));
     }
 
+    /**
+     * La instancia viva del nodo para quien solo lee o, si muta, siempre reescribe con
+     * {@link NodeStore#put}. {@link NodeStore#get} codificaba y decodificaba el blob entero (GZIP +
+     * serializacion de cada ItemStack) en cada ciclo de purgers, puentes, vacuums, crafters y bombas.
+     */
     private NodeBlob blobOf(Network net, long pos) {
-        return NodeStore.get(net.block(pos));
+        return NodeStore.canonical(net.block(pos));
     }
 
     /**
@@ -548,7 +576,7 @@ public class NetworkTicker {
         }
         ItemStack rest = StackUtils.getAsQuantity(stack, leftover);
         // Safe buffer: do not drop items on ground if transitBuffer can hold them
-        NodeBlob blob = NodeStore.get(self);
+        NodeBlob blob = NodeStore.canonical(self);
         if (blob != null && blob.addTransit(rest)) {
             NodeStore.put(self, blob);
         } else {
@@ -600,12 +628,12 @@ public class NetworkTicker {
             if (blob.filterItems != null && !blob.filterItems.isEmpty()) {
                 for (ItemStack t : blob.filterItems) {
                     if (t != null && !t.getType().isAir()) {
-                        preds.add(item -> item != null && NetworkManager.matchesFilter(t, item));
+                        preds.add(NetworkManager.filterEntry(t));
                     }
                 }
             } else {
                 for (String entry : blob.filterMaterials) {
-                    preds.add(item -> NetworkManager.matchesMaterialOrId(entry, item));
+                    preds.add(NetworkManager.materialEntry(entry));
                 }
             }
             int start = Math.floorMod(pushRotation.merge(pos, 1, Integer::sum), preds.size());
@@ -804,7 +832,7 @@ public class NetworkTicker {
             boolean slimefun = Settings.compatSlimefun() && SlimefunBridge.isAvailable() && SlimefunBridge.isMachine(target);
             Inventory inv = null;
             if (!slimefun) {
-                if (!isPotentialContainer(target.getType()) || !(target.getState() instanceof InventoryHolder holder)) {
+                if (!isPotentialContainer(target.getType()) || !(target.getState(false) instanceof InventoryHolder holder)) {
                     continue;
                 }
                 inv = holder.getInventory();
@@ -821,7 +849,7 @@ public class NetworkTicker {
                 if (leftover > 0) {
                     // La red esta llena: el pollo espera en el bufer y el clasificador se detiene
                     // hasta poder entregarlo (se reintenta al principio del siguiente ciclo).
-                    NodeBlob fresh = NodeStore.get(self);
+                    NodeBlob fresh = NodeStore.canonical(self);
                     ItemStack rest = StackUtils.getAsQuantity(chicken, leftover);
                     if (fresh != null && fresh.addTransit(rest)) {
                         NodeStore.put(self, fresh);
@@ -869,7 +897,9 @@ public class NetworkTicker {
      */
     private void greedyTick(Network net, long pos) {
         Block block = net.block(pos);
-        NodeBlob blob = NodeStore.get(block);
+        // Instancia viva: la Greedy Cell se reescribe casi cada ciclo, y get() pagaba una
+        // codificacion y una decodificacion completas cada vez (tres en total con releaseToPushers).
+        NodeBlob blob = NodeStore.canonical(block);
         if (blob == null) {
             return;
         }
@@ -928,7 +958,9 @@ public class NetworkTicker {
                             roundMoved += moved;
                             want = unhoused;
                         }
-                    } else if (isPotentialContainer(targetMat) && target.getState() instanceof InventoryHolder holder) {
+                    } else if (isPotentialContainer(targetMat) && target.getState(false) instanceof InventoryHolder holder) {
+                        // getState(false): el inventario vivo, sin copiar el bloque entero. La copia y
+                        // el update() posterior solo reescribian lo que ya estaba en el bloque.
                         ItemStack out = sample.clone();
                         out.setAmount(want);
                         int leftover = NetworkManager.insertInto(holder.getInventory(), out);
@@ -936,9 +968,6 @@ public class NetworkTicker {
                         if (moved > 0) {
                             roundMoved += moved;
                             want = leftover;
-                            if (target.getState() instanceof org.bukkit.block.TileState ts) {
-                                ts.update();
-                            }
                         }
                     }
                     if (want <= 0) {
@@ -972,7 +1001,7 @@ public class NetworkTicker {
      * Lo que la red no admite se queda en la Greedy Cell.
      */
     private void releaseToPushers(Network net, Block block) {
-        NodeBlob blob = NodeStore.get(block);
+        NodeBlob blob = NodeStore.canonical(block);
         if (blob == null || blob.greedySamples == null || blob.greedySamples.isEmpty()) {
             return;
         }
@@ -991,7 +1020,7 @@ public class NetworkTicker {
                 left += net.storage().deposit(StackUtils.getAsQuantity(sample, chunk));
                 toMove -= chunk;
             }
-            blob = NodeStore.get(block);
+            blob = NodeStore.canonical(block);
             if (left > 0 && blob != null) {
                 blob.addGreedyItem(sample, left);
                 NodeStore.put(block, blob);
@@ -1037,7 +1066,7 @@ public class NetworkTicker {
         if (denied(net, net.block(pos))) {
             return;
         }
-        NodeBlob txBlob = NodeStore.get(txBlock);
+        NodeBlob txBlob = NodeStore.canonical(txBlock);
         if (txBlob == null || DeviceType.parse(txBlob.typeName) != DeviceType.MVN_TRANSMITTER) {
             return;
         }
@@ -1104,7 +1133,7 @@ public class NetworkTicker {
         if (denied(net, net.block(pos))) {
             return;
         }
-        NodeBlob rxBlob = NodeStore.get(rxBlock);
+        NodeBlob rxBlob = NodeStore.canonical(rxBlock);
         if (rxBlob == null || DeviceType.parse(rxBlob.typeName) != DeviceType.MVN_RECEIVER) {
             return;
         }
@@ -1192,7 +1221,9 @@ public class NetworkTicker {
                 return;
             }
             for (String b64 : new ArrayList<>(blob.blueprintData)) {
-                RecipeData data = Blueprints.decode(b64);
+                // Decodificado una vez y reutilizado: deserializar cada plano en cada ciclo de cada
+                // crafter era trabajo repetido sobre los mismos bytes.
+                RecipeData data = Blueprints.decodeCached(b64);
                 if (data == null) {
                     continue;
                 }

@@ -44,24 +44,24 @@ public final class Settings {
     }
 
     /**
+     * EN: Ticks between periodic full rescans of a network nothing has touched. Placing or breaking
+     * network blocks rescans at once; this only catches what no event reports (land claims, blocks
+     * changed by other plugins).
+     *
+     * ES: Ticks entre reescaneos completos periódicos de una red que nadie ha tocado. Colocar o
+     * romper bloques de red reescanea al momento; esto solo recoge lo que ningún evento avisa.
+     */
+    public static int fullRescanTicks() {
+        return cfg != null ? Math.max(20, cfg.getInt("network.full-rescan-ticks", 600)) : 600;
+    }
+
+    /**
      * EN: Returns the maximum number of connected nodes allowed per network.
      *
      * ES: Devuelve el número máximo de nodos conectados permitidos por red.
      */
     public static int maxNodes() {
         return cfg != null ? Math.max(16, cfg.getInt("network.max-nodes", 16384)) : 16384;
-    }
-
-    /**
-     * EN: Optional cap on devices the network loop works every cycle (grabbers, pushers, vacuums,
-     * crafters...) per chunk. 0 = no cap. Cables, cells and other passive blocks never count.
-     *
-     * ES: Tope opcional de dispositivos que el bucle de la red trabaja en cada ciclo (grabbers,
-     * pushers, vacuums, crafters...) por chunk. 0 = sin tope. Cables, celdas y bloques pasivos nunca
-     * cuentan.
-     */
-    public static int maxActiveDevicesPerChunk() {
-        return cfg != null ? Math.max(0, cfg.getInt("network.max-active-devices-per-chunk", 0)) : 0;
     }
 
     /**

@@ -35,7 +35,11 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class Blueprints {
 
-    private static final Map<String, Recipe> RECIPE_CACHE = new ConcurrentHashMap<>();
+    /** Optional so that "no vanilla recipe" is cached too / Optional para cachear también el "no hay receta". */
+    private static final Map<String, java.util.Optional<Recipe>> RECIPE_CACHE = new ConcurrentHashMap<>();
+    /** Decoded blueprints by their Base64 text / Blueprints decodificados por su texto Base64. */
+    private static final Map<String, java.util.Optional<RecipeData>> DECODED = new ConcurrentHashMap<>();
+    private static final int DECODED_LIMIT = 4096;
 
     private Blueprints() {
     }
@@ -51,6 +55,29 @@ public final class Blueprints {
         } catch (IOException e) {
             throw new IllegalStateException("No se pudo serializar la receta del blueprint", e);
         }
+    }
+
+    /**
+     * EN: {@link #decode} memoised by the Base64 text. The Auto-Crafter reads the same blueprints
+     * every cycle; deserializing them each time was repeated work on identical bytes. The returned
+     * object is shared: treat it as read-only.
+     *
+     * ES: {@link #decode} memorizado por el texto Base64. El Auto-Crafter lee los mismos planos en
+     * cada ciclo. El objeto devuelto es compartido: solo lectura.
+     */
+    public static RecipeData decodeCached(String data) {
+        if (data == null) {
+            return null;
+        }
+        java.util.Optional<RecipeData> hit = DECODED.get(data);
+        if (hit == null) {
+            if (DECODED.size() >= DECODED_LIMIT) {
+                DECODED.clear();
+            }
+            hit = java.util.Optional.ofNullable(decode(data));
+            DECODED.put(data, hit);
+        }
+        return hit.orElse(null);
     }
 
     public static RecipeData decode(String data) {
@@ -136,6 +163,8 @@ public final class Blueprints {
     public static Recipe resolve(ItemStack[] matrix, World world) {
         ItemStack[] norm = normalize(matrix);
         String key = encode(new RecipeData(norm, null));
+        // Optional: computeIfAbsent no guarda null, asi que una matriz sin receta vanilla (todo
+        // plano de Slimefun) volvia a llamar a Bukkit.getCraftingRecipe en cada intento.
         return RECIPE_CACHE.computeIfAbsent(key, k -> {
             // Aire real en vez de null: algunas implementaciones del servidor (y MockBukkit en
             // los tests) asumen que la matriz nunca trae huecos a null.
@@ -143,8 +172,8 @@ public final class Blueprints {
             for (int i = 0; i < 9; i++) {
                 paraBukkit[i] = norm[i] == null ? new ItemStack(org.bukkit.Material.AIR) : norm[i];
             }
-            return Bukkit.getCraftingRecipe(paraBukkit, world);
-        });
+            return java.util.Optional.ofNullable(Bukkit.getCraftingRecipe(paraBukkit, world));
+        }).orElse(null);
     }
 
     /**

@@ -60,7 +60,33 @@ public final class StackUtils {
         if (a.getType() != b.getType()) {
             return false;
         }
+        // Atajos sin copiar ItemMeta: strictMatch y sameCustomItem clonan el meta de los dos items
+        // (hasta cuatro copias y la serializacion de nombre y lore), y esta comparacion corre por
+        // cada celda en cada deposito. Un item identico coincide siempre; dos items de Slimefun con
+        // distinto id no coinciden nunca.
+        if (a.isSimilar(b)) {
+            return true;
+        }
+        boolean aMeta = a.hasItemMeta();
+        boolean bMeta = b.hasItemMeta();
+        if (!aMeta || !bMeta) {
+            return !aMeta && !bMeta;
+        }
+        if (!Objects.equals(slimefunId(a), slimefunId(b))) {
+            return false;
+        }
         return strictMatch(a, b, checkLore) || sameCustomItem(a, b, checkLore);
+    }
+
+    private static final org.bukkit.NamespacedKey SLIMEFUN_ID = new org.bukkit.NamespacedKey("slimefun", "slimefun_item");
+
+    /** Slimefun id from the read-only PDC view, no ItemMeta copy / Id de Slimefun sin copiar el meta. */
+    private static String slimefunId(ItemStack item) {
+        try {
+            return item.getPersistentDataContainer().get(SLIMEFUN_ID, org.bukkit.persistence.PersistentDataType.STRING);
+        } catch (RuntimeException unsupported) {
+            return null;
+        }
     }
 
     /**

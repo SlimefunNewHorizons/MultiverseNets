@@ -128,15 +128,53 @@ final class WorldNodes {
      * quedaron vacías) y devuelve las escrituras pendientes.
      */
     List<CompletableFuture<Void>> flush(Logger logger) {
+        return flush(logger, Long.MAX_VALUE, null);
+    }
+
+    /** Keys of the regions with unsaved changes right now / Regiones con cambios sin guardar ahora. */
+    Set<Long> dirtyRegionKeys() {
+        Set<Long> keys = new HashSet<>();
+        for (Map.Entry<Long, NodeRegion> entry : loaded.entrySet()) {
+            if (entry.getValue().dirty) {
+                keys.add(entry.getKey());
+            }
+        }
+        return keys;
+    }
+
+    /**
+     * EN: Like {@link #flush(Logger)}, but stops once {@code deadline} ({@link System#nanoTime()})
+     * has passed, after at least one region. Each region is still snapshotted whole in one go, so
+     * a file never mixes two moments of the same region. The autosave uses this to spread the
+     * encoding of a busy world over several ticks instead of one long tick every 30 seconds.
+     *
+     * ES: Igual, pero se detiene al pasar {@code deadline}, tras al menos una región. Cada región se
+     * congela entera de una vez. El autoguardado lo usa para repartir la codificación en varios
+     * ticks en vez de un tick largo cada 30 segundos. With {@code only}, just those regions are
+     * considered, and each one handled is removed from it: a region the ticker dirties again while
+     * the autosave runs waits for the next autosave instead of keeping this one alive forever.
+     */
+    List<CompletableFuture<Void>> flush(Logger logger, long deadline, Set<Long> only) {
         List<CompletableFuture<Void>> writes = new ArrayList<>();
         for (Map.Entry<Long, NodeRegion> entry : loaded.entrySet()) {
             NodeRegion region = entry.getValue();
+            if (only != null && !only.contains(entry.getKey())) {
+                continue;
+            }
+            if (!writes.isEmpty() && System.nanoTime() > deadline) {
+                break;
+            }
+            if (only != null) {
+                only.remove(entry.getKey());
+            }
             if (!region.dirty) {
                 continue;
             }
             region.dirty = false;
-            byte[] bytes = region.isEmpty() ? null : RegionFile.serialize(region);
-            if (bytes == null) {
+            // En el hilo principal solo se codifican los nodos cambiados; el armado del archivo y su
+            // CRC van al hilo de E/S.
+            RegionFile.Snapshot snapshot = region.isEmpty() ? null : RegionFile.snapshot(region);
+            if (snapshot == null) {
                 onDisk.remove(entry.getKey());
             } else {
                 onDisk.add(entry.getKey());
@@ -146,7 +184,8 @@ final class WorldNodes {
                     ? List.of() : List.copyOf(region.legacyPending.keySet());
             region.writesInFlight.incrementAndGet();
             Path file = file(region.rx, region.rz);
-            writes.add(io.write(file, bytes).whenComplete((ok, error) -> {
+            writes.add(io.write(file, () -> snapshot == null ? null : RegionFile.assemble(snapshot))
+                    .whenComplete((ok, error) -> {
                 region.writesInFlight.decrementAndGet();
                 if (error != null) {
                     // Se reintenta en el siguiente autoguardado; el PDC antiguo sigue intacto.
@@ -157,6 +196,10 @@ final class WorldNodes {
                     onLegacyWritten.run();
                 }
             }));
+        }
+        if (only != null) {
+            // Una region que ya no esta en memoria no se puede guardar desde aqui.
+            only.retainAll(loaded.keySet());
         }
         return writes;
     }

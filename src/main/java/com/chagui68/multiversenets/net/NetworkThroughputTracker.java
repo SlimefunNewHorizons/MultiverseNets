@@ -82,6 +82,18 @@ public class NetworkThroughputTracker {
         nodeFlowMap.remove(pos);
     }
 
+    /**
+     * EN: Drops the counters of positions that are no longer part of the network. Called after
+     * each scan: a broken or disconnected device used to keep its entry forever.
+     * ES: Suelta los contadores de posiciones que ya no son de la red. Se llama tras cada escaneo:
+     * un dispositivo roto o desconectado conservaba su entrada para siempre.
+     */
+    public void retainNodes(java.util.function.LongPredicate keep) {
+        if (!nodeFlowMap.isEmpty()) {
+            nodeFlowMap.keySet().removeIf(pos -> !keep.test(pos));
+        }
+    }
+
     public static class NodeFlow {
         private final AtomicLong total = new AtomicLong(0);
         private volatile long currentSecond = System.currentTimeMillis() / 1000L;

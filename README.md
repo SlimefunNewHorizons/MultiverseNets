@@ -172,8 +172,10 @@ opens the container on that face.
 
 ### 1. What belongs to a network
 
-On every scan (every `network.scan-interval-ticks`, and immediately after placing or breaking a
-node) the controller walks through every connected MultiverseNets block, face to face. The scan:
+On every scan the controller walks through every connected MultiverseNets block, face to face. A
+network is scanned immediately after one of its nodes is placed or broken; within
+`network.scan-interval-ticks` when it may have changed (a chunk of it loaded, a Slimefun cable or
+barrel was placed or broken next to it); and otherwise only every `network.full-rescan-ticks`. The scan:
 
 * never loads chunks — nodes in unloaded chunks are simply not part of the network until they load;
 * reads every neighbour from memory (one lookup, nothing decoded), so a scan costs the same in a
@@ -315,7 +317,8 @@ Minecraft's own region files. Nothing is written into the chunk itself.
   their full state.
 * **Off the main thread.** A region is read in the background as soon as one of its chunks loads.
   Only regions that changed are written: every `storage.autosave-seconds` (30 s), on `/save-all`,
-  with `/mvnets save` and on shutdown. Each write goes to a temporary file that replaces the old one
+  with `/mvnets save` and on shutdown. The autosave spreads its main-thread work over several ticks
+  (at most 2 ms per tick), so a busy world never costs one long tick. Each write goes to a temporary file that replaces the old one
   in a single move, so a crash leaves the old file or the new one, never half of each.
 * **In memory only while in use.** A region stays loaded while one of its chunks with devices is
   loaded and is dropped after it is saved.
@@ -325,11 +328,6 @@ Minecraft's own region files. Nothing is written into the chunk itself.
 * **Automatic migration.** Chunks written by 5.2 or earlier move their device data out of the chunk
   the first time they load after the update; there is nothing to do. The migration is one-way: a
   5.2 jar would not see those devices afterwards.
-
-The only density control left is optional: `network.max-active-devices-per-chunk` caps, per chunk,
-the devices the network works every cycle (grabbers, pushers, vacuums, purgers, pumps, crafters,
-bridges, Greedy Cells, chicken sorters). It is `0` (off) by default; cables, cells, terminals and
-other passive blocks never count.
 
 ---
 
@@ -372,9 +370,9 @@ Spanish):
 
 | Key | Default | Effect |
 |---|---|---|
-| `network.scan-interval-ticks` | 20 | Topology rescan interval |
+| `network.scan-interval-ticks` | 20 | Minimum gap between rescans of a network that may have changed |
+| `network.full-rescan-ticks` | 600 | Periodic full rescan of an untouched network |
 | `network.max-nodes` | 16384 | Maximum nodes per network |
-| `network.max-active-devices-per-chunk` | 0 | Optional cap on devices worked every cycle, per chunk (0 = off). Cables and passive blocks never count; there is no other per-chunk limit |
 | `storage.autosave-seconds` | 30 | Background save interval of the node region files |
 | `network.op-interval-ticks.transfer` / `vacuum` / `craft` | 5 / 10 / 20 | Intervals of each family of operations |
 | `transfer.items-per-op` | 128 | Items per Grabber/Pusher/Purger/Receiver operation |
@@ -450,8 +448,10 @@ compat:
 | Ticker | Slimefun's cycle | Own, with per-operation intervals in the config |
 | Node data | Slimefun's BlockStorage | Own region files in the world folder, saved off the main thread; cables and unconfigured devices store only their type |
 
-The price is that scanning costs one BFS over up to `max-nodes` blocks every
-`scan-interval-ticks` — predictable, bounded work in exchange for no state that can be corrupted.
+The price is that scanning costs one BFS over up to `max-nodes` blocks — predictable, bounded work
+in exchange for no state that can be corrupted. It only runs when something may have changed, plus
+once every `full-rescan-ticks` to catch what no event reports (land claims, blocks edited by other
+plugins).
 
 ## 🛠️ Building
 

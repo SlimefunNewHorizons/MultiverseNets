@@ -80,9 +80,29 @@ public class NetworkStorage {
     private final Network network;
     private final List<CellRef> cells = new ArrayList<>();
     private final List<Long> bays = new ArrayList<>();
+    // Posiciones por tipo, rehechas solo cuando cambia la topologia. Antes cada deposito recorria
+    // todos los nodos de la red buscando Quota Limiters y cada prueba de filtro de una Greedy Cell
+    // los recorria otra vez buscando Pushers.
+    private final List<Long> pushers = new ArrayList<>();
+    private final List<Long> limiters = new ArrayList<>();
+    private final List<Long> purgers = new ArrayList<>();
     private long boundVersion = -1;
     private List<View> viewCache;
     private long viewCacheAt;
+
+    // Lo leido de las celdas, valido durante un tick mientras no cambien ni la topologia ni la
+    // instancia viva de ningun nodo (NodeStore.liveEpoch). Un ciclo del ticker hace decenas de
+    // depositos y retiradas sobre la misma red; antes cada uno releia todas las celdas, los
+    // modulos de memoria y los barriles de Slimefun.
+    private static final int NO_TICK = Integer.MIN_VALUE;
+    private List<CellState> cachedStates;
+    private List<VirtualCacheState> cachedCaches;
+    private List<Block> cachedBarrels;
+    private long cachedVersion = -1;
+    private long cachedEpoch = -1;
+    private int cachedTick = NO_TICK;
+    /** Bumped on every change of stored items, for menus that redraw only on change / Sello de cambios. */
+    private long changeStamp;
 
     public NetworkStorage(Network network) {
         this.network = network;
@@ -91,6 +111,53 @@ public class NetworkStorage {
     public synchronized void invalidate() {
         boundVersion = -1;
         viewCache = null;
+        cachedStates = null;
+        changeStamp++;
+    }
+
+    /** Changes whenever the stored items may have changed / Cambia cuando pudo cambiar lo guardado. */
+    public synchronized long changeStamp() {
+        return changeStamp;
+    }
+
+    private static int currentTick() {
+        try {
+            return org.bukkit.Bukkit.getCurrentTick();
+        } catch (RuntimeException | LinkageError noServer) {
+            return NO_TICK;
+        }
+    }
+
+    /** Loads cells, memory modules and Slimefun barrels once per tick / Una lectura por tick. */
+    private void ensureLoaded() {
+        sync();
+        int tick = currentTick();
+        long epoch = NodeStore.liveEpoch();
+        if (cachedStates != null && tick != NO_TICK && cachedTick == tick
+                && cachedEpoch == epoch && cachedVersion == boundVersion) {
+            return;
+        }
+        cachedStates = loadCells();
+        cachedCaches = loadVirtualCachesUncached();
+        cachedBarrels = loadSfBarrelsUncached();
+        cachedTick = tick;
+        cachedEpoch = epoch;
+        cachedVersion = boundVersion;
+    }
+
+    private List<VirtualCacheState> loadVirtualCaches() {
+        ensureLoaded();
+        return cachedCaches;
+    }
+
+    private List<Block> loadSfBarrels() {
+        ensureLoaded();
+        return cachedBarrels;
+    }
+
+    private List<CellState> load() {
+        ensureLoaded();
+        return cachedStates;
     }
 
     private void sync() {
@@ -100,9 +167,19 @@ public class NetworkStorage {
         }
         cells.clear();
         bays.clear();
+        pushers.clear();
+        limiters.clear();
+        purgers.clear();
         synchronized (network.nodes()) {
             for (var entry : network.nodes().entrySet()) {
                 DeviceType type = entry.getValue();
+                if (type == DeviceType.MVN_PUSHER || type == DeviceType.MVN_PUSHER_HT) {
+                    pushers.add(entry.getKey());
+                } else if (type == DeviceType.MVN_LIMITER) {
+                    limiters.add(entry.getKey());
+                } else if (type == DeviceType.MVN_PURGER) {
+                    purgers.add(entry.getKey());
+                }
                 if (type == DeviceType.MVN_DRAM_BAY) {
                     bays.add(entry.getKey());
                 } else if (type.isCell()) {
@@ -126,7 +203,7 @@ public class NetworkStorage {
      * ES: Todos los módulos de memoria de ítems de la red: cada módulo de caché de cada DRAM Bay,
      * más el módulo de un Controlador anterior al DRAM Bay (sigue funcionando hasta moverlo).
      */
-    private List<VirtualCacheState> loadVirtualCaches() {
+    private List<VirtualCacheState> loadVirtualCachesUncached() {
         List<VirtualCacheState> caches = new ArrayList<>();
         addVirtualCache(caches, network.controllerPos(), false);
         for (long pos : bays) {
@@ -168,7 +245,7 @@ public class NetworkStorage {
         }
     }
 
-    private List<Block> loadSfBarrels() {
+    private List<Block> loadSfBarrelsUncached() {
         if (!Settings.compatSlimefun() || !SlimefunBridge.isAvailable()) {
             return List.of();
         }
@@ -179,16 +256,14 @@ public class NetworkStorage {
             if (!network.world().isChunkLoaded(cx, cz)) {
                 continue;
             }
-            Block b = network.block(pos);
-            if (SlimefunBridge.isBarrel(b)) {
-                list.add(b);
-            }
+            // Sin isBarrel aqui: cada operacion sobre el barril ya comprueba que siga siendo uno, y
+            // esta lista se rehace en cada deposito y retirada.
+            list.add(network.block(pos));
         }
         return list;
     }
 
-    private List<CellState> load() {
-        sync();
+    private List<CellState> loadCells() {
         List<CellState> states = new ArrayList<>(cells.size());
         for (CellRef ref : cells) {
             int cx = PosUtil.unpackX(ref.pos()) >> 4;
@@ -229,17 +304,20 @@ public class NetworkStorage {
         for (CellState state : states) {
             if (state.dirty) {
                 NodeStore.put(state.block, state.blob);
+                state.dirty = false;
                 anyDirty = true;
             }
         }
         for (VirtualCacheState vCache : vCaches) {
             if (vCache.dirty) {
                 NodeStore.put(vCache.block, vCache.owner);
+                vCache.dirty = false;
                 anyDirty = true;
             }
         }
         if (anyDirty) {
             viewCache = null;
+            changeStamp++;
         }
     }
 
@@ -259,26 +337,21 @@ public class NetworkStorage {
         }
         long minAllowed = Long.MAX_VALUE;
         boolean hasLimiter = false;
-        synchronized (network.nodes()) {
-            for (var entry : network.nodes().entrySet()) {
-                if (entry.getValue() == DeviceType.MVN_LIMITER) {
-                    long pos = entry.getKey();
-                    int cx = PosUtil.unpackX(pos) >> 4;
-                    int cz = PosUtil.unpackZ(pos) >> 4;
-                    if (!network.world().isChunkLoaded(cx, cz)) {
-                        continue;
-                    }
-                    Block b = network.block(pos);
-                    NodeBlob blob = NodeStore.canonical(b);
-                    if (blob == null || !blob.quotaActive || blob.quotaSample == null || blob.quotaLimit < 0) {
-                        continue;
-                    }
-                    if (StackUtils.itemsMatch(blob.quotaSample, item)) {
-                        hasLimiter = true;
-                        if (blob.quotaLimit < minAllowed) {
-                            minAllowed = blob.quotaLimit;
-                        }
-                    }
+        sync();
+        for (long pos : limiters) {
+            int cx = PosUtil.unpackX(pos) >> 4;
+            int cz = PosUtil.unpackZ(pos) >> 4;
+            if (!network.world().isChunkLoaded(cx, cz)) {
+                continue;
+            }
+            NodeBlob blob = NodeStore.canonical(network.block(pos));
+            if (blob == null || !blob.quotaActive || blob.quotaSample == null || blob.quotaLimit < 0) {
+                continue;
+            }
+            if (StackUtils.itemsMatch(blob.quotaSample, item)) {
+                hasLimiter = true;
+                if (blob.quotaLimit < minAllowed) {
+                    minAllowed = blob.quotaLimit;
                 }
             }
         }
@@ -445,7 +518,13 @@ public class NetworkStorage {
         }
 
         flush(states, vCaches);
-        return (int) (remaining + rejectedByQuota);
+        int left = (int) (remaining + rejectedByQuota);
+        if (left < item.getAmount()) {
+            // Los barriles de Slimefun no pasan por flush: el sello tambien cubre lo que entro en ellos.
+            changeStamp++;
+            viewCache = null;
+        }
+        return left;
     }
 
     /**
@@ -476,14 +555,7 @@ public class NetworkStorage {
         if (item == null || item.getType().isAir()) {
             return false;
         }
-        List<Long> pushers = new ArrayList<>();
-        synchronized (network.nodes()) {
-            for (var entry : network.nodes().entrySet()) {
-                if (entry.getValue() == DeviceType.MVN_PUSHER || entry.getValue() == DeviceType.MVN_PUSHER_HT) {
-                    pushers.add(entry.getKey());
-                }
-            }
-        }
+        sync();
         for (long pos : pushers) {
             int cx = PosUtil.unpackX(pos) >> 4;
             int cz = PosUtil.unpackZ(pos) >> 4;
@@ -707,6 +779,8 @@ public class NetworkStorage {
         if (result == null || got <= 0) {
             return null;
         }
+        changeStamp++;
+        viewCache = null;
         result.setAmount((int) got);
         return result;
     }
@@ -932,30 +1006,25 @@ public class NetworkStorage {
         if (item == null || item.getType().isAir()) {
             return false;
         }
-        synchronized (network.nodes()) {
-            for (var entry : network.nodes().entrySet()) {
-                if (entry.getValue() == DeviceType.MVN_PURGER) {
-                    long pos = entry.getKey();
-                    int cx = PosUtil.unpackX(pos) >> 4;
-                    int cz = PosUtil.unpackZ(pos) >> 4;
-                    if (!network.world().isChunkLoaded(cx, cz)) {
-                        continue;
-                    }
-                    Block block = network.block(pos);
-                    NodeBlob blob = NodeStore.canonical(block);
-                    if (blob == null) {
-                        continue;
-                    }
-                    boolean hasItems = blob.filterItems != null && !blob.filterItems.isEmpty();
-                    boolean hasMats = blob.filterMaterials != null && !blob.filterMaterials.isEmpty();
-                    if (!hasItems && !hasMats) {
-                        continue;
-                    }
-                    Predicate<ItemStack> pred = NetworkManager.filterPredicate(blob);
-                    if (pred.test(item)) {
-                        return true;
-                    }
-                }
+        sync();
+        for (long pos : purgers) {
+            int cx = PosUtil.unpackX(pos) >> 4;
+            int cz = PosUtil.unpackZ(pos) >> 4;
+            if (!network.world().isChunkLoaded(cx, cz)) {
+                continue;
+            }
+            NodeBlob blob = NodeStore.canonical(network.block(pos));
+            if (blob == null) {
+                continue;
+            }
+            boolean hasItems = blob.filterItems != null && !blob.filterItems.isEmpty();
+            boolean hasMats = blob.filterMaterials != null && !blob.filterMaterials.isEmpty();
+            if (!hasItems && !hasMats) {
+                continue;
+            }
+            Predicate<ItemStack> pred = NetworkManager.filterPredicate(blob);
+            if (pred.test(item)) {
+                return true;
             }
         }
         return false;

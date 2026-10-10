@@ -96,12 +96,13 @@ public class MultiverseNets extends JavaPlugin {
         }, 100L);
 
         com.chagui68.multiversenets.net.NetworkHologramManager.init(this);
-        // Drops the memoised protection answers so claiming or releasing land is honoured
-        // within protection.cache-ticks. Synchronous on purpose: it is a map clear, and the
+        // Memoised protection answers expire one by one within protection.cache-ticks (plus a
+        // random spread), so claiming or releasing land is honoured without dropping the whole
+        // cache at once. This task only sweeps expired entries. Synchronous on purpose: the
         // provider lookups themselves must stay on the main thread.
         protectionTask = getServer().getScheduler().runTaskTimer(
                 this,
-                () -> com.chagui68.multiversenets.compat.ProtectionBridge.invalidate(),
+                () -> com.chagui68.multiversenets.compat.ProtectionBridge.sweepExpired(),
                 Settings.protectionCacheTicks(), Settings.protectionCacheTicks());
         ticker = new NetworkTicker(this, networks);
         ticker.start();

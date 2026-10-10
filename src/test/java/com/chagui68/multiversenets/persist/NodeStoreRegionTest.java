@@ -166,41 +166,31 @@ class NodeStoreRegionTest {
     }
 
     @Test
-    @DisplayName("the ticking counter follows placements, type changes and removals")
-    void tickingCounter() {
+    @DisplayName("the node counter follows placements, type changes and removals")
+    void nodeCounter() {
         Chunk chunk = world.getChunkAt(0, 0);
         Block a = world.getBlockAt(0, 64, 0);
         Block b = world.getBlockAt(1, 64, 0);
         NodeStore.put(a, NodeBlob.create(DeviceType.MVN_CABLE.name()));
         NodeStore.put(b, NodeBlob.create(DeviceType.MVN_GRABBER.name()));
-        assertEquals(1, NodeStore.countTickingInChunk(chunk));
+        assertEquals(2, NodeStore.countNodesInChunk(chunk));
 
         NodeStore.put(a, NodeBlob.create(DeviceType.MVN_VACUUM.name()));
-        assertEquals(2, NodeStore.countTickingInChunk(chunk));
         assertEquals(2, NodeStore.countNodesInChunk(chunk), "a type change is not a new node");
 
         NodeStore.remove(b);
-        assertEquals(1, NodeStore.countTickingInChunk(chunk));
+        assertEquals(1, NodeStore.countNodesInChunk(chunk));
         NodeStore.remove(a);
         assertFalse(NodeStore.chunkHasNodes(chunk));
     }
 
     @Test
-    @DisplayName("the optional cap blocks only active devices; passive blocks are never limited")
-    void activeDeviceCap() {
-        plugin.getConfig().set("network.max-active-devices-per-chunk", 2);
+    @DisplayName("there is no per-chunk cap: any number of active devices fit in one chunk")
+    void noPerChunkCap() {
         PlayerMock player = server.addPlayer();
-
-        assertTrue(place(player, 0, DeviceType.MVN_GRABBER));
-        assertTrue(place(player, 1, DeviceType.MVN_PUSHER));
-        assertFalse(place(player, 2, DeviceType.MVN_VACUUM), "third active device in the chunk is refused");
-        for (int x = 3; x < 13; x++) {
-            assertTrue(place(player, x, DeviceType.MVN_CABLE), "cables never count");
+        for (int x = 0; x < 16; x++) {
+            assertTrue(place(player, x, x % 2 == 0 ? DeviceType.MVN_GRABBER : DeviceType.MVN_PUSHER));
         }
-        assertTrue(place(player, 13, DeviceType.MVN_CELL_T1), "cells never count");
-
-        plugin.getConfig().set("network.max-active-devices-per-chunk", 0);
-        assertTrue(place(player, 14, DeviceType.MVN_VACUUM), "0 disables the cap");
     }
 
     @Test

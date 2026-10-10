@@ -72,6 +72,10 @@ public class TerminalMenu extends MenuHolder {
         this.network = network;
     }
 
+    /** Storage + fluid stamps the open grid shows, and live ticks since the last full draw. */
+    private long drawnStamp = Long.MIN_VALUE;
+    private int ticksSinceDraw;
+
     public void openMenu() {
         cancelTask();
         open(54, Component.text("Network Terminal", NamedTextColor.DARK_AQUA)
@@ -86,6 +90,8 @@ public class TerminalMenu extends MenuHolder {
 
     @Override
     protected void draw() {
+        drawnStamp = network.storage().changeStamp() * 31 + network.fluidStorage().changeStamp();
+        ticksSinceDraw = 0;
         ItemStack background = panel(Material.LIGHT_GRAY_STAINED_GLASS_PANE, " ");
         inv.setItem(PURGER_TOGGLE_SLOT, purgerToggleIcon());
         inv.setItem(SORT_SLOT, sortAndSearchIcon());
@@ -868,7 +874,14 @@ public class TerminalMenu extends MenuHolder {
                 }
             }
         }
-        draw();
+        // Redibujar la cuadricula entera (filtrar, ordenar, rehacer cada icono con su lore) cada
+        // medio segundo con la red quieta era el coste de tener un Terminal abierto. Ahora solo se
+        // redibuja si cambio lo guardado, o cada 2 s para lo que cambia por fuera (un barril de
+        // Slimefun vaciado a mano, una celda editada desde su menu).
+        long stamp = network.storage().changeStamp() * 31 + network.fluidStorage().changeStamp();
+        if (stamp != drawnStamp || ++ticksSinceDraw >= 4) {
+            draw();
+        }
     }
 
     @Override

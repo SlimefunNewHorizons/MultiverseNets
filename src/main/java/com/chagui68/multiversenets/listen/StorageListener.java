@@ -20,7 +20,10 @@ import org.bukkit.event.world.WorldUnloadEvent;
  */
 public class StorageListener implements Listener {
 
+    private final MultiverseNets plugin;
+
     public StorageListener(MultiverseNets plugin) {
+        this.plugin = plugin;
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
@@ -28,6 +31,12 @@ public class StorageListener implements Listener {
     @EventHandler(priority = EventPriority.LOWEST)
     public void onChunkLoad(ChunkLoadEvent event) {
         NodeStore.onChunkLoad(event.getChunk());
+        // Las redes ya no se reescanean enteras cada segundo: la que llega a este chunk se marca
+        // para reescanear pronto, porque puede crecer hacia el.
+        var networks = plugin.networks();
+        if (networks != null) {
+            networks.chunkLoaded(event.getChunk());
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

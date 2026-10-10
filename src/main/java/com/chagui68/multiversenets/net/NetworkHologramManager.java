@@ -30,6 +30,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class NetworkHologramManager {
 
     private static final Map<String, UUID> HOLOGRAM_ENTITIES = new ConcurrentHashMap<>();
+    /** Last text sent per hologram: an unchanged text is not resent / Último texto enviado. */
+    private static final Map<String, Component> LAST_TEXT = new ConcurrentHashMap<>();
     private static NamespacedKey HOLO_KEY;
 
     private NetworkHologramManager() {}
@@ -80,6 +82,7 @@ public final class NetworkHologramManager {
                 td.getPersistentDataContainer().set(HOLO_KEY, PersistentDataType.BYTE, (byte) 1);
             });
             HOLOGRAM_ENTITIES.put(key, textDisplay.getUniqueId());
+            LAST_TEXT.remove(key);
         }
 
         int nodeCount = net.size();
@@ -148,7 +151,12 @@ public final class NetworkHologramManager {
                 .append(Component.newline())
                 .append(storageLine);
 
-        textDisplay.text(text);
+        // Reenviar el mismo texto marcaba la entidad como cambiada y mandaba sus metadatos a cada
+        // jugador cercano en cada actualizacion.
+        if (!text.equals(LAST_TEXT.get(key))) {
+            textDisplay.text(text);
+            LAST_TEXT.put(key, text);
+        }
     }
 
     /** Mundo + posicion: dos controladores en las mismas coordenadas de mundos distintos compartian holograma. */
@@ -157,6 +165,9 @@ public final class NetworkHologramManager {
     }
 
     public static void removeHologram(World world, long pos) {
+        if (world != null) {
+            LAST_TEXT.remove(key(world, pos));
+        }
         UUID entityId = world == null ? null : HOLOGRAM_ENTITIES.remove(key(world, pos));
         if (entityId != null && world != null) {
             Entity entity = world.getEntity(entityId);
@@ -189,5 +200,6 @@ public final class NetworkHologramManager {
             }
         }
         HOLOGRAM_ENTITIES.clear();
+        LAST_TEXT.clear();
     }
 }

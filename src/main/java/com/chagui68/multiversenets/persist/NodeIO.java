@@ -60,7 +60,17 @@ final class NodeIO {
 
     /** Writes {@code bytes}, or deletes the file when null / Escribe, o borra si es null. */
     CompletableFuture<Void> write(Path file, byte[] bytes) {
+        return write(file, () -> bytes);
+    }
+
+    /**
+     * EN: Like {@link #write(Path, byte[])}, but the bytes are produced on the I/O thread (a region
+     * snapshot is laid out and checksummed there, not on the main thread). A null result deletes.
+     * ES: Igual, pero los bytes se producen en el hilo de E/S. Null borra el archivo.
+     */
+    CompletableFuture<Void> write(Path file, java.util.function.Supplier<byte[]> producer) {
         return submit(() -> {
+            byte[] bytes = producer.get();
             try {
                 if (bytes == null) {
                     Files.deleteIfExists(file);

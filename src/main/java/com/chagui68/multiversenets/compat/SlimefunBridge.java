@@ -254,12 +254,14 @@ public final class SlimefunBridge {
                 }
             }
         }
-        if (mGetByItem != null) {
+        // Sin ItemMeta no hay id de Slimefun posible: ni PDC ni SlimefunItemStack. Esto ahorra la
+        // llamada reflectiva a getByItem por cada item vanilla que pasa por un filtro.
+        if (mGetByItem != null && item.hasItemMeta()) {
             try {
                 Object sfItem = mGetByItem.invoke(null, item);
                 if (sfItem != null) {
-                    Method mId = sfItem.getClass().getMethod("getId");
-                    Object id = mId.invoke(sfItem);
+                    Method mId = ID_GETTERS.computeIfAbsent(sfItem.getClass(), SlimefunBridge::idGetter);
+                    Object id = mId == null ? null : mId.invoke(sfItem);
                     if (id != null) return id.toString();
                 }
             } catch (Throwable ignored) {}
@@ -281,6 +283,17 @@ public final class SlimefunBridge {
      */
     public static boolean isSlimefunItem(ItemStack item) {
         return getId(item) != null;
+    }
+
+    /** getId() per SlimefunItem class, looked up once / getId() por clase, resuelto una vez. */
+    private static final java.util.Map<Class<?>, Method> ID_GETTERS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static Method idGetter(Class<?> type) {
+        try {
+            return type.getMethod("getId");
+        } catch (NoSuchMethodException missing) {
+            return null;
+        }
     }
 
     private static Object menuOf(Block block) {
@@ -370,7 +383,11 @@ public final class SlimefunBridge {
      */
     public static boolean isNetworkCable(Block block) {
         if (!available || block == null) return false;
-        String id = getId(block);
+        return isNetworkCableId(getId(block));
+    }
+
+    /** {@link #isNetworkCable} for an id the caller already has / Con un id ya leído. */
+    public static boolean isNetworkCableId(String id) {
         if (id == null) return false;
         String upper = id.toUpperCase(java.util.Locale.ROOT);
         return upper.contains("BRIDGE") || upper.contains("CABLE") || upper.equals("NTW_BRIDGE");
@@ -381,18 +398,44 @@ public final class SlimefunBridge {
      * ES: Devuelve true si el bloque es un barril de Slimefun o unidad de almacenamiento.
      */
     public static boolean isBarrel(Block block) {
-        if (!available || block == null) return false;
+        return storedField(block) != null;
+    }
+
+    /** {@link #isBarrel(Block)} for an id the caller already has / Con un id ya leído. */
+    public static boolean isBarrel(Block block, String id) {
+        return storedField(block, id) != null;
+    }
+
+    /**
+     * The barrel's raw "stored" field, or null when the block is not a barrel. One reflective read
+     * answers both "is it a barrel?" and "how much is in it?"; before, every amount read re-ran
+     * the whole barrel check and then read the field a second time.
+     */
+    private static Object storedField(Block block) {
+        if (!available || block == null || mGetLocationInfo == null) return null;
         try {
-            if (mGetLocationInfo != null) {
-                Object stored = mGetLocationInfo.invoke(null, block.getLocation(), "stored");
-                if (stored != null) {
-                    String id = getId(block);
-                    return id != null && (id.toUpperCase().contains("BARREL") || id.toUpperCase().contains("STORAGE") || isMachine(block));
-                }
-            }
+            Object stored = mGetLocationInfo.invoke(null, block.getLocation(), "stored");
+            if (stored == null) return null;
+            return isBarrelId(block, getId(block)) ? stored : null;
         } catch (ReflectiveOperationException | RuntimeException ignored) {
+            return null;
         }
-        return false;
+    }
+
+    private static Object storedField(Block block, String id) {
+        if (!available || block == null || mGetLocationInfo == null) return null;
+        try {
+            Object stored = mGetLocationInfo.invoke(null, block.getLocation(), "stored");
+            return stored != null && isBarrelId(block, id) ? stored : null;
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private static boolean isBarrelId(Block block, String id) {
+        if (id == null) return false;
+        String upper = id.toUpperCase(java.util.Locale.ROOT);
+        return upper.contains("BARREL") || upper.contains("STORAGE") || isMachine(block);
     }
 
     /**
@@ -400,17 +443,16 @@ public final class SlimefunBridge {
      * ES: Obtiene la cantidad total almacenada en un barril de Slimefun.
      */
     public static long getBarrelStoredAmount(Block block) {
-        if (!isBarrel(block)) return 0;
+        Object raw = storedField(block);
+        return raw == null ? 0 : parseStored(raw);
+    }
+
+    private static long parseStored(Object raw) {
         try {
-            if (mGetLocationInfo != null) {
-                Object raw = mGetLocationInfo.invoke(null, block.getLocation(), "stored");
-                if (raw != null) {
-                    return Math.max(0, Long.parseLong(raw.toString().trim()));
-                }
-            }
-        } catch (ReflectiveOperationException | NumberFormatException ignored) {
+            return Math.max(0, Long.parseLong(raw.toString().trim()));
+        } catch (NumberFormatException ignored) {
+            return 0;
         }
-        return 0;
     }
 
     /**
@@ -419,6 +461,11 @@ public final class SlimefunBridge {
      */
     public static ItemStack getBarrelStoredItem(Block block) {
         if (!isBarrel(block)) return null;
+        return barrelSample(block);
+    }
+
+    /** {@link #getBarrelStoredItem} for a block already known to be a barrel / Sin repetir la comprobación. */
+    private static ItemStack barrelSample(Block block) {
         Object menu = menuOf(block);
         if (menu == null) return null;
         try {
@@ -426,8 +473,9 @@ public final class SlimefunBridge {
             if (raw instanceof ItemStack item && !item.getType().isAir() && item.getType() != Material.BARRIER) {
                 ItemStack clone = item.clone();
                 clone.setAmount(1);
-                // Clean unclickable / fluffy PDC tags from sample clone
-                if (clone.hasItemMeta()) {
+                // Clean unclickable / fluffy PDC tags from sample clone. The read-only PDC view says
+                // whether there is anything to clean; the ItemMeta copy is only paid when there is.
+                if (clone.hasItemMeta() && hasUnclickableKey(clone)) {
                     var meta = clone.getItemMeta();
                     var pdc = meta.getPersistentDataContainer();
                     for (var key : pdc.getKeys()) {
@@ -444,27 +492,37 @@ public final class SlimefunBridge {
         return null;
     }
 
+    private static boolean hasUnclickableKey(ItemStack item) {
+        for (NamespacedKey key : item.getPersistentDataContainer().getKeys()) {
+            if ("unclickable".equalsIgnoreCase(key.getKey())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * EN: Gets capacity of a Slimefun Barrel.
      * ES: Obtiene la capacidad máxima de un barril de Slimefun.
      */
     public static long getBarrelCapacity(Block block) {
         if (!isBarrel(block)) return 0;
+        return barrelCapacity(block);
+    }
+
+    /** Capacity of a block already known to be a barrel / Capacidad de un bloque que ya es barril. */
+    private static long barrelCapacity(Block block) {
         try {
             if (mCheckItem != null) {
                 Object sfItem = mCheckItem.invoke(null, block);
                 if (sfItem != null) {
-                    try {
-                        Method mCap = sfItem.getClass().getMethod("getCapacity", Block.class);
-                        Object cap = mCap.invoke(sfItem, block);
-                        if (cap instanceof Number num) return num.longValue();
-                    } catch (NoSuchMethodException ignored) {
+                    Method mCap = optionalMethod(sfItem.getClass(), "getCapacity", Block.class);
+                    if (mCap != null && mCap.invoke(sfItem, block) instanceof Number num) {
+                        return num.longValue();
                     }
-                    try {
-                        Method mMaxCap = sfItem.getClass().getMethod("getMaxCapacity");
-                        Object cap = mMaxCap.invoke(sfItem);
-                        if (cap instanceof Number num) return num.longValue();
-                    } catch (NoSuchMethodException ignored) {
+                    Method mMaxCap = optionalMethod(sfItem.getClass(), "getMaxCapacity");
+                    if (mMaxCap != null && mMaxCap.invoke(sfItem) instanceof Number num) {
+                        return num.longValue();
                     }
                 }
             }
@@ -473,23 +531,56 @@ public final class SlimefunBridge {
         return 1_000_000L;
     }
 
+    private static final Method NO_METHOD;
+
+    static {
+        try {
+            NO_METHOD = Object.class.getMethod("hashCode");
+        } catch (NoSuchMethodException impossible) {
+            throw new ExceptionInInitializerError(impossible);
+        }
+    }
+
+    /**
+     * Method lookups by class, cached including the misses. getMethod() on every barrel deposit
+     * (and a NoSuchMethodException for each miss) was pure reflection overhead.
+     */
+    private static final java.util.Map<String, Method> METHODS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static Method optionalMethod(Class<?> type, String name, Class<?>... params) {
+        String key = type.getName() + '#' + name + java.util.Arrays.toString(params);
+        Method found = METHODS.computeIfAbsent(key, ignored -> {
+            try {
+                return type.getMethod(name, params);
+            } catch (NoSuchMethodException missing) {
+                return NO_METHOD;
+            }
+        });
+        return found == NO_METHOD ? null : found;
+    }
+
     /**
      * EN: Deposits items directly into a Slimefun Barrel.
      * ES: Deposita ítems directamente en un barril de Slimefun.
      * @return Number of items that did not fit (0 if all deposited).
      */
     public static int depositBarrel(Block block, ItemStack stack) {
-        if (stack == null || stack.getType().isAir() || stack.getAmount() <= 0 || !isBarrel(block)) {
+        if (stack == null || stack.getType().isAir() || stack.getAmount() <= 0) {
             return stack == null ? 0 : stack.getAmount();
         }
-        long stored = getBarrelStoredAmount(block);
-        long capacity = getBarrelCapacity(block);
+        // Una sola comprobacion de barril; antes isBarrel, la cantidad y la capacidad la repetian.
+        Object raw = storedField(block);
+        if (raw == null) {
+            return stack.getAmount();
+        }
+        long stored = parseStored(raw);
+        long capacity = barrelCapacity(block);
         long space = capacity - stored;
         if (space <= 0) {
             return stack.getAmount();
         }
 
-        ItemStack currentSample = getBarrelStoredItem(block);
+        ItemStack currentSample = barrelSample(block);
         if (stored == 0 || currentSample == null) {
             // Adopt new item type
             long take = Math.min(space, stack.getAmount());
@@ -508,15 +599,17 @@ public final class SlimefunBridge {
      * ES: Extrae hasta {@code want} ítems de un barril de Slimefun.
      */
     public static ItemStack withdrawBarrel(Block block, Predicate<ItemStack> matcher, int want) {
-        if (want <= 0 || !isBarrel(block)) return null;
-        long stored = getBarrelStoredAmount(block);
+        if (want <= 0) return null;
+        Object raw = storedField(block);
+        if (raw == null) return null;
+        long stored = parseStored(raw);
         if (stored <= 0) return null;
-        ItemStack sample = getBarrelStoredItem(block);
+        ItemStack sample = barrelSample(block);
         if (sample == null || (matcher != null && !matcher.test(sample))) return null;
 
         long take = Math.min(want, stored);
         long remaining = stored - take;
-        long capacity = getBarrelCapacity(block);
+        long capacity = barrelCapacity(block);
         setBarrelState(block, remaining > 0 ? sample : null, remaining, capacity);
 
         ItemStack out = sample.clone();
@@ -542,10 +635,9 @@ public final class SlimefunBridge {
                 if (mCheckItem != null) {
                     Object sfItem = mCheckItem.invoke(null, block);
                     if (sfItem != null) {
-                        try {
-                            Method upd = sfItem.getClass().getMethod("updateMenu", Block.class, menu.getClass(), boolean.class, int.class);
+                        Method upd = optionalMethod(sfItem.getClass(), "updateMenu", Block.class, menu.getClass(), boolean.class, int.class);
+                        if (upd != null) {
                             upd.invoke(sfItem, block, menu, false, (int) Math.min(capacity, Integer.MAX_VALUE));
-                        } catch (NoSuchMethodException ignored) {
                         }
                     }
                 }

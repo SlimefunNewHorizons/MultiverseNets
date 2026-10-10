@@ -184,18 +184,33 @@ public final class ProtectionBridge {
 
     private static final List<Provider> ACTIVE = new ArrayList<>();
     private static final List<ExemptZone> EXEMPT = new ArrayList<>();
-    private static final Map<UUID, Map<Long, Boolean>> CACHE = new ConcurrentHashMap<>();
-    private static final Map<String, Boolean> UNMANAGED = new ConcurrentHashMap<>();
+    /**
+     * Memoised anonymous answers per world and packed position. Each value packs the answer in bit 0
+     * and its expiry ({@link System#currentTimeMillis()}) in the bits above, so entries expire one by
+     * one at spread-out times instead of the whole cache being dropped at once every
+     * {@code protection.cache-ticks}, which re-queried every block the networks touch in one tick.
+     */
+    private static final Map<UUID, Map<Long, Long>> CACHE = new ConcurrentHashMap<>();
+    /**
+     * Per provider and world: does the provider manage that world? Both answers are kept, so the
+     * reflective {@code supports} call runs once per world and cache window instead of once per
+     * block. Keyed by identity and UUID: building a String key here allocated on every query.
+     */
+    private static final Map<Provider, Map<UUID, Boolean>> SUPPORTED = new ConcurrentHashMap<>();
+    /** "Does not manage this world" was already logged / Ya se avisó de que no gestiona el mundo. */
+    private static final java.util.Set<String> UNMANAGED_LOGGED = ConcurrentHashMap.newKeySet();
     /**
      * Memoised answers to {@link #ownsAt}: "is this specific actor the owner here?". It lives
      * apart from {@link #CACHE} because that one is keyed by position only, and the same spot can
-     * be somebody's claim for one network and a stranger's for the next.
+     * be somebody's claim for one network and a stranger's for the next. World, then actor, then
+     * packed position: no String key is built per lookup.
      */
-    private static final Map<String, Boolean> OWNED = new ConcurrentHashMap<>();
+    private static final Map<UUID, Map<UUID, Map<Long, Long>>> OWNED = new ConcurrentHashMap<>();
     private static final AtomicInteger CACHE_ENTRIES = new AtomicInteger();
     private static final AtomicInteger OWNER_ENTRIES = new AtomicInteger();
-    private static final int CACHE_LIMIT = 60_000;
-    private static final int OWNER_LIMIT = 20_000;
+    /** A 16k-node network touches ~100k positions; 60k made the cache thrash on every scan. */
+    private static final int CACHE_LIMIT = 200_000;
+    private static final int OWNER_LIMIT = 50_000;
 
     private static boolean initialised;
     private static String summary = "disabled";
@@ -212,7 +227,8 @@ public final class ProtectionBridge {
     public static void init(Logger logger) {
         ACTIVE.clear();
         CACHE.clear();
-        UNMANAGED.clear();
+        SUPPORTED.clear();
+        UNMANAGED_LOGGED.clear();
         OWNED.clear();
         CACHE_ENTRIES.set(0);
         OWNER_ENTRIES.set(0);
@@ -303,8 +319,53 @@ public final class ProtectionBridge {
      * [ES] Descarta todas las respuestas memorizadas. Se programa en un temporizador para que los
      * reclamos, cesiones y cambios de flags se apliquen sin reiniciar.
      */
+    /** Packs an answer with its expiry / Empaqueta una respuesta con su caducidad. */
+    private static long memo(boolean answer, long now) {
+        long ttl = Settings.protectionCacheTicks() * 50L;
+        // Hasta un 50 % mas de vida al azar: las entradas creadas en el mismo escaneo no caducan
+        // todas en el mismo tick.
+        long expiry = now + ttl + java.util.concurrent.ThreadLocalRandom.current().nextLong(ttl / 2 + 1);
+        return (expiry << 1) | (answer ? 1L : 0L);
+    }
+
+    /** The memoised answer, or null when absent or expired / La respuesta memorizada, o null. */
+    private static Boolean recall(Long packed, long now) {
+        if (packed == null || (packed >>> 1) < now) {
+            return null;
+        }
+        return (packed & 1L) == 1L;
+    }
+
+    /**
+     * [EN] Scheduled every {@code protection.cache-ticks}: removes expired answers so the cache does
+     * not grow, and re-asks providers whether they manage each world. Live answers stay; they
+     * expire on their own, each at its own time.
+     *
+     * [ES] Programado cada {@code protection.cache-ticks}: quita las respuestas caducadas para que
+     * la caché no crezca. Las vigentes se quedan; caducan solas, cada una a su hora.
+     */
+    public static void sweepExpired() {
+        SUPPORTED.clear();
+        long now = System.currentTimeMillis();
+        int entries = 0;
+        for (Map<Long, Long> memo : CACHE.values()) {
+            memo.values().removeIf(packed -> (packed >>> 1) < now);
+            entries += memo.size();
+        }
+        CACHE_ENTRIES.set(entries);
+        int owners = 0;
+        for (Map<UUID, Map<Long, Long>> perActor : OWNED.values()) {
+            for (Map<Long, Long> memo : perActor.values()) {
+                memo.values().removeIf(packed -> (packed >>> 1) < now);
+                owners += memo.size();
+            }
+            perActor.values().removeIf(Map::isEmpty);
+        }
+        OWNER_ENTRIES.set(owners);
+    }
+
     public static void invalidate() {
-        UNMANAGED.clear();
+        SUPPORTED.clear();
         if (!CACHE.isEmpty()) {
             CACHE.clear();
         }
@@ -313,6 +374,15 @@ public final class ProtectionBridge {
         }
         CACHE_ENTRIES.set(0);
         OWNER_ENTRIES.set(0);
+    }
+
+    /** Test hook: the public checks run against these providers / Gancho de test. */
+    static void useProvidersForTest(List<Provider> providers) {
+        ACTIVE.clear();
+        ACTIVE.addAll(providers);
+        EXEMPT.clear();
+        initialised = !providers.isEmpty();
+        invalidate();
     }
 
     /**
@@ -346,10 +416,11 @@ public final class ProtectionBridge {
                 return false;
             }
         }
-        Map<Long, Boolean> memo = CACHE.get(world.getUID());
+        Map<Long, Long> memo = CACHE.get(world.getUID());
         long key = PosUtil.pack(x, y, z);
+        long now = System.currentTimeMillis();
         if (memo != null) {
-            Boolean hit = memo.get(key);
+            Boolean hit = recall(memo.get(key), now);
             if (hit != null) {
                 return hit;
             }
@@ -358,7 +429,7 @@ public final class ProtectionBridge {
         if (memo == null) {
             memo = CACHE.computeIfAbsent(world.getUID(), ignored -> new ConcurrentHashMap<>());
         }
-        memo.put(key, result);
+        memo.put(key, memo(result, now));
         // Cada tick el bucle de red pregunta por miles de posiciones, asi que un limite global
         // se dispara de continuo y un clear() completo aqui dejaria la cache inservible: se
         // memorizaria una entrada y se borraria en la misma llamada. Se descarta el mapa entero
@@ -394,12 +465,17 @@ public final class ProtectionBridge {
      * la regla de mundo no gestionado se pueda testear sin servidor ni plugin de protección real.
      */
     static boolean query(List<Provider> providers, World world, int x, int y, int z) {
-        Location loc = new Location(world, x, y, z);
+        Location loc = null;
         for (Provider provider : providers) {
             if (!supports(provider, world)) {
                 continue;
             }
-            if (evaluate(provider, loc, world.getName() + " " + x + "," + y + "," + z)) {
+            if (loc == null) {
+                loc = new Location(world, x, y, z);
+            }
+            // La etiqueta de posicion solo se construye si el provider falla: antes se concatenaba
+            // en cada consulta aunque nunca se usara.
+            if (evaluate(provider, loc, () -> world.getName() + " " + x + "," + y + "," + z)) {
                 return true;
             }
         }
@@ -419,10 +495,10 @@ public final class ProtectionBridge {
      * respuesta se cachea por provider y mundo para no repetir la llamada reflectiva en cada bloque.
      */
     private static boolean supports(Provider provider, World world) {
-        String key = provider.id() + ' ' + world.getUID();
-        Boolean cached = UNMANAGED.get(key);
+        Map<UUID, Boolean> perWorld = SUPPORTED.get(provider);
+        Boolean cached = perWorld == null ? null : perWorld.get(world.getUID());
         if (cached != null) {
-            return !cached;
+            return cached;
         }
         boolean supported;
         try {
@@ -435,8 +511,9 @@ public final class ProtectionBridge {
             }
             return true;
         }
-        if (!supported) {
-            UNMANAGED.putIfAbsent(key, Boolean.TRUE);
+        SUPPORTED.computeIfAbsent(provider, ignored -> new ConcurrentHashMap<>()).put(world.getUID(), supported);
+        // Una vez por sesion: el cache se vacia cada protection.cache-ticks y el aviso se repetia.
+        if (!supported && UNMANAGED_LOGGED.add(provider.id() + '|' + world.getUID())) {
             java.util.logging.Logger logger = logger();
             if (logger != null) {
                 logger.info("Protection: " + provider.id() + " does not manage '" + world.getName()
@@ -462,12 +539,16 @@ public final class ProtectionBridge {
      * otro jugador.
      */
     static boolean evaluate(Provider provider, Location loc, String where) {
+        return evaluate(provider, loc, () -> where);
+    }
+
+    static boolean evaluate(Provider provider, Location loc, java.util.function.Supplier<String> where) {
         try {
             return provider.test(loc);
         } catch (Throwable error) {
             java.util.logging.Logger logger = logger();
             if (logger != null && Settings.debug()) {
-                logger.warning("Protection: " + provider.id() + " failed at " + where + ": " + error);
+                logger.warning("Protection: " + provider.id() + " failed at " + where.get() + ": " + error);
             }
             return true;
         }
@@ -575,7 +656,15 @@ public final class ProtectionBridge {
         if (!initialised || ACTIVE.isEmpty() || world == null) {
             return true;
         }
-        return mayActorUse(ACTIVE, world, x, y, z, actor);
+        // Misma regla que mayActorUse(List...), pero por las caches: primero la respuesta anonima
+        // memorizada (que ademas respeta las zonas exentas); solo si el punto esta protegido se
+        // pregunta, tambien memorizado, si el dueño de la red es dueño ahi. Antes este camino, el
+        // que recorre el bucle de red miles de veces por segundo, llamaba al plugin de proteccion
+        // en cada bloque sin pasar por ninguna cache.
+        if (!isProtected(world, x, y, z)) {
+            return true;
+        }
+        return ownsAt(ACTIVE, world, x, y, z, actor);
     }
 
     /**
@@ -623,13 +712,17 @@ public final class ProtectionBridge {
         if (actor == null || world == null) {
             return false;
         }
-        String key = world.getUID() + "|" + actor + "|" + PosUtil.pack(x, y, z);
-        Boolean hit = OWNED.get(key);
+        long key = PosUtil.pack(x, y, z);
+        long now = System.currentTimeMillis();
+        Map<Long, Long> memo = OWNED
+                .computeIfAbsent(world.getUID(), ignored -> new ConcurrentHashMap<>())
+                .computeIfAbsent(actor, ignored -> new ConcurrentHashMap<>());
+        Boolean hit = recall(memo.get(key), now);
         if (hit != null) {
             return hit;
         }
         boolean result = queryOwner(providers, world, x, y, z, actor);
-        OWNED.put(key, result);
+        memo.put(key, memo(result, now));
         if (OWNER_ENTRIES.incrementAndGet() > OWNER_LIMIT) {
             OWNED.clear();
             OWNER_ENTRIES.set(0);

@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -94,6 +95,9 @@ public final class NodeStore {
         if (io != null) {
             shutdown();
         }
+        // Un autoguardado a medias de antes de una recarga murio con sus tareas: se empieza de cero.
+        AUTOSAVE_QUEUE.clear();
+        LIVE_EPOCH++;
         plugin = pl;
         io = new NodeIO(pl.getLogger());
         registryFile = new File(pl.getDataFolder(), "networks.yml");
@@ -120,6 +124,7 @@ public final class NodeStore {
         io.shutdown(SHUTDOWN_TIMEOUT_SECONDS);
         io = null;
         WORLDS.clear();
+        LIVE_EPOCH++;
     }
 
     /**
@@ -127,7 +132,68 @@ public final class NodeStore {
      * ES: Tarea periódica: guarda lo que cambió y suelta las regiones que ya no se usan.
      */
     public static void autosave() {
+        if (plugin != null && plugin.isEnabled()) {
+            // Repartido en ticks: cada tick codifica regiones hasta AUTOSAVE_BUDGET_NANOS y deja el
+            // resto para el siguiente. Antes todo se codificaba en un solo tick cada 30 segundos.
+            // Solo las regiones sucias al empezar: las que el ticker ensucie mientras tanto van al
+            // siguiente autoguardado.
+            if (AUTOSAVE_QUEUE.isEmpty()) {
+                for (Map.Entry<UUID, WorldNodes> entry : WORLDS.entrySet()) {
+                    Set<Long> dirty = entry.getValue().dirtyRegionKeys();
+                    if (!dirty.isEmpty()) {
+                        AUTOSAVE_QUEUE.put(entry.getKey(), dirty);
+                    }
+                }
+                autosaveStep();
+            }
+            return;
+        }
         flushAll(false);
+        finishAutosave();
+    }
+
+    /**
+     * Main-thread time one autosave tick may spend encoding; each tick saves at least one region
+     * regardless / Tiempo por tick del autoguardado; cada tick guarda al menos una región.
+     */
+    static long autosaveBudgetNanos = 2_000_000L;
+    /** Regions the running autosave still has to save, per world / Regiones que faltan por guardar. */
+    private static final Map<UUID, Set<Long>> AUTOSAVE_QUEUE = new HashMap<>();
+
+    /** Test hook: an autosave is still spreading its work over ticks / Gancho de test. */
+    static boolean autosaveRunning() {
+        return !AUTOSAVE_QUEUE.isEmpty();
+    }
+
+    private static void autosaveStep() {
+        long deadline = System.nanoTime() + autosaveBudgetNanos;
+        Iterator<Map.Entry<UUID, Set<Long>>> pending = AUTOSAVE_QUEUE.entrySet().iterator();
+        boolean first = true;
+        while (pending.hasNext() && (first || System.nanoTime() <= deadline)) {
+            first = false;
+            Map.Entry<UUID, Set<Long>> entry = pending.next();
+            WorldNodes nodes = WORLDS.get(entry.getKey());
+            if (nodes != null) {
+                nodes.flush(logger(), deadline, entry.getValue());
+            }
+            if (nodes == null || entry.getValue().isEmpty()) {
+                pending.remove();
+            }
+        }
+        MultiverseNets owner = plugin;
+        if (!AUTOSAVE_QUEUE.isEmpty() && owner != null && owner.isEnabled()) {
+            try {
+                Bukkit.getScheduler().runTask(owner, NodeStore::autosaveStep);
+                return;
+            } catch (RuntimeException disabled) {
+                // Apagando: shutdown() guarda lo que quede.
+            }
+        }
+        AUTOSAVE_QUEUE.clear();
+        finishAutosave();
+    }
+
+    private static void finishAutosave() {
         drainLegacyWritten();
         Iterator<Map.Entry<UUID, WorldNodes>> worlds = WORLDS.entrySet().iterator();
         while (worlds.hasNext()) {
@@ -302,6 +368,7 @@ public final class NodeStore {
                 data = null;
             }
             region.put(entry.x(), entry.y(), entry.z(), new NodeRecord(entry.type(), data));
+            LIVE_EPOCH++;
         }
         // Aunque todo estuviera ya en la región, hace falta una escritura que confirme el borrado.
         region.dirty = true;
@@ -394,6 +461,9 @@ public final class NodeStore {
         ensureLoaded(block);
         NodeRegion region = region(block, true);
         NodeRecord previous = region.get(block.getX(), block.getY(), block.getZ());
+        if (previous == null || previous.live != blob) {
+            LIVE_EPOCH++;
+        }
         byte[] lastEncoded = previous == null ? null : previous.lastEncoded();
         region.put(block.getX(), block.getY(), block.getZ(),
                 NodeRecord.unencoded(blob.typeName, blob, lastEncoded));
@@ -401,9 +471,22 @@ public final class NodeStore {
 
     public static void remove(Block block) {
         NodeRegion region = region(block, false);
-        if (region != null) {
-            region.remove(block.getX(), block.getY(), block.getZ());
+        if (region != null && region.remove(block.getX(), block.getY(), block.getZ()) != null) {
+            LIVE_EPOCH++;
         }
+    }
+
+    /**
+     * Bumped whenever the live instance behind a position changes: a new node, a removed one, or a
+     * put of a different object (a menu writing back its copy). A put of the same live instance,
+     * which is how the network loop saves what it mutated, leaves it alone. {@code NetworkStorage}
+     * keeps its per-tick list of cells while this stays the same.
+     */
+    private static long LIVE_EPOCH;
+
+    /** See {@link #LIVE_EPOCH} / Ver {@link #LIVE_EPOCH}. */
+    public static long liveEpoch() {
+        return LIVE_EPOCH;
     }
 
     /**
@@ -415,22 +498,13 @@ public final class NodeStore {
         return stats == null ? 0 : stats.total;
     }
 
-    /**
-     * EN: Devices in the chunk that the network loop works every cycle
-     * ({@link com.chagui68.multiversenets.item.DeviceType#isTicking()}). Constant time.
-     * ES: Dispositivos del chunk que el bucle de la red trabaja en cada ciclo. Tiempo constante.
-     */
-    public static int countTickingInChunk(Chunk chunk) {
-        NodeRegion.ChunkStats stats = chunkStats(chunk);
-        return stats == null ? 0 : stats.ticking;
-    }
-
     public static boolean chunkHasNodes(Chunk chunk) {
         return countNodesInChunk(chunk) > 0;
     }
 
     /** Test hook: stores raw bytes as a node's blob / Gancho de test: guarda bytes crudos. */
     static void putRaw(Block block, String type, byte[] data) {
+        LIVE_EPOCH++;
         ensureLoaded(block);
         region(block, true).put(block.getX(), block.getY(), block.getZ(), new NodeRecord(type, data));
     }

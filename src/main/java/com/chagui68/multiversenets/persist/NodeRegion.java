@@ -1,6 +1,5 @@
 package com.chagui68.multiversenets.persist;
 
-import com.chagui68.multiversenets.item.DeviceType;
 import com.chagui68.multiversenets.util.PosUtil;
 import org.bukkit.NamespacedKey;
 
@@ -8,7 +7,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -32,10 +30,9 @@ final class NodeRegion {
     /** Chunks per region side as a shift: 32 / Chunks por lado de región como desplazamiento: 32. */
     static final int SHIFT = 5;
 
-    /** Per-chunk counters / Contadores por chunk. */
+    /** Per-chunk node count / Nodos por chunk. */
     static final class ChunkStats {
         int total;
-        int ticking;
     }
 
     final int rx;
@@ -96,16 +93,8 @@ final class NodeRegion {
     /** Stores {@code record} and returns what was there / Guarda el registro y devuelve el anterior. */
     NodeRecord put(int x, int y, int z, NodeRecord record) {
         NodeRecord previous = nodes.put(PosUtil.pack(x, y, z), record);
-        if (previous == null || !Objects.equals(previous.type, record.type)) {
-            ChunkStats stats = chunks.computeIfAbsent(chunkKey(x >> 4, z >> 4), key -> new ChunkStats());
-            if (previous == null) {
-                stats.total++;
-            } else if (isTicking(previous.type)) {
-                stats.ticking--;
-            }
-            if (isTicking(record.type)) {
-                stats.ticking++;
-            }
+        if (previous == null) {
+            chunks.computeIfAbsent(chunkKey(x >> 4, z >> 4), key -> new ChunkStats()).total++;
         }
         dirty = true;
         return previous;
@@ -120,9 +109,6 @@ final class NodeRegion {
         ChunkStats stats = chunks.get(key);
         if (stats != null) {
             stats.total--;
-            if (isTicking(previous.type)) {
-                stats.ticking--;
-            }
             if (stats.total <= 0) {
                 chunks.remove(key);
             }
@@ -151,10 +137,5 @@ final class NodeRegion {
 
     boolean isEmpty() {
         return nodes.isEmpty();
-    }
-
-    private static boolean isTicking(String typeName) {
-        DeviceType type = DeviceType.parse(typeName);
-        return type != null && type.isTicking();
     }
 }

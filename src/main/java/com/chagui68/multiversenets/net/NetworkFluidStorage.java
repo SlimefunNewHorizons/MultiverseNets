@@ -144,7 +144,22 @@ public class NetworkFluidStorage {
      * @param amountMb  Volume to deposit in millibuckets (mB)
      * @return 0 if everything was stored, otherwise {@code amountMb} (nothing was stored).
      */
+    /** Bumped on every fluid change, for menus that redraw only on change / Sello de cambios. */
+    private long changeStamp;
+
+    public synchronized long changeStamp() {
+        return changeStamp;
+    }
+
     public synchronized long deposit(String fluidType, long amountMb) {
+        long left = depositImpl(fluidType, amountMb);
+        if (left < amountMb) {
+            changeStamp++;
+        }
+        return left;
+    }
+
+    private long depositImpl(String fluidType, long amountMb) {
         if (fluidType == null || amountMb <= 0) {
             return amountMb;
         }
@@ -227,6 +242,14 @@ public class NetworkFluidStorage {
      * @return Total volume in mB successfully withdrawn.
      */
     public synchronized long withdraw(String fluidType, long amountMb) {
+        long got = withdrawImpl(fluidType, amountMb);
+        if (got > 0) {
+            changeStamp++;
+        }
+        return got;
+    }
+
+    private long withdrawImpl(String fluidType, long amountMb) {
         if (fluidType == null || amountMb <= 0) {
             return 0L;
         }

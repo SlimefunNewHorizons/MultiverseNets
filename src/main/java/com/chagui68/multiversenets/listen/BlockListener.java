@@ -98,17 +98,6 @@ public class BlockListener implements Listener {
             event.getPlayer().sendMessage(Text.msg("Network devices cannot be used in this world.", NamedTextColor.RED));
             return;
         }
-        // Sin limite de bloques por chunk: los datos no viven en el chunk. Solo hay un tope opcional
-        // para los dispositivos que trabajan en cada ciclo (0 = desactivado).
-        int activeCap = Settings.maxActiveDevicesPerChunk();
-        if (activeCap > 0 && type.isTicking()
-                && NodeStore.countTickingInChunk(event.getBlockPlaced().getChunk()) >= activeCap) {
-            event.setCancelled(true);
-            event.getPlayer().sendMessage(Text.msg("This chunk already has " + activeCap
-                    + " active network devices (grabbers, pushers, vacuums, crafters...). "
-                    + "Cables, cells and other passive blocks are not limited.", NamedTextColor.RED));
-            return;
-        }
         NodeStore.put(event.getBlockPlaced(), NodeBlob.create(type.name()));
 
         restoreCargo(event);
@@ -704,6 +693,31 @@ public class BlockListener implements Listener {
 
         event.setCancelled(true);
         new TerminalMenu(plugin, player, net).openMenu();
+    }
+
+    /**
+     * EN: Blocks that are not MultiverseNets nodes can still be part of a network (Slimefun cables
+     * and barrels). Networks are no longer rescanned every second, so placing or breaking one next
+     * to a network marks that network for a rescan soon. Only with the Slimefun bridge active:
+     * without it, only nodes form networks and onPlace/onBreak already rescan them.
+     *
+     * ES: Bloques que no son nodos pueden formar parte de una red (cables y barriles de Slimefun).
+     * Las redes ya no se reescanean cada segundo, así que colocar o romper uno junto a una red la
+     * marca para reescanear pronto.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onForeignPlace(BlockPlaceEvent event) {
+        if (Settings.compatSlimefun() && SlimefunBridge.isAvailable()
+                && Items.typeOf(event.getItemInHand()) == null) {
+            manager.foreignBlockChanged(event.getBlockPlaced());
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onForeignBreak(BlockBreakEvent event) {
+        if (Settings.compatSlimefun() && SlimefunBridge.isAvailable() && !NodeStore.hasNode(event.getBlock())) {
+            manager.foreignBlockChanged(event.getBlock());
+        }
     }
 
     @EventHandler(ignoreCancelled = true)

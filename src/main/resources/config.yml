@@ -60,9 +60,20 @@ slimefun-machines:
 #  Network Topology & Timing / Topología y Tiempos de Red
 # -------------------------------------------------------------------------------------
 network:
-  # [EN] Frequency (in server ticks, 20 ticks = 1 second) between network cable scans.
-  # [ES] Frecuencia (en ticks de servidor, 20 ticks = 1 segundo) de escaneo de cables.
+  # [EN] Minimum ticks (20 ticks = 1 second) between rescans of a network that MAY have changed
+  #      (a chunk of it loaded, a non-network block was placed or broken next to it). Placing or
+  #      breaking network blocks always rescans at once.
+  # [ES] Ticks mínimos (20 ticks = 1 segundo) entre reescaneos de una red que QUIZÁ cambió (cargó
+  #      un chunk suyo, se colocó o rompió al lado un bloque que no es de red). Colocar o romper
+  #      bloques de red siempre reescanea al momento.
   scan-interval-ticks: 20
+
+  # [EN] Ticks between periodic full rescans of a network nothing touched. Only catches changes no
+  #      event reports (land claims, blocks edited by other plugins). Lower = more CPU.
+  # [ES] Ticks entre reescaneos completos periódicos de una red que nadie tocó. Solo recoge cambios
+  #      que ningún evento avisa (reclamos de tierra, bloques editados por otros plugins).
+  #      Menos = más CPU.
+  full-rescan-ticks: 600
 
   # [EN] Maximum total connected nodes (devices + cables) allowed in a single network.
   #      Protects the server from infinite loops and massive builds.
@@ -70,18 +81,6 @@ network:
   #      Protege al servidor contra bucles infinitos o sobrecargas de rendimiento.
   max-nodes: 16384
 
-  # [EN] There is no limit on network blocks per chunk: node data lives in region files inside the
-  #      world folder, not in the chunk. This OPTIONAL cap only counts devices the network works
-  #      every cycle (grabbers, pushers, vacuums, purgers, pumps, crafters, bridges, Greedy Cells,
-  #      chicken sorters); cables, cells, terminals and other passive blocks never count.
-  #      0 = no cap. Raise it from 0 only if players build lag machines in a single chunk.
-  # [ES] No hay límite de bloques de red por chunk: los datos de los nodos viven en archivos de
-  #      región dentro de la carpeta del mundo, no en el chunk. Este tope OPCIONAL solo cuenta los
-  #      dispositivos que la red trabaja en cada ciclo (grabbers, pushers, vacuums, purgadores,
-  #      bombas, crafters, puentes, Greedy Cells, clasificadores de pollos); cables, celdas,
-  #      terminales y demás bloques pasivos nunca cuentan. 0 = sin tope. Súbelo de 0 solo si los
-  #      jugadores montan máquinas de lag en un único chunk.
-  max-active-devices-per-chunk: 0
 
   # [EN] Operation intervals (in ticks) for active network machines.
   # [ES] Intervalos de operación (en ticks) para las máquinas activas de la red.
@@ -297,10 +296,12 @@ protection:
   #      pasa también. Déjalo vacío para quitar el bypass a los no-admin.
   bypass-permission: multiversenets.protection.bypass
 
-  # [EN] Ticks between full cache drops. Lower = protection edits and claim changes apply
-  #      faster, at the cost of more protection-plugin lookups.
-  # [ES] Ticks entre vaciados de caché. Menos = los cambios se aplican más rápido, a costa
-  #      de más consultas a los plugins de protección.
+  # [EN] How long (in ticks) a memoised protection answer lives. Each answer expires on its own,
+  #      at a random point between this value and 1.5x it, so the cache never empties all at once.
+  #      Lower = protection edits and claim changes apply faster, at the cost of more lookups.
+  # [ES] Cuánto vive (en ticks) una respuesta de protección memorizada. Cada respuesta caduca sola,
+  #      en un punto al azar entre este valor y 1,5 veces él, así la caché nunca se vacía de golpe.
+  #      Menos = los cambios se aplican más rápido, a costa de más consultas.
   cache-ticks: 100
 
   # [EN] Worlds where networks work normally even if fully claimed.

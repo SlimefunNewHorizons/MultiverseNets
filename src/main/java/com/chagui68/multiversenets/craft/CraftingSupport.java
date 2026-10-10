@@ -183,6 +183,37 @@ public final class CraftingSupport {
         if (data == null || Blueprints.isEmpty(data.inputs) || data.output == null) {
             return false;
         }
+        ItemStack result = blueprintResult(net, data);
+        if (result == null) {
+            return false;
+        }
+        return craftWithResult(net, data, result);
+    }
+
+    private record ResolvedResult(ItemStack result, long at) {
+    }
+
+    /**
+     * Result of a blueprint, by blueprint instance (decoded blueprints are shared, see
+     * {@link Blueprints#decodeCached}). Resolving meant serializing the matrix for the cache key,
+     * matching Bukkit recipes and, for Slimefun blueprints, scanning every Slimefun recipe, on every
+     * craft cycle of every crafter. Answers expire so a recipe registered later is picked up.
+     */
+    private static final Map<RecipeData, ResolvedResult> RESULTS =
+            java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+    private static final long RESULT_TTL_MS = 30_000L;
+
+    private static ItemStack blueprintResult(Network net, RecipeData data) {
+        long now = System.currentTimeMillis();
+        ResolvedResult cached = RESULTS.get(data);
+        if (cached == null || now - cached.at() > RESULT_TTL_MS) {
+            cached = new ResolvedResult(resolveResult(net, data), now);
+            RESULTS.put(data, cached);
+        }
+        return cached.result() == null ? null : cached.result().clone();
+    }
+
+    private static ItemStack resolveResult(Network net, RecipeData data) {
         ItemStack result = null;
         Recipe recipe = Blueprints.resolve(data.inputs, net.world());
         if (Blueprints.matchesOutput(recipe, data.output)) {
@@ -202,10 +233,10 @@ public final class CraftingSupport {
         if (result == null && data.output != null && (SlimefunBridge.isSlimefunItem(data.output) || SlimefunBridge.getId(data.output) != null)) {
             result = data.output.clone();
         }
-        if (result == null) {
-            return false;
-        }
+        return result;
+    }
 
+    private static boolean craftWithResult(Network net, RecipeData data, ItemStack result) {
         record Need(ItemStack sample, int amount) {
         }
         List<Need> needs = new ArrayList<>();

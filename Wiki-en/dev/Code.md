@@ -126,7 +126,7 @@ folder: `<dataFolder>/nodes/<world-uuid>/`). Every class is package-private exce
 | --- | --- |
 | `NodeStore` | Public facade (the API the plugin always used) and controller registry. Main thread only. |
 | `WorldNodes` | One world: which regions exist on disk (listed once), which are in memory and which are being read in the background. `region(cx, cz, create)`, `prefetch`, `flush`, `evictIdle`. |
-| `NodeRegion` | The nodes of one region keyed by packed position, plus per-chunk counters (`total`, `ticking`) so `countNodesInChunk`, `countTickingInChunk` and `chunkHasNodes` are O(1). `dirty` flag and `writesInFlight`. |
+| `NodeRegion` | The nodes of one region keyed by packed position, plus a per-chunk node count so `countNodesInChunk` and `chunkHasNodes` are O(1). `dirty` flag and `writesInFlight`. |
 | `NodeRecord` | One node: type name, encoded blob (`null` = the default blob of that type) and the shared decoded instance (`live`). Replaced wholesale on every write. |
 | `RegionFile` | Binary format: magic `MVNR`, version, rx/rz, type table, then per node `x y z typeIndex length bytes`, and a CRC32 at the end. Blobs are already gzip-compressed, so the file is not compressed again; a cable costs 20 bytes. |
 | `NodeIO` | The single I/O thread (`MultiverseNets-NodeIO`). One thread so reads and writes of a file run in queue order. Writes go to `.tmp` and replace the file with an atomic move; an unreadable file is renamed `.corrupt-<time>` and the region starts empty. After shutdown, late work runs on the caller. |
@@ -136,8 +136,11 @@ folder: `<dataFolder>/nodes/<world-uuid>/`). Every class is package-private exce
 the legacy marker is migrated; any other chunk starts reading its region in the background
 (`prefetch`). The first lookup joins that read; a region nobody prefetched is read on demand through
 the same I/O thread, which keeps the order with any queued write. `NodeStore.autosave()` (every
-`storage.autosave-seconds`) serializes the dirty regions on the main thread — it only copies bytes —
-and queues the writes; a region left empty deletes its file. Then `evictIdle` drops every region that
+`storage.autosave-seconds`) takes the regions dirty at that moment and saves them over as many
+ticks as needed, spending at most 2 ms of main-thread time per tick. On the main thread each region
+is only frozen (`RegionFile.snapshot`: positions, types and each changed node's encoded bytes); the
+file layout and its CRC are built on the I/O thread (`RegionFile.assemble`). A region dirtied again
+during the autosave waits for the next one. A region left empty deletes its file. Then `evictIdle` drops every region that
 is saved, has no write in flight and has no loaded chunk with nodes. `WorldSaveEvent` saves that
 world, `WorldUnloadEvent` saves and forgets it, and `onDisable` saves everything and waits.
 
@@ -148,7 +151,7 @@ position.
 
 API for the rest of the plugin (unchanged): `put` / `get` (copy-on-read; null if the chunk is not
 loaded) / `canonical` / `getType` / `hasNode` / `remove` / `countNodesInChunk` /
-`countTickingInChunk` / `chunkHasNodes` / `encode` / `decode`. Lifecycle: `init`, `shutdown`,
+`chunkHasNodes` / `encode` / `decode` / `liveEpoch`. Lifecycle: `init`, `shutdown`,
 `autosave`, `flush(World)`, `flushAll(wait)`, `onChunkLoad`, `onWorldUnload`, `migrateLoadedChunks`,
 `migrateLegacy(Chunk)` and `stats()`.
 - **`put`** loads the block's chunk when it is not loaded (the old `block.getChunk()` did the same),
@@ -161,9 +164,10 @@ loaded) / `canonical` / `getType` / `hasNode` / `remove` / `countNodesInChunk` /
   its region.
 - **`decode`** treats a corrupt entry as missing, silently and cheaply (`NodeStoreCorruptionTest`);
   it also migrates legacy blobs (null lists, single-item Greedy Cells).
-- **No per-chunk limit.** The only density control is the optional
-  `network.max-active-devices-per-chunk`, checked on `BlockPlaceEvent` with `countTickingInChunk`
-  for devices whose `DeviceType.isTicking()` is true (`NodeStoreRegionTest`).
+- **No per-chunk limit** of any kind (`NodeStoreRegionTest`).
+- **`liveEpoch()`** changes whenever the live instance behind a position changes (new node, removed
+  node, a menu writing back its copy). A `put` of the same live instance does not change it.
+  `NetworkStorage` keeps its list of cells for the current tick while it stays the same.
 
 ### 5.3 Controller registry (`networks.yml`)
 `Map<UUID, List<String>>` (world → `"x,y,z"`) persisted to `<dataFolder>/networks.yml`. `save()`
@@ -193,8 +197,10 @@ networks from it at startup.
 
 ### 6.2 Manager: `NetworkManager`
 - `networksByWorld: Map<UUID, Map<Long, Network>>`.
-- `registerController` / `removeController`, `networkAt(Block)` (linear search of the world's
-  networks), `networkByController(Location)`.
+- `registerController` / `removeController`, `networkAt(Block)` (answered from a position index
+  refreshed after every scan; a stale hint is checked and falls back to asking every network),
+  `networkByController(Location)`. `filterPredicate(blob)` is built once per blob instance and
+  reused while its filter lists and mode stay the same.
 - `invalidateNear(Block)` — rescans the block's network and its 6 neighbours' (place/break/rake).
 - Filter helpers: `filterPredicate(blob)` (empty filter → accepts everything; otherwise whitelist or
   blacklist), `matchesFilter(template, item)` (order: DeviceType → Slimefun id → display name →
@@ -229,6 +235,10 @@ that contains it), **Quantum Cells**, **Infinity Barrels**,
   Slimefun barrels); the Terminal lists it under the total.
 - `count`, `remainingQuota`, `view()` (500 ms cache, merged with `StackUtils.itemsMatch`),
   `getPurgedItemsView`, `isItemPurged`, counters.
+- Cells, memory modules and Slimefun barrels are read once per tick and reused while neither the
+  topology nor `NodeStore.liveEpoch()` changes. Positions of Pushers, Quota Limiters and Purgers are
+  kept per topology version. `changeStamp()` moves on every change of stored items; the Terminal
+  redraws only when it (or the fluid stamp) moved, or every 2 s.
 
 ## 8. Fluid storage: `NetworkFluidStorage`
 
@@ -241,13 +251,20 @@ whole bucket, bottle or source block only on `0`. `withdraw`, `count`, `getFluid
 
 ## 9. The heartbeat: `NetworkTicker`
 
-- `runTaskTimer(plugin, run, 20L, 5L)`; per-family countdowns (`scanIn`, `transferIn`, `vacuumIn`,
-  `craftIn`) fire each family at its configured interval.
-- Each run: networks are sorted by world and controller position; dirty or due networks are
-  scanned; if any operation is due, `assignSharedNodes` gives every node shared by two networks
+- `runTaskTimer(plugin, run, 20L, 5L)`; per-family countdowns (`transferIn`, `vacuumIn`,
+  `craftIn`, `hologramIn`) fire each family at its configured interval. A static `clock` counts the
+  ticker's ticks; every scan is stamped with it.
+- Each run: networks are sorted by world and controller position. A network is scanned when it is
+  dirty (one of its nodes was placed or broken), when it is stale (`markStale`: a chunk near it
+  loaded, or a Slimefun block next to it changed) and `scan-interval-ticks` have passed since its
+  last scan, or when `full-rescan-ticks` (plus a fixed per-network offset) have passed. If any
+  operation is due, `assignSharedNodes` gives every node shared by two networks
   (`touchesForeignController`) to the first one, so **each device works once per cycle**; then
-  transfers, vacuum and crafting run through `forEachWorked`; finally the hologram is updated inside
-  a try/catch (a hologram failure is logged once and never stops the loop).
+  transfers, vacuum and crafting run through `forEachWorked`; once per second the hologram is
+  updated inside a try/catch (a hologram failure is logged once and never stops the loop), and
+  its text is only resent when it changed.
+- Every device reads its blob through `NodeStore.canonical` (the shared live instance), never
+  `NodeStore.get`, which encodes and decodes a full copy.
 - **`doTransfers`** (`items-per-op` = 128, HT = ×`ht-multiplier`):
   - **Grabber** (`grabOnce`): retries its transit buffer first; then the first face that yields a
     match — Slimefun machine output slots first, then vanilla containers. Overflow → Pushers that
@@ -282,8 +299,7 @@ whole bucket, bottle or source block only on `0`. `withdraw`, `count`, `getFluid
 `isLiquidPump()`, `isRequestTerminal()`, `isAutoCrafter()`, `isRequestCrafter()`,
 `isSlimefunCrafter()`, `filterable()` (grabbers, pushers, vacuum, greedy cell, purger, receiver,
 transmitter), `isImporter()`/`isExporter()`, `isDirectional()`, `isRouter()`, `isCacheModule()`,
-`isMemoryModule()` (cache modules + Fluid DRAM), `isTicking()` (devices the ticker works every cycle;
-what `network.max-active-devices-per-chunk` counts), `cacheTier()`. `parse(name)` accepts `MVN_…`, the unprefixed form and `wireless`.
+`isMemoryModule()` (cache modules + Fluid DRAM), `cacheTier()`. `parse(name)` accepts `MVN_…`, the unprefixed form and `wireless`.
 
 | Constant | Material | Display name | Placeable |
 | --- | --- | --- | --- |
@@ -396,7 +412,7 @@ membership), installs memory modules in a DRAM Bay and handles the fluid-cell qu
 
 | Event | Behaviour |
 | --- | --- |
-| `BlockPlaceEvent` | Blocked worlds checked, then the optional `max-active-devices-per-chunk` cap (ticking devices only; there is no other per-chunk limit); registers the node, restores the embedded state (`CELL_CARGO`), applies a bridge link from the item (Receiver or Transmitter), records the Controller's owner, then registers the controller or rescans the neighbours. |
+| `BlockPlaceEvent` | Blocked worlds checked; registers the node, restores the embedded state (`CELL_CARGO`), applies a bridge link from the item (Receiver or Transmitter), records the Controller's owner, then registers the controller or rescans the neighbours. |
 | `BlockBreakEvent` | Drops the Encoder's stored Blueprints and every module of a DRAM Bay (with its stock, also in creative), drops the device with its state embedded (nothing in creative), removes the node and rescans. |
 | `PlayerInteractEvent` | Air click with a Wireless Terminal (combat lock, range/world unless Router, access check). Block click: access check, then Probe, Rake (returns the device), Wrench, bindings (wireless on controller/terminal; Receiver item on Transmitter and Transmitter item on Receiver), sneaking never opens menus, cable status message, a module on a Controller only shows a hint, module install on an empty DRAM Bay, fluid cell quick interact, device menu. |
 | `InventoryMoveItemEvent` | Cancelled whenever the source or the destination is a network node, without touching either inventory. Hoppers never interact with the plugin; the old Infinity Barrel path called `removeItem` while Paper had shrunk the hopper slot to the moved amount, which deleted the whole stack. |
@@ -468,8 +484,9 @@ order apply.
   containment is checked, never flags.
 - **ProtectionStones caveat**: its API cannot tell a claim from a server region, so
   `protection.allow-claims` does not apply to it.
-- **Performance**: answers are memoised per world and position (and per owner for `ownsAt`) and dropped
-  every `protection.cache-ticks`.
+- **Performance**: answers are memoised per world and position (and per owner for `ownsAt`). Each
+  answer expires on its own after `protection.cache-ticks` plus a random 0–50 %, so the cache never
+  empties at once; a timer only sweeps expired entries (`sweepExpired`).
 - **Escape hatches**: `protection.exempt-worlds`, `protection.exempt-locations`
   (`world;x;y;z;radius`, radius 16 by default), `protection.block-network-linking: false`, and the
   `multiversenets.protection.bypass` permission for players.
@@ -482,8 +499,8 @@ All reads go through `Settings` over `plugin.getConfig()` (refreshed in `onEnabl
 | Method | `config.yml` key | Default | Bounds |
 | --- | --- | --- | --- |
 | `scanIntervalTicks()` | `network.scan-interval-ticks` | 20 | ≥ 5 |
+| `fullRescanTicks()` | `network.full-rescan-ticks` | 600 | ≥ 20 |
 | `maxNodes()` | `network.max-nodes` | 16,384 | ≥ 16 |
-| `maxActiveDevicesPerChunk()` | `network.max-active-devices-per-chunk` | 0 (off) | ≥ 0 |
 | `storageAutosaveSeconds()` | `storage.autosave-seconds` | 30 | ≥ 5 |
 | `transferIntervalTicks()` | `network.op-interval-ticks.transfer` | 5 | ≥ 1 |
 | `vacuumIntervalTicks()` | `network.op-interval-ticks.vacuum` | 10 | ≥ 1 |

@@ -7,14 +7,13 @@ import com.chagui68.multiversenets.persist.NodeBlob;
 import com.chagui68.multiversenets.persist.NodeStore;
 import com.chagui68.multiversenets.util.PosUtil;
 import com.chagui68.multiversenets.util.Settings;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongArrayFIFOQueue;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import org.bukkit.block.Block;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,15 +36,21 @@ public class Network {
     private final com.chagui68.multiversenets.MultiverseNets plugin;
     private final org.bukkit.World world;
     private final long controllerPos;
-    private final Map<Long, DeviceType> nodes = new HashMap<>();
-    private final Map<DeviceType, Set<Long>> byType = new EnumMap<>(DeviceType.class);
-    private final Set<Long> sfBarrels = new HashSet<>();
+    // Colecciones de long primitivo (fastutil, incluido en Paper): con max-nodes altos, los Long
+    // en caja de HashMap/HashSet eran decenas de miles de objetos por escaneo.
+    private final Long2ObjectOpenHashMap<DeviceType> nodes = new Long2ObjectOpenHashMap<>();
+    private final Map<DeviceType, LongOpenHashSet> byType = new EnumMap<>(DeviceType.class);
+    private final LongOpenHashSet sfBarrels = new LongOpenHashSet();
     private final NetworkStorage storage = new NetworkStorage(this);
     private final NetworkFluidStorage fluidStorage = new NetworkFluidStorage(this);
     private final NetworkThroughputTracker throughput = new NetworkThroughputTracker();
     private volatile long version = 0;
     private long lastScanMs = 0;
     private volatile boolean dirty = true;
+    /** Something near the network may have changed (chunk load, foreign block); rescan soon. */
+    private volatile boolean stale;
+    /** {@link NetworkTicker#clock()} when the last scan finished / Hora del ticker del último escaneo. */
+    private volatile long lastScanClock;
     /** Owner of the network, taken from the Controller blob. Null for legacy controllers. */
     private volatile java.util.UUID owner;
     /** How many links the last scan refused because the land was somebody else's. */
@@ -140,6 +145,59 @@ public class Network {
         this.dirty = true;
     }
 
+    /**
+     * EN: The topology may have changed (a chunk loaded, a block that is not a node was placed or
+     * broken next to it). Unlike {@link #markDirty()}, the rescan waits until scan-interval-ticks
+     * have passed since the last one, so a player flying over a base does not rescan every cycle.
+     *
+     * ES: La topología quizá cambió (cargó un chunk, se colocó o rompió al lado un bloque que no es
+     * nodo). A diferencia de {@link #markDirty()}, el reescaneo espera a que pasen scan-interval-ticks
+     * desde el anterior.
+     */
+    public void markStale() {
+        this.stale = true;
+    }
+
+    public boolean isStale() {
+        return stale;
+    }
+
+    public long lastScanClock() {
+        return lastScanClock;
+    }
+
+    // Chunks covered by the last scan, for chunk-load events / Chunks que cubrió el último escaneo.
+    private volatile int minCx = Integer.MAX_VALUE;
+    private volatile int maxCx = Integer.MIN_VALUE;
+    private volatile int minCz = Integer.MAX_VALUE;
+    private volatile int maxCz = Integer.MIN_VALUE;
+
+    /**
+     * EN: Whether a chunk touches this network or borders it: only then can its loading change the
+     * topology.
+     * ES: Si un chunk toca esta red o linda con ella: solo entonces su carga puede cambiar la
+     * topología.
+     */
+    public boolean nearChunk(int cx, int cz) {
+        // El chunk del controlador cuenta siempre: si estaba descargado, el escaneo no llego a
+        // registrar nada y su carga es justo lo que tiene que despertar la red.
+        int ctrlCx = PosUtil.unpackX(controllerPos) >> 4;
+        int ctrlCz = PosUtil.unpackZ(controllerPos) >> 4;
+        if (Math.abs(cx - ctrlCx) <= 1 && Math.abs(cz - ctrlCz) <= 1) {
+            return true;
+        }
+        return cx >= minCx - 1 && cx <= maxCx + 1 && cz >= minCz - 1 && cz <= maxCz + 1;
+    }
+
+    /**
+     * Fixed per-network offset (0..gap/4) so networks loaded together do not all run their periodic
+     * full rescan on the same tick / Desfase fijo por red para no escanear todas en el mismo tick.
+     */
+    long rescanJitter(int gap) {
+        int spread = Math.max(1, gap / 4);
+        return Math.floorMod(Long.hashCode(controllerPos) ^ world.getUID().hashCode(), spread);
+    }
+
     public boolean contains(long pos) {
         return nodes.containsKey(pos);
     }
@@ -149,20 +207,20 @@ public class Network {
     }
 
     public void forEach(DeviceType type, BiConsumer<Long, DeviceType> consumer) {
-        Set<Long> matching = byType.get(type);
+        LongOpenHashSet matching = byType.get(type);
         if (matching == null || matching.isEmpty()) {
             return;
         }
         // Copia defensiva: el consumidor puede romper un bloque y modificar el indice mientras
         // se recorre. Solo se copian los de ESE tipo, no la red entera.
-        for (Long pos : matching.toArray(new Long[0])) {
+        for (long pos : matching.toLongArray()) {
             consumer.accept(pos, type);
         }
     }
 
     /** Cuantos dispositivos de un tipo tiene la red. Util para diagnosticos sin recorrer nada. */
     public int count(DeviceType type) {
-        Set<Long> matching = byType.get(type);
+        LongOpenHashSet matching = byType.get(type);
         return matching == null ? 0 : matching.size();
     }
 
@@ -171,9 +229,9 @@ public class Network {
     }
 
     public void scan() {
-        Map<Long, DeviceType> found = new HashMap<>();
-        Set<Long> visited = new HashSet<>();
-        Deque<Long> queue = new ArrayDeque<>();
+        Long2ObjectOpenHashMap<DeviceType> found = new Long2ObjectOpenHashMap<>();
+        LongOpenHashSet visited = new LongOpenHashSet();
+        LongArrayFIFOQueue queue = new LongArrayFIFOQueue();
         List<String> errors = new ArrayList<>();
         sfBarrels.clear();
         blockedByProtection = 0;
@@ -188,7 +246,9 @@ public class Network {
             return;
         }
 
-        NodeBlob ctrlBlob = NodeStore.get(block(controllerPos));
+        // canonical(): get() decodificaba una copia del controlador en cada escaneo; si se migra la
+        // cache antigua, el put de abajo la reescribe igualmente.
+        NodeBlob ctrlBlob = NodeStore.canonical(block(controllerPos));
         if (ctrlBlob == null) {
             // El registro dice que aqui hubo un controlador pero el chunk ya no lo tiene. Dejar
             // la topologia vieja viva haria trabajar a la red sobre bloques que ya no existen.
@@ -216,17 +276,21 @@ public class Network {
 
         found.put(controllerPos, DeviceType.MVN_CONTROLLER);
         visited.add(controllerPos);
-        queue.add(controllerPos);
+        queue.enqueue(controllerPos);
 
         // Un solo buffer reutilizado para los seis vecinos: antes cada nodo asignaba una List y
         // seis Long boxeados, que con max-nodes altos es la mayor fuente de basura del escaneo.
         long[] neighborBuffer = new long[6];
+        // Ajustes leidos una vez por escaneo, no una vez por vecino.
+        int maxNodes = Settings.maxNodes();
+        boolean checkProtection = Settings.protectionBlocksNetworkLinking();
+        boolean slimefun = Settings.compatSlimefun() && SlimefunBridge.isAvailable();
         while (!queue.isEmpty()) {
-            if (found.size() >= Settings.maxNodes()) {
-                errors.add("node limit reached (" + Settings.maxNodes() + ")");
+            if (found.size() >= maxNodes) {
+                errors.add("node limit reached (" + maxNodes + ")");
                 break;
             }
-            long pos = queue.poll();
+            long pos = queue.dequeueLong();
             fillNeighbors(pos, neighborBuffer);
             for (int neighborIndex = 0; neighborIndex < neighborBuffer.length; neighborIndex++) {
                 long next = neighborBuffer[neighborIndex];
@@ -240,7 +304,7 @@ public class Network {
                 // lados opuestos de una region protegida acaben fusionadas en un mismo bus de
                 // items. El controlador es la semilla y no se comprueba; sus transferencias si
                 // pasan por el chequeo de bloque de NetworkTicker.
-                if (Settings.protectionBlocksNetworkLinking()
+                if (checkProtection
                         && !ProtectionBridge.mayActorUse(world, PosUtil.unpackX(next), PosUtil.unpackY(next),
                                 PosUtil.unpackZ(next), owner)) {
                     blockedByProtection++;
@@ -250,15 +314,19 @@ public class Network {
                 // Una busqueda en memoria por vecino: sin nodo ni Slimefun, se descarta aqui mismo.
                 DeviceType type = NodeStore.getType(block);
                 if (type == null) {
-                    if (Settings.compatSlimefun() && SlimefunBridge.isAvailable()) {
-                        if (SlimefunBridge.isNetworkCable(block)) {
+                    if (slimefun && !block.getType().isAir()) {
+                        // Un solo getId por vecino (antes isNetworkCable e isBarrel lo pedian cada
+                        // uno) y nada para el aire, que es la mayoria de los vecinos de un cable.
+                        String sfId = SlimefunBridge.getId(block);
+                        if (sfId == null) {
+                            continue;
+                        }
+                        if (SlimefunBridge.isNetworkCableId(sfId)) {
                             found.put(next, DeviceType.MVN_CABLE);
-                            queue.add(next);
-                            continue;
-                        } else if (SlimefunBridge.isBarrel(block)) {
+                            queue.enqueue(next);
+                        } else if (SlimefunBridge.isBarrel(block, sfId)) {
                             sfBarrels.add(next);
-                            queue.add(next);
-                            continue;
+                            queue.enqueue(next);
                         }
                     }
                     continue;
@@ -269,18 +337,41 @@ public class Network {
                     continue;
                 }
                 found.put(next, type);
-                queue.add(next);
+                queue.enqueue(next);
             }
         }
 
+        int loCx = Integer.MAX_VALUE;
+        int hiCx = Integer.MIN_VALUE;
+        int loCz = Integer.MAX_VALUE;
+        int hiCz = Integer.MIN_VALUE;
         synchronized (nodes) {
             nodes.clear();
             nodes.putAll(found);
             byType.clear();
-            for (Map.Entry<Long, DeviceType> entry : found.entrySet()) {
-                byType.computeIfAbsent(entry.getValue(), key -> new HashSet<>()).add(entry.getKey());
+            for (var entry : found.long2ObjectEntrySet()) {
+                long pos = entry.getLongKey();
+                byType.computeIfAbsent(entry.getValue(), key -> new LongOpenHashSet()).add(pos);
+                int cx = PosUtil.unpackX(pos) >> 4;
+                int cz = PosUtil.unpackZ(pos) >> 4;
+                loCx = Math.min(loCx, cx);
+                hiCx = Math.max(hiCx, cx);
+                loCz = Math.min(loCz, cz);
+                hiCz = Math.max(hiCz, cz);
             }
         }
+        for (long pos : sfBarrels.toLongArray()) {
+            int cx = PosUtil.unpackX(pos) >> 4;
+            int cz = PosUtil.unpackZ(pos) >> 4;
+            loCx = Math.min(loCx, cx);
+            hiCx = Math.max(hiCx, cx);
+            loCz = Math.min(loCz, cz);
+            hiCz = Math.max(hiCz, cz);
+        }
+        this.minCx = loCx;
+        this.maxCx = hiCx;
+        this.minCz = loCz;
+        this.maxCz = hiCz;
         if (blockedByProtection > 0) {
             errors.add(blockedByProtection + " link(s) stopped at protected land");
         }
@@ -288,8 +379,15 @@ public class Network {
         this.touchesForeignController = foreignController;
         this.version++;
         this.lastScanMs = System.currentTimeMillis();
+        this.lastScanClock = NetworkTicker.clock();
         this.dirty = false;
+        this.stale = false;
         storage.invalidate();
+        throughput.retainNodes(this::contains);
+        NetworkManager manager = plugin == null ? null : plugin.networks();
+        if (manager != null) {
+            manager.indexScan(this);
+        }
     }
 
     /**

@@ -162,8 +162,10 @@ una cara abre el contenedor de esa cara.
 
 ### 1. Qué pertenece a una red
 
-En cada escaneo (cada `network.scan-interval-ticks`, y justo después de colocar o romper un nodo) el
-controlador recorre todos los bloques de MultiverseNets conectados, cara con cara. El escaneo:
+En cada escaneo el controlador recorre todos los bloques de MultiverseNets conectados, cara con cara.
+Una red se escanea justo después de colocar o romper uno de sus nodos; en `network.scan-interval-ticks`
+cuando quizá cambió (cargó un chunk suyo, se colocó o rompió a su lado un cable o barril de Slimefun);
+y si no, solo cada `network.full-rescan-ticks`. El escaneo:
 
 * nunca carga chunks — los nodos de chunks sin cargar no forman parte de la red hasta que cargan;
 * lee cada vecino desde memoria (una búsqueda, sin decodificar nada), así que un escaneo cuesta lo
@@ -305,7 +307,9 @@ dentro de la carpeta del mundo**: `<mundo>/multiversenets/r.<rx>.<rz>.mvn`, un a
   dispositivos configurados guardan su estado completo.
 * **Fuera del hilo principal.** Una región se lee en segundo plano en cuanto carga uno de sus chunks.
   Solo se escriben las regiones que cambiaron: cada `storage.autosave-seconds` (30 s), con
-  `/save-all`, con `/mvnets save` y al apagar. Cada escritura va a un archivo temporal que reemplaza
+  `/save-all`, con `/mvnets save` y al apagar. El autoguardado reparte su trabajo del hilo principal
+  en varios ticks (como mucho 2 ms por tick), así un mundo con mucha actividad nunca cuesta un tick
+  largo. Cada escritura va a un archivo temporal que reemplaza
   al viejo de un solo movimiento, así un crash deja el archivo viejo o el nuevo, nunca mitad y mitad.
 * **En memoria solo mientras se usa.** Una región sigue cargada mientras alguno de sus chunks con
   dispositivos lo esté, y se suelta después de guardarla.
@@ -315,11 +319,6 @@ dentro de la carpeta del mundo**: `<mundo>/multiversenets/r.<rx>.<rz>.mvn`, un a
 * **Migración automática.** Los chunks escritos por la 5.2 o anteriores sacan sus datos del chunk la
   primera vez que cargan tras actualizar; no hay que hacer nada. La migración es de ida: un jar 5.2
   ya no vería esos dispositivos.
-
-El único control de densidad que queda es opcional: `network.max-active-devices-per-chunk` limita,
-por chunk, los dispositivos que la red trabaja en cada ciclo (grabbers, pushers, vacuums, purgadores,
-bombas, crafters, puentes, Greedy Cells, clasificadores de pollos). Vale `0` (desactivado) por
-defecto; cables, celdas, terminales y demás bloques pasivos nunca cuentan.
 
 ---
 
@@ -421,9 +420,9 @@ español):
 
 | Clave | Por defecto | Efecto |
 |---|---|---|
-| `network.scan-interval-ticks` | 20 | Intervalo de reescaneo de topología |
+| `network.scan-interval-ticks` | 20 | Separación mínima entre reescaneos de una red que quizá cambió |
+| `network.full-rescan-ticks` | 600 | Reescaneo completo periódico de una red intacta |
 | `network.max-nodes` | 16384 | Nodos máximos por red |
-| `network.max-active-devices-per-chunk` | 0 | Tope opcional de dispositivos trabajados en cada ciclo, por chunk (0 = desactivado). Cables y bloques pasivos nunca cuentan; no hay ningún otro límite por chunk |
 | `storage.autosave-seconds` | 30 | Intervalo del guardado en segundo plano de los archivos de región de nodos |
 | `network.op-interval-ticks.transfer` / `vacuum` / `craft` | 5 / 10 / 20 | Intervalos de cada familia de operaciones |
 | `transfer.items-per-op` | 128 | Ítems por operación de Grabber/Pusher/Purger/puente |
@@ -508,8 +507,10 @@ compat:
 | Ticker | El ciclo de Slimefun | Propio, con intervalos por operación en la config |
 | Datos de nodos | El BlockStorage de Slimefun | Archivos de región propios en la carpeta del mundo, guardados fuera del hilo principal; cables y dispositivos sin configurar solo guardan su tipo |
 
-El precio es que escanear cuesta un BFS sobre hasta `max-nodes` bloques cada `scan-interval-ticks`:
-trabajo predecible y acotado a cambio de no tener estado que se pueda corromper.
+El precio es que escanear cuesta un BFS sobre hasta `max-nodes` bloques: trabajo predecible y
+acotado a cambio de no tener estado que se pueda corromper. Solo corre cuando algo pudo cambiar, más
+una vez cada `full-rescan-ticks` para recoger lo que ningún evento avisa (reclamos de tierra, bloques
+editados por otros plugins).
 
 ## 🛠️ Compilación
 

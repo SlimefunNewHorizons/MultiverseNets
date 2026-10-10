@@ -128,7 +128,7 @@ la carpeta: `<dataFolder>/nodes/<uuid-del-mundo>/`). Todas las clases son de paq
 | --- | --- |
 | `NodeStore` | Fachada pública (la API de siempre) y registro de controladores. Solo hilo principal. |
 | `WorldNodes` | Un mundo: qué regiones existen en disco (se listan una vez), cuáles están en memoria y cuáles se están leyendo en segundo plano. `region(cx, cz, create)`, `prefetch`, `flush`, `evictIdle`. |
-| `NodeRegion` | Los nodos de una región indexados por posición empaquetada, más contadores por chunk (`total`, `ticking`) para que `countNodesInChunk`, `countTickingInChunk` y `chunkHasNodes` sean O(1). Marca `dirty` y `writesInFlight`. |
+| `NodeRegion` | Los nodos de una región indexados por posición empaquetada, más un contador de nodos por chunk para que `countNodesInChunk` y `chunkHasNodes` sean O(1). Marca `dirty` y `writesInFlight`. |
 | `NodeRecord` | Un nodo: nombre del tipo, blob codificado (`null` = el blob por defecto de ese tipo) y la instancia decodificada compartida (`live`). Se reemplaza entero en cada escritura. |
 | `RegionFile` | Formato binario: magia `MVNR`, versión, rx/rz, tabla de tipos, luego por nodo `x y z typeIndex longitud bytes`, y un CRC32 al final. Los blobs ya van comprimidos con gzip, así que el archivo no se vuelve a comprimir; un cable cuesta 20 bytes. |
 | `NodeIO` | El único hilo de E/S (`MultiverseNets-NodeIO`). Uno solo para que las lecturas y escrituras de un archivo corran en orden de cola. Las escrituras van a `.tmp` y reemplazan el archivo con un movimiento atómico; un archivo ilegible se renombra a `.corrupt-<hora>` y la región empieza vacía. Tras el apagado, el trabajo tardío corre en el llamante. |
@@ -138,8 +138,11 @@ la carpeta: `<dataFolder>/nodes/<uuid-del-mundo>/`). Todas las clases son de paq
 marca antigua se migra; cualquier otro empieza a leer su región en segundo plano (`prefetch`). La
 primera consulta se une a esa lectura; una región que nadie pidió por adelantado se lee al momento por
 el mismo hilo de E/S, que respeta el orden con cualquier escritura en cola. `NodeStore.autosave()`
-(cada `storage.autosave-seconds`) serializa las regiones sucias en el hilo principal — solo copia
-bytes — y encola las escrituras; una región que quedó vacía borra su archivo. Después `evictIdle`
+(cada `storage.autosave-seconds`) toma las regiones sucias en ese momento y las guarda en los ticks
+que hagan falta, con como mucho 2 ms de hilo principal por tick. En el hilo principal cada región solo
+se congela (`RegionFile.snapshot`: posiciones, tipos y los bytes codificados de cada nodo cambiado); el
+armado del archivo y su CRC se hacen en el hilo de E/S (`RegionFile.assemble`). Una región que se
+vuelve a ensuciar durante el autoguardado espera al siguiente. Una región vacía borra su archivo. Después `evictIdle`
 suelta cada región guardada, sin escrituras pendientes y sin ningún chunk con nodos cargado.
 `WorldSaveEvent` guarda ese mundo, `WorldUnloadEvent` lo guarda y lo olvida, y `onDisable` guarda todo
 y espera.
@@ -150,7 +153,7 @@ un blob por defecto nuevo. Cada cable y cada dispositivo sin configurar cuesta u
 
 API para el resto del plugin (sin cambios): `put` / `get` (copia en cada lectura; null si el chunk no
 está cargado) / `canonical` / `getType` / `hasNode` / `remove` / `countNodesInChunk` /
-`countTickingInChunk` / `chunkHasNodes` / `encode` / `decode`. Ciclo de vida: `init`, `shutdown`,
+`chunkHasNodes` / `encode` / `decode` / `liveEpoch`. Ciclo de vida: `init`, `shutdown`,
 `autosave`, `flush(World)`, `flushAll(wait)`, `onChunkLoad`, `onWorldUnload`, `migrateLoadedChunks`,
 `migrateLegacy(Chunk)` y `stats()`.
 - **`put`** carga el chunk del bloque si no está cargado (el antiguo `block.getChunk()` hacía lo
@@ -163,9 +166,10 @@ está cargado) / `canonical` / `getType` / `hasNode` / `remove` / `countNodesInC
   con su región.
 - **`decode`** trata una entrada corrupta como ausente, en silencio y barato
   (`NodeStoreCorruptionTest`); también migra blobs antiguos (listas null, Greedy Cells de un ítem).
-- **Sin límite por chunk.** El único control de densidad es el opcional
-  `network.max-active-devices-per-chunk`, que `BlockPlaceEvent` comprueba con `countTickingInChunk`
-  para los dispositivos cuyo `DeviceType.isTicking()` es true (`NodeStoreRegionTest`).
+- **Sin límite por chunk** de ningún tipo (`NodeStoreRegionTest`).
+- **`liveEpoch()`** cambia cuando cambia la instancia viva de una posición (nodo nuevo, nodo quitado,
+  un menú que escribe su copia). Un `put` de la misma instancia viva no lo cambia. `NetworkStorage`
+  conserva su lista de celdas del tick actual mientras no cambie.
 
 ### 5.3 Registro de controladores (`networks.yml`)
 `Map<UUID, List<String>>` (mundo → `"x,y,z"`) persistido en `<dataFolder>/networks.yml`. `save()`
@@ -196,8 +200,10 @@ las redes a partir de él al arrancar.
 
 ### 6.2 Gestor: `NetworkManager`
 - `networksByWorld: Map<UUID, Map<Long, Network>>`.
-- `registerController` / `removeController`, `networkAt(Block)` (búsqueda lineal entre las redes del
-  mundo), `networkByController(Location)`.
+- `registerController` / `removeController`, `networkAt(Block)` (se responde desde un índice de
+  posiciones que se rehace tras cada escaneo; una pista vieja se comprueba y, si falla, se pregunta a
+  todas las redes), `networkByController(Location)`. `filterPredicate(blob)` se construye una vez por
+  instancia de blob y se reutiliza mientras sus listas de filtro y su modo no cambien.
 - `invalidateNear(Block)` — reescanea la red del bloque y las de sus 6 vecinos (colocar/romper/rake).
 - Filtros: `filterPredicate(blob)` (filtro vacío → acepta todo; si no, whitelist o blacklist),
   `matchesFilter(template, item)` (orden: DeviceType → id de Slimefun → nombre visible → material),
@@ -233,6 +239,10 @@ bay que lo contiene), las **Celdas Cuánticas**, los **Infinity Barrels**, las *
   barriles de Slimefun); el Terminal lo lista bajo el total.
 - `count`, `remainingQuota`, `view()` (caché de 500 ms, agrupado con `StackUtils.itemsMatch`),
   `getPurgedItemsView`, `isItemPurged`, contadores.
+- Celdas, módulos de memoria y barriles de Slimefun se leen una vez por tick y se reutilizan mientras
+  no cambien la topología ni `NodeStore.liveEpoch()`. Las posiciones de Pushers, Quota Limiters y
+  Purgers se guardan por versión de topología. `changeStamp()` cambia con cada cambio de lo guardado;
+  el Terminal solo se redibuja si cambió (o el sello de fluidos), o cada 2 s.
 
 ## 8. Almacenamiento de fluidos: `NetworkFluidStorage`
 
@@ -246,14 +256,20 @@ terminal, ranura de entrada — solo consume un cubo, botella o bloque fuente en
 
 ## 9. El latido: `NetworkTicker`
 
-- `runTaskTimer(plugin, run, 20L, 5L)`; cuentas atrás por familia (`scanIn`, `transferIn`,
-  `vacuumIn`, `craftIn`) que disparan cada familia en su intervalo configurado.
-- En cada ejecución: las redes se ordenan por mundo y posición del controlador; se escanean las sucias
-  o a las que les toca; si toca alguna operación, `assignSharedNodes` entrega cada nodo compartido por
-  dos redes (`touchesForeignController`) a la primera, así **cada dispositivo trabaja una vez por
-  ciclo**; después transferencias, vacuum y crafteo corren con `forEachWorked`; por último se
-  actualiza el holograma dentro de un try/catch (un fallo del holograma se registra una vez y nunca
-  detiene el bucle).
+- `runTaskTimer(plugin, run, 20L, 5L)`; cuentas atrás por familia (`transferIn`, `vacuumIn`,
+  `craftIn`, `hologramIn`) que disparan cada familia en su intervalo configurado. Un `clock`
+  estático cuenta los ticks del ticker; cada escaneo queda sellado con él.
+- En cada ejecución: las redes se ordenan por mundo y posición del controlador. Una red se escanea si
+  está sucia (se colocó o rompió uno de sus nodos), si está "stale" (`markStale`: cargó un chunk
+  cercano o cambió a su lado un bloque de Slimefun) y pasaron `scan-interval-ticks` desde su último
+  escaneo, o si pasaron `full-rescan-ticks` (más un desfase fijo por red). Si toca alguna operación,
+  `assignSharedNodes` entrega cada nodo compartido por dos redes (`touchesForeignController`) a la
+  primera, así **cada dispositivo trabaja una vez por ciclo**; después transferencias, vacuum y
+  crafteo corren con `forEachWorked`; una vez por segundo se actualiza el holograma dentro de un
+  try/catch (un fallo se registra una vez y nunca detiene el bucle), y su texto solo se reenvía si
+  cambió.
+- Cada dispositivo lee su blob con `NodeStore.canonical` (la instancia viva compartida), nunca con
+  `NodeStore.get`, que codifica y decodifica una copia entera.
 - **`doTransfers`** (`items-per-op` = 128, HT = ×`ht-multiplier`):
   - **Grabber** (`grabOnce`): reintenta primero su búfer de tránsito; luego la primera cara que dé
     algo — primero las ranuras de salida de máquinas de Slimefun, después contenedores vanilla.
@@ -288,8 +304,7 @@ terminal, ranura de entrada — solo consume un cubo, botella o bloque fuente en
 `isLiquidPump()`, `isRequestTerminal()`, `isAutoCrafter()`, `isRequestCrafter()`,
 `isSlimefunCrafter()`, `filterable()` (grabbers, pushers, vacuum, greedy cell, purger, receptor,
 transmisor), `isImporter()`/`isExporter()`, `isDirectional()`, `isRouter()`, `isCacheModule()`,
-`isMemoryModule()` (módulos de caché + Fluid DRAM), `isTicking()` (dispositivos que el ticker trabaja
-en cada ciclo; lo que cuenta `network.max-active-devices-per-chunk`), `cacheTier()`. `parse(name)` acepta `MVN_…`, la forma sin prefijo y `wireless`.
+`isMemoryModule()` (módulos de caché + Fluid DRAM), `cacheTier()`. `parse(name)` acepta `MVN_…`, la forma sin prefijo y `wireless`.
 
 | Constante | Material | Nombre visible | Colocable |
 | --- | --- | --- | --- |
@@ -404,7 +419,7 @@ interacción rápida con la celda de fluidos.
 
 | Evento | Comportamiento |
 | --- | --- |
-| `BlockPlaceEvent` | Comprueba mundos bloqueados y luego el tope opcional `max-active-devices-per-chunk` (solo dispositivos que trabajan por ciclo; no hay ningún otro límite por chunk); registra el nodo, restaura el estado embebido (`CELL_CARGO`), aplica el enlace del puente desde el ítem (Receptor o Transmisor), guarda el dueño del Controlador y luego registra el controlador o reescanea los vecinos. |
+| `BlockPlaceEvent` | Comprueba mundos bloqueados; registra el nodo, restaura el estado embebido (`CELL_CARGO`), aplica el enlace del puente desde el ítem (Receptor o Transmisor), guarda el dueño del Controlador y luego registra el controlador o reescanea los vecinos. |
 | `BlockBreakEvent` | Suelta los Blueprints guardados del Encoder y todos los módulos de un DRAM Bay (con su stock, también en creativo), suelta el dispositivo con su estado embebido (nada en creativo), quita el nodo y reescanea. |
 | `PlayerInteractEvent` | Clic al aire con Terminal Inalámbrico (bloqueo por combate, alcance/mundo salvo con Router, acceso). Clic en bloque: acceso, luego Probe, Rake (devuelve el dispositivo), Llave, vínculos (inalámbrico en controlador/terminal; ítem Receptor en Transmisor e ítem Transmisor en Receptor), agachado nunca abre menús, mensaje de estado del cable, un módulo sobre un Controlador solo muestra un aviso, instalación de módulos en un DRAM Bay vacío, interacción rápida con la celda de fluidos, menú del dispositivo. |
 | `InventoryMoveItemEvent` | Se cancela siempre que el origen o el destino sea un nodo de la red, sin tocar ningún inventario. Las tolvas nunca interactúan con el plugin; el antiguo camino del Infinity Barrel llamaba a `removeItem` mientras Paper había reducido la ranura de la tolva a la cantidad movida, y eso borraba el stack entero. |
@@ -478,8 +493,9 @@ el orden de almacenamiento.
   comprueba la pertenencia a una región, nunca flags.
 - **Salvedad de ProtectionStones**: su API no distingue un reclamo de una región del servidor, así que
   `protection.allow-claims` no se le aplica.
-- **Rendimiento**: las respuestas se memorizan por mundo y posición (y por dueño en `ownsAt`) y se
-  descartan cada `protection.cache-ticks`.
+- **Rendimiento**: las respuestas se memorizan por mundo y posición (y por dueño en `ownsAt`). Cada
+  respuesta caduca sola tras `protection.cache-ticks` más un 0–50 % al azar, así la caché nunca se
+  vacía de golpe; un temporizador solo barre las caducadas (`sweepExpired`).
 - **Salidas**: `protection.exempt-worlds`, `protection.exempt-locations` (`mundo;x;y;z;radio`, radio
   16 por defecto), `protection.block-network-linking: false` y el permiso
   `multiversenets.protection.bypass` para jugadores.
@@ -492,8 +508,8 @@ Todas las lecturas pasan por `Settings` sobre `plugin.getConfig()` (se refresca 
 | Método | Clave de `config.yml` | Por defecto | Límites |
 | --- | --- | --- | --- |
 | `scanIntervalTicks()` | `network.scan-interval-ticks` | 20 | ≥ 5 |
+| `fullRescanTicks()` | `network.full-rescan-ticks` | 600 | ≥ 20 |
 | `maxNodes()` | `network.max-nodes` | 16.384 | ≥ 16 |
-| `maxActiveDevicesPerChunk()` | `network.max-active-devices-per-chunk` | 0 (desactivado) | ≥ 0 |
 | `storageAutosaveSeconds()` | `storage.autosave-seconds` | 30 | ≥ 5 |
 | `transferIntervalTicks()` | `network.op-interval-ticks.transfer` | 5 | ≥ 1 |
 | `vacuumIntervalTicks()` | `network.op-interval-ticks.vacuum` | 10 | ≥ 1 |

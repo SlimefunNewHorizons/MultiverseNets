@@ -38,6 +38,33 @@ public class NetworkManager {
 
     private final MultiverseNets plugin;
     private final Map<UUID, Map<Long, Network>> networksByWorld = new HashMap<>();
+    /**
+     * Which network holds each position, per world, refreshed after every scan. Only a hint:
+     * {@link #networkAt} checks the answer and falls back to asking every network, so a stale
+     * entry costs a lookup, never a wrong answer. Before, every lookup (each Receiver and
+     * Transmitter every cycle, each place or break seven times) asked every network in turn.
+     */
+    private final Map<UUID, it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<Network>> positionIndex = new HashMap<>();
+
+    /** Called by {@link Network#scan()} with its new topology / Llamado tras cada escaneo. */
+    void indexScan(Network net) {
+        var index = positionIndex.computeIfAbsent(net.world().getUID(),
+                key -> new it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<>());
+        // Las posiciones que esta red ya no tiene se limpian solas en networkAt al no validarse.
+        synchronized (net.nodes()) {
+            for (long pos : net.nodes().keySet()) {
+                Network previous = index.get(pos);
+                if (previous == null || previous == net || !isRegistered(previous) || !previous.contains(pos)) {
+                    index.put(pos, net);
+                }
+            }
+        }
+    }
+
+    private boolean isRegistered(Network net) {
+        Map<Long, Network> nets = networksByWorld.get(net.world().getUID());
+        return nets != null && nets.get(net.controllerPos()) == net;
+    }
 
     public NetworkManager(MultiverseNets plugin) {
         this.plugin = plugin;
@@ -117,8 +144,21 @@ public class NetworkManager {
             return null;
         }
         long pos = PosUtil.pack(block.getX(), block.getY(), block.getZ());
+        var index = positionIndex.get(worldId);
+        if (index != null) {
+            Network hinted = index.get(pos);
+            if (hinted != null) {
+                if (hinted.contains(pos) && nets.get(hinted.controllerPos()) == hinted) {
+                    return hinted;
+                }
+                index.remove(pos);
+            }
+        }
         for (Network net : nets.values()) {
             if (net.contains(pos)) {
+                if (index != null) {
+                    index.put(pos, net);
+                }
                 return net;
             }
         }
@@ -162,6 +202,58 @@ public class NetworkManager {
         for (Network net : touched) {
             net.markDirty();
             net.scan();
+        }
+    }
+
+    /**
+     * EN: A chunk loaded: networks that reach it or border it may grow into it. They are rescanned
+     * within scan-interval-ticks instead of on the next periodic full rescan.
+     *
+     * ES: Cargó un chunk: las redes que llegan a él o lindan con él pueden crecer hacia él. Se
+     * reescanean en scan-interval-ticks en vez de esperar al reescaneo periódico.
+     */
+    public void chunkLoaded(org.bukkit.Chunk chunk) {
+        Map<Long, Network> nets = networksByWorld.get(chunk.getWorld().getUID());
+        if (nets == null) {
+            return;
+        }
+        for (Network net : nets.values()) {
+            if (net.nearChunk(chunk.getX(), chunk.getZ())) {
+                net.markStale();
+            }
+        }
+    }
+
+    /**
+     * EN: A block that is not a MultiverseNets node changed (a Slimefun cable or barrel, for
+     * instance). Networks touching it or its neighbours are marked for a rescan soon.
+     *
+     * ES: Cambió un bloque que no es nodo de MultiverseNets (un cable o barril de Slimefun, por
+     * ejemplo). Las redes que lo tocan a él o a sus vecinos se marcan para reescanear pronto.
+     */
+    public void foreignBlockChanged(Block block) {
+        Map<Long, Network> nets = networksByWorld.get(block.getWorld().getUID());
+        if (nets == null || nets.isEmpty()) {
+            return;
+        }
+        int x = block.getX();
+        int y = block.getY();
+        int z = block.getZ();
+        long[] around = {
+                PosUtil.pack(x, y, z),
+                PosUtil.pack(x + 1, y, z), PosUtil.pack(x - 1, y, z),
+                PosUtil.pack(x, y + 1, z), PosUtil.pack(x, y - 1, z),
+                PosUtil.pack(x, y, z + 1), PosUtil.pack(x, y, z - 1)};
+        for (Network net : nets.values()) {
+            if (!net.nearChunk(x >> 4, z >> 4)) {
+                continue;
+            }
+            for (long pos : around) {
+                if (net.contains(pos) || net.slimefunBarrels().contains(pos)) {
+                    net.markStale();
+                    break;
+                }
+            }
         }
     }
 
@@ -215,6 +307,39 @@ public class NetworkManager {
         if (blob == null) {
             return item -> true;
         }
+        // Un predicado por instancia de blob: releasedByPushers, greedyReserve y el paso 1 de cada
+        // deposito lo pedian por cada item probado y lo reconstruian (con una copia de ItemMeta por
+        // plantilla con nombre) cada vez. Los menus escriben una copia nueva (otra instancia), asi
+        // que un filtro editado nunca reutiliza el predicado viejo; las listas y el modo se
+        // comparan igualmente por si alguien muta el filtro en el sitio.
+        CachedFilter cached = FILTERS.get(blob);
+        if (cached != null && cached.matches(blob)) {
+            return cached.predicate();
+        }
+        Predicate<ItemStack> built = buildFilterPredicate(blob);
+        FILTERS.put(blob, new CachedFilter(blob.filterItems, sizeOf(blob.filterItems),
+                blob.filterMaterials, sizeOf(blob.filterMaterials), blob.filterBlacklist, built));
+        return built;
+    }
+
+    private record CachedFilter(List<ItemStack> items, int itemCount, List<String> materials, int materialCount,
+                                boolean blacklist, Predicate<ItemStack> predicate) {
+        boolean matches(NodeBlob blob) {
+            return blob.filterItems == items && sizeOf(items) == itemCount
+                    && blob.filterMaterials == materials && sizeOf(materials) == materialCount
+                    && blob.filterBlacklist == blacklist;
+        }
+    }
+
+    private static int sizeOf(List<?> list) {
+        return list == null ? -1 : list.size();
+    }
+
+    /** Weak keys by identity: NodeBlob does not override equals / Claves débiles por identidad. */
+    private static final Map<NodeBlob, CachedFilter> FILTERS =
+            java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+
+    private static Predicate<ItemStack> buildFilterPredicate(NodeBlob blob) {
         boolean hasItems = blob.filterItems != null && !blob.filterItems.isEmpty();
         boolean hasMats = blob.filterMaterials != null && !blob.filterMaterials.isEmpty();
 
@@ -222,30 +347,90 @@ public class NetworkManager {
             return item -> true;
         }
 
+        // Cada entrada del filtro se analiza una vez aqui (tipo de dispositivo, id de Slimefun,
+        // nombre, Material) y no en cada item probado: antes cada prueba volvia a leer el PDC de la
+        // plantilla, copiaba su ItemMeta y parseaba el nombre del Material.
+        List<Predicate<ItemStack>> entries = new ArrayList<>();
+        if (hasItems) {
+            for (ItemStack filterTemplate : blob.filterItems) {
+                if (filterTemplate != null && !filterTemplate.getType().isAir()) {
+                    entries.add(filterEntry(filterTemplate));
+                }
+            }
+        } else {
+            for (String entry : blob.filterMaterials) {
+                entries.add(materialEntry(entry));
+            }
+        }
+        boolean blacklist = blob.filterBlacklist;
+
         return item -> {
             if (item == null || item.getType().isAir()) {
                 return false;
             }
             boolean matched = false;
-
-            if (hasItems) {
-                for (ItemStack filterTemplate : blob.filterItems) {
-                    if (filterTemplate != null && !filterTemplate.getType().isAir() && matchesFilter(filterTemplate, item)) {
-                        matched = true;
-                        break;
-                    }
-                }
-            } else {
-                for (String entry : blob.filterMaterials) {
-                    if (matchesMaterialOrId(entry, item)) {
-                        matched = true;
-                        break;
-                    }
+            for (Predicate<ItemStack> entry : entries) {
+                if (entry.test(item)) {
+                    matched = true;
+                    break;
                 }
             }
-
-            return blob.filterBlacklist != matched;
+            return blacklist != matched;
         };
+    }
+
+    /**
+     * EN: {@link #matchesFilter} with everything about the template worked out once, for testing
+     * many candidates against the same filter entry.
+     *
+     * ES: {@link #matchesFilter} con todo lo de la plantilla calculado una vez, para probar muchos
+     * candidatos contra la misma entrada del filtro.
+     */
+    public static Predicate<ItemStack> filterEntry(ItemStack filterTemplate) {
+        DeviceType ftType = Items.typeOf(filterTemplate);
+        String ftSf = ftType == null ? SlimefunBridge.getId(filterTemplate) : null;
+        boolean named = ftType == null && ftSf == null
+                && filterTemplate.hasItemMeta() && filterTemplate.getItemMeta().hasDisplayName();
+        Material material = filterTemplate.getType();
+        if (ftType != null) {
+            return candidate -> candidate != null && Items.typeOf(candidate) == ftType;
+        }
+        if (ftSf != null) {
+            return candidate -> candidate != null && Items.typeOf(candidate) == null
+                    && ftSf.equals(SlimefunBridge.getId(candidate));
+        }
+        if (named) {
+            return candidate -> candidate != null && Items.typeOf(candidate) == null
+                    && SlimefunBridge.getId(candidate) == null
+                    && StackUtils.itemsMatch(filterTemplate, candidate, false);
+        }
+        // Plantilla vanilla: un Material distinto descarta antes de leer nada del candidato.
+        return candidate -> candidate != null && candidate.getType() == material
+                && Items.typeOf(candidate) == null && SlimefunBridge.getId(candidate) == null;
+    }
+
+    /** {@link #matchesMaterialOrId} with the entry parsed once / Con la entrada parseada una vez. */
+    public static Predicate<ItemStack> materialEntry(String entry) {
+        if (entry == null) {
+            return candidate -> false;
+        }
+        if (entry.startsWith("MULTIVERSENETS:")) {
+            String devName = entry.substring("MULTIVERSENETS:".length());
+            return candidate -> {
+                DeviceType candType = candidate == null ? null : Items.typeOf(candidate);
+                return candType != null && candType.name().equalsIgnoreCase(devName);
+            };
+        }
+        if (entry.startsWith("SLIMEFUN:")) {
+            String sfId = entry.substring("SLIMEFUN:".length());
+            return candidate -> candidate != null && sfId.equalsIgnoreCase(SlimefunBridge.getId(candidate));
+        }
+        Material mat = Material.matchMaterial(entry);
+        if (mat == null) {
+            return candidate -> false;
+        }
+        return candidate -> candidate != null && candidate.getType() == mat
+                && Items.typeOf(candidate) == null && SlimefunBridge.getId(candidate) == null;
     }
 
     /**

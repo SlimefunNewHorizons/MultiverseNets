@@ -258,23 +258,6 @@ public enum DeviceType {
     }
 
     /**
-     * @return true if the network loop works this device on every cycle (it moves items, fluids or
-     *         crafts). These are the only devices that cost CPU per tick; the
-     *         {@code network.max-active-devices-per-chunk} cap counts them and nothing else. /
-     *         true si el bucle de la red trabaja este dispositivo en cada ciclo (mueve ítems, fluidos
-     *         o craftea). Son los únicos que cuestan CPU por tick; el tope
-     *         {@code network.max-active-devices-per-chunk} solo cuenta estos.
-     */
-    public boolean isTicking() {
-        return switch (this) {
-            case MVN_GRABBER, MVN_GRABBER_HT, MVN_PUSHER, MVN_PUSHER_HT, MVN_GREEDY_CELL, MVN_VACUUM,
-                 MVN_PURGER, MVN_RECEIVER, MVN_TRANSMITTER, MVN_LIQUID_PUMP, MVN_CHICKEN_SORTER,
-                 MVN_CRAFTER, MVN_SF_CRAFTER -> true;
-            default -> false;
-        };
-    }
-
-    /**
      * @return Cache tier (1 to 5) or -1 if not a cache module / Nivel de caché (1 a 5) o -1
      */
     public int cacheTier() {
@@ -298,7 +281,27 @@ public enum DeviceType {
      * @return Matching DeviceType or null / DeviceType coincidente o null
      */
     public static DeviceType parse(String name) {
-        if (name == null || name.isBlank()) {
+        if (name == null) {
+            return null;
+        }
+        // Se llama por cada nodo en escaneos, cargas de celdas y lecturas de PDC con el mismo
+        // punado de nombres: trim + toUpperCase + valueOf (y sus excepciones) solo la primera vez.
+        Object cached = PARSED.get(name);
+        if (cached == null) {
+            DeviceType parsed = parseUncached(name);
+            cached = parsed == null ? UNKNOWN : parsed;
+            if (PARSED.size() < 4096) {
+                PARSED.put(name, cached);
+            }
+        }
+        return cached == UNKNOWN ? null : (DeviceType) cached;
+    }
+
+    private static final Object UNKNOWN = new Object();
+    private static final java.util.Map<String, Object> PARSED = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static DeviceType parseUncached(String name) {
+        if (name.isBlank()) {
             return null;
         }
         String clean = name.trim().toUpperCase(java.util.Locale.ROOT);

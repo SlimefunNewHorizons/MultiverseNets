@@ -68,35 +68,66 @@ final class RegionFile {
         }
     }
 
+    /**
+     * Everything the file needs, frozen: positions, types and each record's encoded bytes (byte
+     * arrays are never modified after encoding). Taking it is the only part that must run on the
+     * main thread, because encoding reads live node objects; laying out the file and its checksum
+     * can then run on the I/O thread.
+     */
+    record Snapshot(int rx, int rz, long[] positions, String[] types, byte[][] data) {
+    }
+
+    /** Main thread: freezes the region, encoding changed nodes / Hilo principal: congela la región. */
+    static Snapshot snapshot(NodeRegion region) {
+        Map<Long, NodeRecord> nodes = region.nodes();
+        long[] positions = new long[nodes.size()];
+        String[] types = new String[nodes.size()];
+        byte[][] data = new byte[nodes.size()][];
+        int i = 0;
+        for (Map.Entry<Long, NodeRecord> entry : nodes.entrySet()) {
+            positions[i] = entry.getKey();
+            types[i] = entry.getValue().type;
+            data[i] = entry.getValue().data();
+            i++;
+        }
+        return new Snapshot(region.rx, region.rz, positions, types, data);
+    }
+
     /** Main thread: a snapshot of the region as bytes / Hilo principal: instantánea en bytes. */
     static byte[] serialize(NodeRegion region) {
+        return assemble(snapshot(region));
+    }
+
+    /** Any thread: the file bytes of a snapshot / Cualquier hilo: los bytes del archivo. */
+    static byte[] assemble(Snapshot snapshot) {
         Map<String, Integer> typeIndex = new HashMap<>();
         List<String> types = new ArrayList<>();
-        for (NodeRecord record : region.nodes().values()) {
-            if (record.type != null && !typeIndex.containsKey(record.type)) {
-                typeIndex.put(record.type, types.size());
-                types.add(record.type);
+        for (String type : snapshot.types()) {
+            if (type != null && !typeIndex.containsKey(type)) {
+                typeIndex.put(type, types.size());
+                types.add(type);
             }
         }
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream(64 + region.size() * 24);
+        int count = snapshot.positions().length;
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream(64 + count * 24);
         try (DataOutputStream out = new DataOutputStream(bytes)) {
             out.writeInt(MAGIC);
             out.writeInt(VERSION);
-            out.writeInt(region.rx);
-            out.writeInt(region.rz);
+            out.writeInt(snapshot.rx());
+            out.writeInt(snapshot.rz());
             out.writeInt(types.size());
             for (String type : types) {
                 out.writeUTF(type);
             }
-            out.writeInt(region.size());
-            for (Map.Entry<Long, NodeRecord> entry : region.nodes().entrySet()) {
-                long pos = entry.getKey();
-                NodeRecord record = entry.getValue();
+            out.writeInt(count);
+            for (int i = 0; i < count; i++) {
+                long pos = snapshot.positions()[i];
+                String type = snapshot.types()[i];
                 out.writeInt(PosUtil.unpackX(pos));
                 out.writeInt(PosUtil.unpackY(pos));
                 out.writeInt(PosUtil.unpackZ(pos));
-                out.writeInt(record.type == null ? -1 : typeIndex.get(record.type));
-                byte[] data = record.data();
+                out.writeInt(type == null ? -1 : typeIndex.get(type));
+                byte[] data = snapshot.data()[i];
                 if (data == null) {
                     out.writeInt(-1);
                 } else {
