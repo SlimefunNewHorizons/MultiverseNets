@@ -82,6 +82,8 @@ public class RequestTerminalMenu extends MenuHolder {
     private int page = 0;
     private boolean deliverToInventory = true;
     private final List<CraftableOption> options = new ArrayList<>();
+    /** Why the last {@link #executeSingleCraftStep} returned false / Motivo del último fallo. */
+    private String lastStepFailure = "";
 
     public RequestTerminalMenu(MultiverseNets plugin, Player player, Network network, Block block) {
         super(plugin, player);
@@ -606,8 +608,7 @@ public class RequestTerminalMenu extends MenuHolder {
         intermediateBuffer.clear();
 
         if (failedMidway && totalTargetCrafted <= 0) {
-            player.sendMessage(Text.msg("Crafting Job Failed: Materials exhausted during multi-step execution.", NamedTextColor.RED));
-            player.sendMessage(Text.msg(lastStepFailure, NamedTextColor.GRAY));
+            player.sendMessage(Text.msg("Crafting Job Failed: " + lastStepFailure, NamedTextColor.RED));
             player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
             return;
         }
@@ -619,12 +620,12 @@ public class RequestTerminalMenu extends MenuHolder {
                     + (deliverToInventory ? " (delivered to inventory)." : " (deposited in network)."), NamedTextColor.GREEN));
         } else {
             player.sendMessage(Text.msg("Crafting Job Partial: Ordered " + (requestedBatches * unitsPerCraft)
-                    + "x " + opt.name + ", crafted " + totalItemsCrafted + " (materials exhausted).", NamedTextColor.YELLOW));
+                    + "x " + opt.name + ", crafted " + totalItemsCrafted + ".", NamedTextColor.YELLOW));
+            if (failedMidway) {
+                player.sendMessage(Text.msg("Stopped: " + lastStepFailure, NamedTextColor.GRAY));
+            }
         }
     }
-
-    /** Why the last {@link #executeSingleCraftStep} returned false / Motivo del último fallo. */
-    private String lastStepFailure = "";
 
     private boolean executeSingleCraftStep(CraftableOption stepOpt, List<ItemStack> intermediateBuffer, List<ItemStack> outputSink) {
         List<IngredientNeed> needs = stepOpt.ingredients;
@@ -634,8 +635,8 @@ public class RequestTerminalMenu extends MenuHolder {
             long inBuf = countInBuffer(intermediateBuffer, need.sample());
             long inStore = network.storage().count(item -> StackUtils.itemsMatch(item, need.sample(), false));
             if (inBuf + inStore < need.amount()) {
-                lastStepFailure = stepOpt.name + ": missing " + need.amount() + "x " + describe(need.sample())
-                        + " (buffer " + inBuf + ", network " + inStore + ")";
+                lastStepFailure = "not enough " + Blueprints.readableName(need.sample()) + " for " + stepOpt.name
+                        + " (need " + need.amount() + ", have " + (inBuf + inStore) + ").";
                 return false;
             }
         }
@@ -653,8 +654,8 @@ public class RequestTerminalMenu extends MenuHolder {
                 }
             }
             if (remaining > 0) {
-                lastStepFailure = stepOpt.name + ": withdraw short on " + describe(need.sample())
-                        + " (needed " + need.amount() + ", missing " + remaining + ")";
+                lastStepFailure = "could not withdraw " + remaining + "x " + Blueprints.readableName(need.sample())
+                        + " for " + stepOpt.name + " from the network.";
                 // Rollback
                 for (ItemStack ext : extracted) {
                     addToBuffer(intermediateBuffer, ext);
@@ -694,7 +695,7 @@ public class RequestTerminalMenu extends MenuHolder {
         }
 
         if (result == null) {
-            lastStepFailure = stepOpt.name + ": recipe did not resolve to a result";
+            lastStepFailure = "the recipe for " + stepOpt.name + " no longer produces a result.";
             for (ItemStack ext : extracted) {
                 addToBuffer(intermediateBuffer, ext);
             }
@@ -703,14 +704,6 @@ public class RequestTerminalMenu extends MenuHolder {
 
         addToBuffer(outputSink, result);
         return true;
-    }
-
-    private static String describe(ItemStack item) {
-        if (item == null) {
-            return "?";
-        }
-        String id = SlimefunBridge.getId(item);
-        return id != null ? id : item.getType().name();
     }
 
     private long countInBuffer(List<ItemStack> buffer, ItemStack sample) {
