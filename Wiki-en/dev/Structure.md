@@ -54,12 +54,12 @@ MultiverseNets/
 - **`gui/`** – One menu per device (`TerminalMenu`, `FilterMenu`, `CellMenu`, `BarrelMenu`,
   `GreedyMenu`, `CrafterMenu`, `EncoderMenu`, `SfEncoderMenu`, `CraftingGridMenu`,
   `RequestTerminalMenu`, `QuotaLimiterMenu`, `FluidCellMenu`, `LiquidPumpMenu`, `MonitorMenu`,
-  `ControllerMenu`, `QuantumWorkbenchMenu`, `DramBayMenu`, `ChickenSorterMenu`, `GuideMenu`), the `MenuHolder` base, the `GuiListener` dupe guard and
+  `ControllerMenu`, `QuantumWorkbenchMenu`, `DramBayMenu`, `ModuleUnloaderMenu`, `ModuleLoaderMenu`, `CableCamouflageMenu`, `QuotaManagerMenu`, `ChickenSorterMenu`, `GuideMenu`), the `MenuHolder` base (and `ModuleHolderMenu` for the card menus), `TerminalPages` (a player's custom Terminal pages), the `GuiListener` dupe guard and
   `ChatPrompts`.
-- **`item/`** – `DeviceType` (enumeration of the 46 devices, modules and tools), `Items` (item
-  creation, lore, PDC helpers and the 46 recipes) and `GuideContent` (the guide text, EN/ES).
+- **`item/`** – `DeviceType` (enumeration of the 50 devices, modules and tools), `Items` (item
+  creation, lore, PDC helpers and the 66 recipes (16 of them coloured cables)) and `GuideContent` (the guide text, EN/ES).
 - **`net/`** – Network core: topology (`Network`), registry (`NetworkManager`), the heartbeat
-  (`NetworkTicker`), item and fluid storage, `MemoryModules` (DRAM Bay install/eject with the stock),
+  (`NetworkTicker`), item and fluid storage, `MemoryModules` (DRAM Bay install/eject with the stock), `ModuleIO` (DRAM Unloader/Loader cycles), `StatusLights` (Network Status Lights),
   the controller hologram and throughput tracking.
 - **`persist/`** – `NodeBlob` (serializable node state) and `NodeStore` (the facade the whole plugin
   uses, plus the controller registry). Behind it: `WorldNodes` (one world's regions), `NodeRegion`

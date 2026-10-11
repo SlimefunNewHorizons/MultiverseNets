@@ -41,6 +41,8 @@ public final class Keys {
     public static NamespacedKey RAKE_USES;
     /** EN: Marker identifying blueprints encoded with Slimefun recipes / ES: Marca de plano codificado con receta de Slimefun. */
     public static NamespacedKey SF_BLUEPRINT;
+    /** EN: Colour of a Network Cable item (DyeColor name) / ES: Color de un cable de red. */
+    public static NamespacedKey CABLE_COLOR;
 
     private Keys() {
     }
@@ -65,5 +67,6 @@ public final class Keys {
         CONFIG_ITEMS = new NamespacedKey(plugin, "config_items");
         RAKE_USES = new NamespacedKey(plugin, "rake_uses");
         SF_BLUEPRINT = new NamespacedKey(plugin, "sf_blueprint");
+        CABLE_COLOR = new NamespacedKey(plugin, "cable_color");
     }
 }

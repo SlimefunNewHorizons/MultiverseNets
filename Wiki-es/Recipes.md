@@ -49,8 +49,16 @@ G G G
 
 - **Resultado**: 16× Cable de Red (Vidrio)
 - **Función**: Conecta dispositivos. Todos los bloques de MultiverseNets conducen; los cables son la
-  forma barata de cubrir distancia. Clic derecho en un cable para ver si llega a un controlador y el
-  tamaño de la red.
+  forma barata de cubrir distancia. Clic derecho en un cable (mano vacía) para ver si llega a un
+  controlador y el tamaño de la red, y para abrir su menú.
+- **Colores**: 4 cables de cualquier color alrededor de un tinte (en cruz: arriba, izquierda, derecha
+  y abajo del tinte) dan 4 cables de ese color, en los 16 colores de tinte. Se ven como cristal tintado
+  y conectan exactamente igual que el cable normal, así que el color solo sirve para distinguir zonas;
+  al romperlo sale con su color y el camuflaje lo conserva.
+- **Camuflaje**: pon un bloque en el hueco del menú del cable y el cable tiene exactamente su aspecto
+  (una pared de cuarzo sigue siendo de cuarzo). El bloque se guarda dentro del cable, no se gasta:
+  recupéralo y el cable vuelve a ser de cristal; romper el cable suelta el cable y el bloque. Solo
+  bloques sólidos y completos que no caen, no cambian solos y no tienen inventario.
 
 ---
 
@@ -65,10 +73,17 @@ G E G
 > G = **Vidrio** · E = **Perla de ender** · B = **Faro**
 
 - **Resultado**: 1× Terminal de Red (Faro)
-- **Función**: La cuadrícula de almacenamiento. Muestra todos los ítems de la red y tiene una segunda
-  página para fluidos. Clic izquierdo saca 1, clic derecho un stack, shift+clic al inventario;
-  shift+clic izquierdo en tus ítems (o déjalos en la ranura de entrada) para guardarlos. Los cubos y
-  botellas de miel van al almacenamiento de fluidos. Botones de búsqueda, orden y páginas.
+- **Función**: La cuadrícula de almacenamiento. La fila superior tiene las vistas: **Almacenamiento de
+  red**, **Modo Purga** (ítems que destruyen los purgadores), **Fluidos** y **5 páginas
+  personalizadas**, más la ranura de entrada. La fila inferior tiene páginas, orden, búsqueda, resumen
+  de la red, **Modo Pin**, **Depositar inventario** y un libro de ayuda. Clic izquierdo saca 1, clic
+  derecho un stack, shift+clic al inventario; clic en la cuadrícula con un ítem en el cursor (o
+  shift+clic izquierdo en tus ítems, o dejarlos en la ranura de entrada) para guardarlos. Los cubos y
+  botellas de miel van al almacenamiento de fluidos.
+- **Páginas personalizadas (favoritos)**: pasa el ratón sobre un ítem y pulsa **1-5** para fijarlo o
+  quitarlo de la página 1-5 (o activa el Modo Pin y haz clic). Una página personalizada muestra solo lo
+  fijado, también sin stock; **Q** sobre un ítem ahí lo quita. Clic derecho en la pestaña para
+  renombrarla, shift+clic derecho para vaciarla. Se guardan por jugador y valen en cualquier Terminal.
 
 ---
 
@@ -136,6 +151,24 @@ A S A
 - **Función**: Clic derecho en cualquier bloque (sea nodo o no) para ver a qué red pertenece, cuántos
   nodos tiene, dónde está su controlador y cualquier aviso del escaneo — incluidos los enlaces
   cortados por protección de terrenos.
+
+---
+
+### Network Status Light (Luz de estado) · `mvn_status_light`
+
+```
+R G R
+L P D
+R C R
+```
+
+> R = **Redstone** · G = **Piedra luminosa** · L = **Tinte lima** · P = **Network Probe** ·
+> D = **Tinte rojo** · C = **Cable de red**
+
+- **Resultado**: 1× Network Status Light (Cristal tintado)
+- **Función**: Colócala encima de cualquier bloque de red. Se pone **verde** si ese bloque llega a un
+  Controlador y **roja** si no, así ves el estado de tu sistema desde lejos. Se comprueba una vez por
+  segundo, no forma parte de la red y nunca une dos redes.
 
 ---
 
@@ -234,6 +267,47 @@ D B D
   la vez, hasta `fluids.dram-capacity-mb` (512.000 mB = 512 cubos) en total, y lo suma al
   almacenamiento de fluidos de la red. Igual que los módulos de ítems, al sacarlo del bay se lleva sus
   fluidos a la red donde lo instales.
+
+---
+
+### DRAM Unloader (Descargador) · `mvn_module_unloader`
+
+```
+I H I
+R B R
+I C I
+```
+
+> I = **Lingote de hierro** · H = **Tolva** · R = **Redstone** · B = **DRAM Bay** · C = **Cable de red**
+
+- **Resultado**: 1× DRAM Unloader (Bombilla de cobre expuesto encerada)
+- **Función**: **Vacía tarjetas** (módulos de memoria) en la red. Admite hasta 9 tarjetas; en cada
+  ciclo de transferencia mueve hasta 4.096 ítems y 64.000 mB (`transfer.module-items-per-op`,
+  `transfer.module-fluid-per-op`). A diferencia del DRAM Bay, las tarjetas de dentro no son
+  almacenamiento de la red. Lo que la red no puede guardar se queda en la tarjeta y se prueba el
+  siguiente ítem, así la tarjeta queda lo más vacía posible. Necesita espacio libre en la red. Clic
+  derecho con una tarjeta en la mano o abre su menú; **Take empty cards** recoge todas las terminadas.
+
+---
+
+### DRAM Loader (Cargador) · `mvn_module_loader`
+
+```
+I D I
+K B K
+I R I
+```
+
+> I = **Lingote de hierro** · D = **Soltador** · K = **Comparador** · B = **DRAM Bay** ·
+> R = **Bloque de redstone**
+
+- **Resultado**: 1× DRAM Loader (Bombilla de cobre oxidado encerada)
+- **Función**: **Llena una tarjeta** con un único ítem (o un fluido, en un Fluid DRAM) sacado de la
+  red. Meter una tarjeta no hace nada: elige el objetivo (clic en el hueco de objetivo con el ítem, o
+  un cubo de fluido), fija la **cantidad** (botones ±64 / ±1k / ±10k, shift ×100, o haz clic y escribe
+  `1m`, `500k`, `max`) y pulsa **Start**. Se para solo cuando la tarjeta tiene esa cantidad o está
+  llena. Ejemplo: tarjeta Quantum vacía + adoquín + 500k + Start = una tarjeta lista para vender. Su
+  objetivo y cantidad viajan con el bloque al romperlo.
 
 ---
 
@@ -390,8 +464,11 @@ I O I
 - **Resultado**: 1× Simple Grabber (Observador)
 - **Función**: Importa de los contenedores vecinos a la red: hasta 128 ítems de un tipo por ciclo, por
   las seis caras. Filtro whitelist/blacklist; un filtro vacío lo importa todo. Si la red rechaza
-  parte, el sobrante va primero a los Pushers que lo acepten, luego vuelve al origen, y solo entonces
-  espera en el búfer de tránsito del grabber (se conserva aunque lo rompas).
+  parte, el sobrante va primero a los Pushers que lo acepten, luego vuelve a las ranuras de donde
+  salió y el grabber sigue con el **siguiente ítem**: un ítem que la red no admite nunca bloquea el
+  resto del cofre. Una Celda Cuántica o un Infinity Barrel que toque y no esté conectado a
+  la red se vacía igual. Solo si no puede volver espera en el búfer de tránsito del grabber (se conserva
+  aunque lo rompas).
 
 ---
 
@@ -491,6 +568,26 @@ R C R
   grabbers, vacuum, terminal, resultados de crafteo y el puente inalámbrico. En su menú: clic con un
   ítem para fijar el objetivo, botones ±1/10/64/1.000 o un número por chat para el límite, y un
   interruptor de activado/desactivado. Varios limitadores sobre el mismo ítem: gana el más bajo.
+
+---
+
+### Quota Manager (Gestor de cuotas) · `mvn_quota_manager`
+
+```
+R K R
+P M P
+R L R
+```
+
+> R = **Redstone** · K = **Comparador** · P = **Papel** · M = **Network Monitor** · L = **Network Quota Limiter**
+
+- **Resultado**: 1× Quota Manager (Luz de rana verde)
+- **Función**: Lista todos los Quota Limiters de su red: el ítem limitado, su límite, el stock de la
+  red con una barra de uso, si se aplica y cuántos limitadores quedan libres. Añade un ítem (botón Add
+  con el ítem en el cursor, un limitador libre o Shift+clic desde tu inventario): ocupa un Quota
+  Limiter libre y el ítem solo se copia. Sin un limitador libre no se añade nada. En un ítem limitado:
+  clic izquierdo escribe el límite, Shift+clic derecho lo activa/desactiva, clic derecho quita el ítem
+  y libera el limitador.
 
 ---
 

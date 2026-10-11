@@ -49,8 +49,16 @@ G G G
 
 - **Result**: 16× Network Cable (Glass)
 - **Function**: Connects devices. Every MultiverseNets block conducts, cables are just the cheap way
-  to cover distance. Right-click a cable to see whether it reaches a controller and how big the
-  network is.
+  to cover distance. Right-click a cable (empty hand) to see whether it reaches a controller and how
+  big the network is, and to open its menu.
+- **Colours**: 4 cables of any colour around a dye (a cross: cable on the top, left, right and bottom
+  of the dye) give 4 cables of that colour, in all 16 dye colours. They look like stained glass and
+  connect exactly like the plain cable, so colours only help to tell areas apart; a broken cable drops
+  with its colour and camouflage keeps it.
+- **Camouflage**: put a block in the cable menu's slot and the cable looks exactly like it (a quartz
+  wall stays a quartz wall). The block is kept inside the cable, not used up: take it back and the
+  cable is glass again; breaking the cable drops the cable and the block. Only solid, full blocks that
+  do not fall, change by themselves or have an inventory.
 
 ---
 
@@ -65,10 +73,16 @@ G E G
 > G = **Glass** · E = **Ender Pearl** · B = **Beacon**
 
 - **Result**: 1× Network Terminal (Beacon)
-- **Function**: The storage grid. Shows every item in the network and has a second page for fluids.
-  Left-click takes 1, right-click a stack, shift+click sends to your inventory; shift+left-click your
-  own items (or leave them in the input slot) to store them. Buckets and honey bottles go to fluid
-  storage. Search, sort and page buttons.
+- **Function**: The storage grid. The top row holds the views: **Network Storage**, **Purge Mode**
+  (items targeted by purgers), **Fluids** and **5 custom pages**, plus the input slot. The bottom row
+  holds pages, sort, search, a network overview, **Pin Mode**, **Deposit Inventory** and a help book.
+  Left-click takes 1, right-click a stack, shift+click sends to your inventory; click the grid with an
+  item on the cursor (or shift+left-click your own items, or leave them in the input slot) to store
+  them. Buckets and honey bottles go to fluid storage.
+- **Custom pages (favourites)**: hover an item and press **1-5** to pin or unpin it on page 1-5 (or
+  turn on Pin Mode and click). A custom page shows only its pinned items, also when out of stock;
+  **Q** over an item there unpins it. Right-click a page tab to rename it, shift+right-click to clear
+  it. Pages are saved per player and work on every Terminal.
 
 ---
 
@@ -135,6 +149,24 @@ A S A
 - **Result**: 1× Network Probe (hand item)
 - **Function**: Right-click any block (node or not) to see which network it belongs to, how many nodes
   it has, where its controller is, and any scan warning — including links cut by land protection.
+
+---
+
+### Network Status Light · `mvn_status_light`
+
+```
+R G R
+L P D
+R C R
+```
+
+> R = **Redstone** · G = **Glowstone** · L = **Lime Dye** · P = **Network Probe** · D = **Red Dye** ·
+> C = **Network Cable**
+
+- **Result**: 1× Network Status Light (Stained Glass)
+- **Function**: Place it on top of any network block. It turns **green** when that block reaches a
+  Controller and **red** when it does not, so you see the state of your build from afar. It checks once
+  a second, is not part of the network and never links two networks.
 
 ---
 
@@ -233,6 +265,46 @@ D B D
   `fluids.dram-capacity-mb` (512,000 mB = 512 buckets) in total, and adds that to the network's fluid
   storage. Like the item modules, taking it out of the bay carries its fluids to whichever network
   you install it in next.
+
+---
+
+### DRAM Unloader · `mvn_module_unloader`
+
+```
+I H I
+R B R
+I C I
+```
+
+> I = **Iron Ingot** · H = **Hopper** · R = **Redstone** · B = **DRAM Bay** · C = **Network Cable**
+
+- **Result**: 1× DRAM Unloader (Waxed Exposed Copper Bulb)
+- **Function**: **Empties cards** (memory modules) into the network. Holds up to 9 cards; every
+  transfer cycle it moves up to 4,096 items and 64,000 mB (`transfer.module-items-per-op`,
+  `transfer.module-fluid-per-op`). Unlike a DRAM Bay, the cards inside are not network storage. What the
+  network can not store stays on the card and the next item is tried, so the card ends up as empty as
+  possible. It needs free space in the network. Right-click it with a card in hand or open its menu;
+  **Take empty cards** collects every finished card.
+
+---
+
+### DRAM Loader · `mvn_module_loader`
+
+```
+I D I
+K B K
+I R I
+```
+
+> I = **Iron Ingot** · D = **Dropper** · K = **Comparator** · B = **DRAM Bay** · R = **Redstone Block**
+
+- **Result**: 1× DRAM Loader (Waxed Oxidized Copper Bulb)
+- **Function**: **Fills one card** with a single item (or a fluid, for a Fluid DRAM) taken from the
+  network. Inserting a card does nothing: choose the target (click the target slot with the item, or a
+  fluid bucket), set the **amount** (±64 / ±1k / ±10k buttons, shift ×100, or click it and type `1m`,
+  `500k`, `max`) and press **Start**. It stops by itself when the card holds that amount or is full.
+  Example: an empty Quantum card + cobblestone + 500k + Start = a card ready to sell. Its target and
+  amount travel with the block when you break it.
 
 ---
 
@@ -390,7 +462,10 @@ I O I
 - **Function**: Imports from adjacent containers into the network: up to 128 items of one type per
   cycle, from all six faces. Whitelist/blacklist filter; an empty filter imports everything. If the
   network refuses part of it, the overflow goes first to Pushers that accept it, then back to the
-  source, and only then waits in the grabber's transit buffer (kept even if you break it).
+  slots it came from, and the grabber moves on to the **next item**: one item the network does not
+  accept never blocks the rest of the chest. A Quantum Cell or Infinity Barrel it touches
+  that is not wired to the network is emptied the same way. Only if it can not go back does it wait in the grabber's
+  transit buffer (kept even if you break it).
 
 ---
 
@@ -491,6 +566,26 @@ R C R
   grabbers, vacuum, terminal, crafting results and the wireless bridge. In its menu: click with an
   item to set the target, ±1/10/64/1,000 buttons or a chat prompt for the limit, and an on/off toggle.
   Several limiters on the same item: the lowest wins.
+
+---
+
+### Quota Manager · `mvn_quota_manager`
+
+```
+R K R
+P M P
+R L R
+```
+
+> R = **Redstone** · K = **Comparator** · P = **Paper** · M = **Network Monitor** · L = **Network Quota Limiter**
+
+- **Result**: 1× Quota Manager (Verdant Froglight)
+- **Function**: Lists every Quota Limiter of its network: the limited item, its limit, the network's
+  stock with a usage bar, whether it is enforced, and how many limiters are free. Add an item (Add
+  button with the item on the cursor, a free limiter, or Shift-Click from your inventory): it takes
+  one free Quota Limiter and the item is only copied. Without a free limiter nothing is added. On a
+  limited item: left-click types the limit, Shift+right-click turns it on/off, right-click removes
+  the item and frees the limiter.
 
 ---
 

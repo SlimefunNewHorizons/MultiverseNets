@@ -165,4 +165,15 @@ public abstract class MenuHolder implements InventoryHolder {
     protected java.util.Set<Integer> vanillaSlots() {
         return java.util.Set.of();
     }
+
+    /**
+     * True to also receive number-key and drop (Q) clicks on the top inventory. They arrive
+     * already cancelled, so the menu can only read the key, never move items with it.
+     *
+     * True para recibir también los clics de tecla numérica y soltar (Q) en el inventario superior.
+     * Llegan ya cancelados: el menú solo lee la tecla, nunca mueve ítems con ella.
+     */
+    protected boolean acceptsKeyClicks() {
+        return false;
+    }
 }

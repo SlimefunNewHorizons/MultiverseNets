@@ -228,6 +228,27 @@ public class NetworkTicker {
         forEachWorked(net, DeviceType.MVN_TRANSMITTER, pos -> transmitOnce(net, pos, base));
         forEachWorked(net, DeviceType.MVN_LIQUID_PUMP, pos -> pumpTick(net, pos));
         forEachWorked(net, DeviceType.MVN_CHICKEN_SORTER, pos -> chickenSortOnce(net, pos));
+        forEachWorked(net, DeviceType.MVN_MODULE_UNLOADER, pos -> moduleIoOnce(net, pos, true));
+        forEachWorked(net, DeviceType.MVN_MODULE_LOADER, pos -> moduleIoOnce(net, pos, false));
+    }
+
+    /** One DRAM Unloader or DRAM Loader cycle / Un ciclo de DRAM Unloader o DRAM Loader. */
+    private void moduleIoOnce(Network net, long pos, boolean unload) {
+        NodeBlob blob = liveBlobOf(net, pos);
+        if (blob == null || blob.bayModules == null || blob.bayModules.isEmpty()) {
+            return;
+        }
+        if (!unload && !blob.loaderActive) {
+            return;
+        }
+        boolean wasActive = blob.loaderActive;
+        long moved = unload ? ModuleIO.unload(net, blob) : ModuleIO.load(net, blob);
+        if (moved > 0 || wasActive != blob.loaderActive) {
+            NodeStore.put(net.block(pos), blob);
+        }
+        if (moved > 0) {
+            net.throughput().recordFlow(pos, (int) Math.min(Integer.MAX_VALUE, moved));
+        }
     }
 
     /**
@@ -371,9 +392,12 @@ public class NetworkTicker {
             return;
         }
 
-        Predicate<ItemStack> pred = NetworkManager.filterPredicate(blob);
+        Predicate<ItemStack> filter = NetworkManager.filterPredicate(blob);
+        // Tipos que la red no admitio en este ciclo (sin espacio o cuota llena). Vuelven a su
+        // ranura y el Grabber prueba el siguiente item, en vez de quedarse atascado en el primero.
+        List<ItemStack> rejected = new ArrayList<>();
+        Predicate<ItemStack> pred = it -> filter.test(it) && !isRejected(rejected, it);
         Block self = net.block(pos);
-        boolean foundAny = false;
         for (BlockFace face : facesFor(blob)) {
             Block target = self.getRelative(face);
             Material mat = target.getType();
@@ -384,65 +408,123 @@ public class NetworkTicker {
                 continue;
             }
 
-            // 1. Slimefun machine compatibility FIRST (machines like Dispensers must not be hijacked by raw container logic)
-            if (Settings.compatSlimefun() && SlimefunBridge.isAvailable() && SlimefunBridge.isMachine(target)) {
-                ItemStack extracted = SlimefunBridge.extract(target, pred, rate);
-                if (extracted != null) {
-                    foundAny = true;
-                    backoffCycles.remove(pos);
-                    int moved = extracted.getAmount();
-                    int leftover = net.storage().deposit(extracted);
-                    if (leftover > 0) {
-                        extracted.setAmount(leftover);
-                        ItemStack unrouted = streamToPushers(net, extracted);
-                        if (unrouted != null && unrouted.getAmount() > 0) {
-                            // Al bufer de transito, nunca de vuelta a la maquina: insert() usa las
-                            // ranuras de ENTRADA y el producto se volvia a procesar.
-                            blob.setTransit(unrouted);
-                            NodeStore.put(self, blob);
-                            moved -= unrouted.getAmount();
-                        }
-                    }
+            // 0. Un dispositivo de MultiverseNets. Una celda o un Infinity Barrel que NO es de esta red
+            // (el Grabber no conduce hacia ellos, ver Network.scan) se vacia como un cofre. Cualquier
+            // otro dispositivo, o un almacen que ya es de la red, nunca es un contenedor del que sacar.
+            DeviceType targetType = NodeStore.getType(target);
+            if (targetType != null) {
+                if ((targetType.isCell() || targetType.isBarrel())
+                        && !net.contains(PosUtil.pack(target.getX(), target.getY(), target.getZ()))) {
+                    long moved = grabFromStorageNode(net, target, targetType, pred, rate);
                     if (moved > 0) {
-                        net.throughput().recordFlow(pos, moved);
+                        recordGrab(net, pos, (int) moved);
+                        return;
                     }
-                    return;
                 }
                 continue;
             }
 
-            // 2. Vanilla container fallback
-            if (isPotentialContainer(mat) && target.getState(false) instanceof InventoryHolder holder) {
-                Inventory inv = holder.getInventory();
-                ItemStack extracted = NetworkManager.extractMatching(inv, pred, rate);
-                if (extracted == null) {
-                    // Inventario vacio para este filtro: se mira la siguiente cara.
+            // 1. Slimefun machine compatibility FIRST (machines like Dispensers must not be hijacked by raw container logic)
+            boolean machine = Settings.compatSlimefun() && SlimefunBridge.isAvailable() && SlimefunBridge.isMachine(target);
+            Inventory inv = null;
+            if (!machine) {
+                // 2. Vanilla container fallback
+                if (!isPotentialContainer(mat) || !(target.getState(false) instanceof InventoryHolder holder)) {
                     continue;
                 }
-                foundAny = true;
-                backoffCycles.remove(pos);
+                inv = holder.getInventory();
+            }
+
+            while (true) {
+                ItemStack extracted = machine
+                        ? SlimefunBridge.extract(target, pred, rate)
+                        : NetworkManager.extractMatching(inv, pred, rate);
+                if (extracted == null) {
+                    // Nada mas que sacar con este filtro: se mira la siguiente cara.
+                    break;
+                }
                 int moved = extracted.getAmount();
                 int leftover = net.storage().deposit(extracted);
                 if (leftover > 0) {
                     extracted.setAmount(leftover);
                     ItemStack unrouted = streamToPushers(net, extracted);
                     if (unrouted != null && unrouted.getAmount() > 0) {
-                        // Igual que con Slimefun: al bufer, no al origen (en un horno acabaria en
-                        // la ranura de entrada).
-                        blob.setTransit(unrouted);
-                        NodeStore.put(self, blob);
                         moved -= unrouted.getAmount();
+                        // De vuelta a las ranuras de SALIDA de donde salio, nunca a las de entrada
+                        // (en una maquina o un horno el producto se volveria a procesar).
+                        int stuck = machine
+                                ? SlimefunBridge.returnToOutput(target, unrouted)
+                                : NetworkManager.returnToSlots(inv, unrouted);
+                        if (stuck > 0) {
+                            // No cupo de vuelta: al bufer de transito, nunca al suelo.
+                            blob.setTransit(StackUtils.getAsQuantity(unrouted, stuck));
+                            NodeStore.put(self, blob);
+                            recordGrab(net, pos, moved);
+                            return;
+                        }
+                        if (moved <= 0) {
+                            rejected.add(StackUtils.getAsQuantity(unrouted, 1));
+                            continue;
+                        }
                     }
                 }
-                if (moved > 0) {
-                    net.throughput().recordFlow(pos, moved);
-                }
+                recordGrab(net, pos, moved);
                 return;
             }
         }
-        if (!foundAny) {
-            backoffCycles.put(pos, Math.min(30, backoff + 1));
+        // Nada entro en la red (inventarios vacios o todo rechazado): se espacian los intentos.
+        backoffCycles.put(pos, Math.min(30, backoff + 1));
+    }
+
+    /**
+     * EN: Empties up to {@code rate} items of a Quantum Cell or Infinity Barrel that is not part of
+     * this network into it. What the network refuses stays in the storage. Returns the units moved.
+     * ES: Vacía en la red hasta {@code rate} ítems de una Celda Cuántica o un Infinity Barrel que no
+     * es de esta red. Lo que la red rechaza se queda en el almacén. Devuelve las unidades movidas.
+     */
+    private long grabFromStorageNode(Network net, Block target, DeviceType type, Predicate<ItemStack> pred, int rate) {
+        NodeBlob blob = NodeStore.get(target);
+        if (blob == null || blob.cellSample == null || blob.cellAmount <= 0 || !pred.test(blob.cellSample)) {
+            return 0;
         }
+        int take = (int) Math.min(rate, blob.cellAmount);
+        ItemStack stack = StackUtils.getAsQuantity(blob.cellSample, take);
+        int leftover = net.storage().deposit(stack);
+        long moved = take - Math.max(0, leftover);
+        if (moved <= 0) {
+            return 0;
+        }
+        blob.cellAmount -= moved;
+        if (blob.cellAmount <= 0) {
+            blob.cellAmount = 0;
+            // Igual que NetworkStorage.withdraw: la celda vacia se libera, el barril conserva su item.
+            if (!type.isBarrel()) {
+                blob.cellSample = null;
+            }
+        }
+        NodeStore.put(target, blob);
+        // Si el almacen es de otra red, su vista de stock deja de ser valida.
+        Network owner = plugin.networks().networkAt(target);
+        if (owner != null && owner != net) {
+            owner.storage().invalidate();
+        }
+        return moved;
+    }
+
+    private void recordGrab(Network net, long pos, int moved) {
+        if (moved > 0) {
+            backoffCycles.remove(pos);
+            net.throughput().recordFlow(pos, moved);
+        }
+    }
+
+    private static boolean isRejected(List<ItemStack> rejected, ItemStack item) {
+        for (ItemStack r : rejected) {
+            if (StackUtils.itemsMatch(r, item)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

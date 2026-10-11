@@ -160,14 +160,14 @@ class FluidAndRequesterTest {
         Network net = plugin.networks().networkByController(ctrl.getLocation());
         net.scan();
 
-        // Install blueprint in Request Crafter for Cable (8 Glass + 1 Redstone in center -> 16 Cable)
+        // Install blueprint in Request Crafter for Cable (8 Glass + 1 Network Circuit in center -> 16 Cable)
         net.storage().deposit(new ItemStack(Material.GLASS, 16));
-        net.storage().deposit(new ItemStack(Material.REDSTONE, 2));
+        net.storage().deposit(circuits(2));
 
         ItemStack[] inputs = new ItemStack[9];
         for (int i = 0; i < 9; i++) {
             if (i == 4) {
-                inputs[i] = new ItemStack(Material.REDSTONE);
+                inputs[i] = circuits(1);
             } else {
                 inputs[i] = new ItemStack(Material.GLASS);
             }
@@ -199,9 +199,9 @@ class FluidAndRequesterTest {
         );
         server.getPluginManager().callEvent(clickEvent);
 
-        // Assert 8 Glass and 1 Redstone consumed, and 16 Cable delivered to player
+        // Assert 8 Glass and 1 Network Circuit consumed, and 16 Cable delivered to player
         assertEquals(8, net.storage().count(i -> i.getType() == Material.GLASS));
-        assertEquals(1, net.storage().count(i -> i.getType() == Material.REDSTONE));
+        assertEquals(1, net.storage().count(i -> Items.typeOf(i) == DeviceType.MVN_NETWORK_CIRCUIT));
         assertTrue(player.getInventory().contains(DeviceType.MVN_CABLE.material()));
     }
 
@@ -219,12 +219,12 @@ class FluidAndRequesterTest {
         net.scan();
 
         net.storage().deposit(new ItemStack(Material.GLASS, 32));
-        net.storage().deposit(new ItemStack(Material.REDSTONE, 4));
+        net.storage().deposit(circuits(4));
 
         ItemStack[] inputs = new ItemStack[9];
         for (int i = 0; i < 9; i++) {
             if (i == 4) {
-                inputs[i] = new ItemStack(Material.REDSTONE);
+                inputs[i] = circuits(1);
             } else {
                 inputs[i] = new ItemStack(Material.GLASS);
             }
@@ -256,9 +256,9 @@ class FluidAndRequesterTest {
         // Player replies "16" items in chat
         com.chagui68.multiversenets.gui.ChatPrompts.submitInput(player, "16");
 
-        // Verifies 8 Glass and 1 Redstone consumed, 16 cables delivered
+        // Verifies 8 Glass and 1 Network Circuit consumed, 16 cables delivered
         assertEquals(24, net.storage().count(i -> i.getType() == Material.GLASS));
-        assertEquals(3, net.storage().count(i -> i.getType() == Material.REDSTONE));
+        assertEquals(3, net.storage().count(i -> Items.typeOf(i) == DeviceType.MVN_NETWORK_CIRCUIT));
         assertTrue(player.getInventory().contains(DeviceType.MVN_CABLE.material()));
     }
 
@@ -390,7 +390,7 @@ class FluidAndRequesterTest {
         InventoryClickEvent toggleFluids = new InventoryClickEvent(
                 player.getOpenInventory(),
                 org.bukkit.event.inventory.InventoryType.SlotType.CONTAINER,
-                35,
+                com.chagui68.multiversenets.gui.TerminalMenu.TAB_FLUIDS,
                 ClickType.LEFT,
                 InventoryAction.PICKUP_ALL
         );
@@ -401,7 +401,7 @@ class FluidAndRequesterTest {
         InventoryClickEvent clickFluidNoBucket = new InventoryClickEvent(
                 player.getOpenInventory(),
                 org.bukkit.event.inventory.InventoryType.SlotType.CONTAINER,
-                0,
+                com.chagui68.multiversenets.gui.TerminalMenu.GRID_START,
                 ClickType.LEFT,
                 InventoryAction.PICKUP_ALL
         );
@@ -413,7 +413,7 @@ class FluidAndRequesterTest {
         InventoryClickEvent clickFluidWithBucket = new InventoryClickEvent(
                 player.getOpenInventory(),
                 org.bukkit.event.inventory.InventoryType.SlotType.CONTAINER,
-                0,
+                com.chagui68.multiversenets.gui.TerminalMenu.GRID_START,
                 ClickType.LEFT,
                 InventoryAction.PICKUP_ALL
         );
@@ -438,13 +438,13 @@ class FluidAndRequesterTest {
 
         // Deposit crafting ingredients into network storage
         net.storage().deposit(new ItemStack(Material.GLASS, 16));
-        net.storage().deposit(new ItemStack(Material.REDSTONE, 2));
+        net.storage().deposit(circuits(2));
 
         // Create blueprint for Cable in the Request Crafter
         ItemStack[] inputs = new ItemStack[9];
         for (int i = 0; i < 9; i++) {
             if (i == 4) {
-                inputs[i] = new ItemStack(Material.REDSTONE);
+                inputs[i] = circuits(1);
             } else {
                 inputs[i] = new ItemStack(Material.GLASS);
             }
@@ -462,7 +462,7 @@ class FluidAndRequesterTest {
         // Run ticker method via reflection or directly (doCrafting only operates on MVN_CRAFTER)
         // Check network stock remains untouched
         assertEquals(16, net.storage().count(i -> i.getType() == Material.GLASS));
-        assertEquals(2, net.storage().count(i -> i.getType() == Material.REDSTONE));
+        assertEquals(2, net.storage().count(i -> Items.typeOf(i) == DeviceType.MVN_NETWORK_CIRCUIT));
 
         // 2. Open RequestTerminalMenu and verify the blueprint was discovered from the Request Crafter
         RequestTerminalMenu menu = new RequestTerminalMenu(plugin, player, net, reqTerm);
@@ -478,9 +478,9 @@ class FluidAndRequesterTest {
         );
         server.getPluginManager().callEvent(clickOrder);
 
-        // Assert 8 Glass and 1 Redstone consumed, 16 Cable delivered to player
+        // Assert 8 Glass and 1 Network Circuit consumed, 16 Cable delivered to player
         assertEquals(8, net.storage().count(i -> i.getType() == Material.GLASS));
-        assertEquals(1, net.storage().count(i -> i.getType() == Material.REDSTONE));
+        assertEquals(1, net.storage().count(i -> Items.typeOf(i) == DeviceType.MVN_NETWORK_CIRCUIT));
         assertTrue(player.getInventory().contains(DeviceType.MVN_CABLE.material()));
     }
 
@@ -671,5 +671,12 @@ class FluidAndRequesterTest {
         assertEquals(4, net.storage().count(item -> item.getType() == Material.RAW_GOLD));
         // Gold dust was crafted and deposited!
         assertEquals(1, net.storage().count(item -> "GOLD_DUST".equalsIgnoreCase(com.chagui68.multiversenets.compat.SlimefunBridge.getId(item))));
+    }
+
+    /** The cable recipe's centre ingredient / El ingrediente central de la receta del cable. */
+    private static ItemStack circuits(int amount) {
+        ItemStack circuit = Items.create(DeviceType.MVN_NETWORK_CIRCUIT);
+        circuit.setAmount(amount);
+        return circuit;
     }
 }

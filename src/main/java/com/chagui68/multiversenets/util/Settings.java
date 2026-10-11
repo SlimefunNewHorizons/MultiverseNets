@@ -138,6 +138,22 @@ public final class Settings {
     }
 
     /**
+     * EN: Items a DRAM Loader or Unloader moves per transfer cycle.
+     * ES: Ítems que mueve un DRAM Loader o Unloader por ciclo de transferencia.
+     */
+    public static int moduleItemsPerOp() {
+        return cfg != null ? Math.max(1, cfg.getInt("transfer.module-items-per-op", 4096)) : 4096;
+    }
+
+    /**
+     * EN: Fluid (mB) a DRAM Loader or Unloader moves per transfer cycle.
+     * ES: Fluido (mB) que mueve un DRAM Loader o Unloader por ciclo de transferencia.
+     */
+    public static long moduleFluidPerOp() {
+        return cfg != null ? Math.max(1000L, cfg.getLong("transfer.module-fluid-per-op", 64000L)) : 64000L;
+    }
+
+    /**
      * EN: Buffer capacity of a Greedy Cell.
      *
      * ES: Capacidad de almacenamiento de una Greedy Cell.

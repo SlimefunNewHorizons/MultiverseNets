@@ -271,6 +271,23 @@ public class DeviceInteractions {
                 new com.chagui68.multiversenets.gui.DramBayMenu(plugin, player, block).openMenu();
                 return true;
             }
+            case MVN_QUOTA_MANAGER -> {
+                Network net = manager.networkAt(block);
+                if (net == null) {
+                    player.sendMessage(Text.msg("This Quota Manager is not connected to a network.", NamedTextColor.RED));
+                    return true;
+                }
+                new com.chagui68.multiversenets.gui.QuotaManagerMenu(plugin, player, net).openMenu();
+                return true;
+            }
+            case MVN_MODULE_UNLOADER -> {
+                new com.chagui68.multiversenets.gui.ModuleUnloaderMenu(plugin, player, block).openMenu();
+                return true;
+            }
+            case MVN_MODULE_LOADER -> {
+                new com.chagui68.multiversenets.gui.ModuleLoaderMenu(plugin, player, block).openMenu();
+                return true;
+            }
             case MVN_CHICKEN_SORTER -> {
                 new com.chagui68.multiversenets.gui.ChickenSorterMenu(plugin, player, block).openMenu();
                 return true;
@@ -404,9 +421,10 @@ public class DeviceInteractions {
      * mano: instala un módulo con el stock que lleve.
      */
     public void installMemoryModule(Player player, Block block, NodeBlob blob, ItemStack held) {
-        if (blob == null || !com.chagui68.multiversenets.net.MemoryModules.install(blob, held)) {
+        if (blob == null || !com.chagui68.multiversenets.net.ModuleIO.install(blob, held)) {
             return;
         }
+        DeviceType holder = DeviceType.parse(blob.typeName);
         NodeStore.put(block, blob);
         DeviceType type = Items.typeOf(held);
         ItemStack hand = player.getInventory().getItemInMainHand();
@@ -417,8 +435,8 @@ public class DeviceInteractions {
             player.getInventory().setItemInMainHand(null);
         }
         player.playSound(block.getLocation(), org.bukkit.Sound.BLOCK_BEACON_POWER_SELECT, 1.0f, 1.2f);
-        player.sendMessage(Text.msg("Installed " + (type == null ? "module" : type.display()) + " in the DRAM Bay.",
-                NamedTextColor.GREEN));
+        player.sendMessage(Text.msg("Installed " + (type == null ? "module" : type.display()) + " in the "
+                + (holder == null ? "DRAM Bay" : holder.display()) + ".", NamedTextColor.GREEN));
         Network net = manager.networkAt(block);
         if (net != null) {
             net.storage().invalidate();

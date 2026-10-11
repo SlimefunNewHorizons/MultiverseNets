@@ -150,6 +150,30 @@ class GrabberQuotaTest {
     }
 
     @Test
+    void rejectedItemGoesBackSoTheNextOneCanBeGrabbed() {
+        chest.setItem(0, stack(Material.COBBLESTONE, 64));
+        chest.setItem(3, stack(Material.COBBLESTONE, 10));
+        chest.setItem(1, stack(Material.IRON_INGOT, 32));
+
+        ItemStack refused = NetworkManager.extractMatching(chest, item -> true, 128);
+        assertNotNull(refused);
+        assertEquals(74, refused.getAmount());
+
+        assertEquals(0, NetworkManager.returnToSlots(chest, refused), "everything taken must fit back");
+        int back = 0;
+        for (ItemStack it : chest.getContents()) {
+            if (it != null && it.getType() == Material.COBBLESTONE) back += it.getAmount();
+        }
+        assertEquals(74, back, "no cobblestone may be lost on the way back");
+
+        ItemStack next = NetworkManager.extractMatching(chest,
+                item -> !StackUtils.itemsMatch(StackUtils.getAsQuantity(refused, 1), item), 128);
+        assertNotNull(next, "skipping the refused item must reach the next one");
+        assertEquals(Material.IRON_INGOT, next.getType());
+        assertEquals(32, next.getAmount());
+    }
+
+    @Test
     void returnsNullOnEmptyInventoryOrZeroQuota() {
         assertNull(NetworkManager.extractMatching(chest, item -> true, 128));
         assertNull(NetworkManager.extractMatching(null, item -> true, 128));

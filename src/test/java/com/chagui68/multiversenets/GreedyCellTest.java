@@ -256,39 +256,37 @@ class GreedyCellTest {
         TerminalMenu menu = new TerminalMenu(plugin, player, net);
         menu.openMenu();
 
-        // Slot 17 is PURGER_TOGGLE_SLOT
-        ItemStack slot17 = player.getOpenInventory().getTopInventory().getItem(17);
-        assertNotNull(slot17);
-        assertEquals(Material.MAGMA_BLOCK, slot17.getType(), "Normal view should show MAGMA_BLOCK toggle");
+        ItemStack purgeTab = player.getOpenInventory().getTopInventory().getItem(TerminalMenu.TAB_PURGE);
+        assertNotNull(purgeTab);
+        assertEquals(Material.LAVA_BUCKET, purgeTab.getType(), "the Purge Mode tab");
+        assertEquals(TerminalMenu.View.NORMAL, menu.view());
 
-        // Click slot 17 to switch to Purger Mode
+        // Purge tab switches to Purge Mode: only the purged item is listed
         InventoryClickEvent toggleClick = new InventoryClickEvent(
                 player.getOpenInventory(),
                 InventoryType.SlotType.CONTAINER,
-                17,
+                TerminalMenu.TAB_PURGE,
                 ClickType.LEFT,
                 InventoryAction.PICKUP_ALL
         );
         server.getPluginManager().callEvent(toggleClick);
         server.getScheduler().performOneTick();
+        assertEquals(TerminalMenu.View.PURGE, menu.view());
+        ItemStack first = player.getOpenInventory().getTopInventory().getItem(TerminalMenu.GRID_START);
+        assertNotNull(first);
+        assertEquals(Material.ROTTEN_FLESH, first.getType(), "Purge Mode lists the purged item");
 
-        ItemStack slot17PurgerMode = player.getOpenInventory().getTopInventory().getItem(17);
-        assertNotNull(slot17PurgerMode);
-        assertEquals(Material.LAVA_BUCKET, slot17PurgerMode.getType(), "Purger view should show LAVA_BUCKET toggle");
-
-        // Click again to return to Normal Mode
+        // Normal tab returns to Normal Storage
         InventoryClickEvent toggleClick2 = new InventoryClickEvent(
                 player.getOpenInventory(),
                 InventoryType.SlotType.CONTAINER,
-                17,
+                TerminalMenu.TAB_NORMAL,
                 ClickType.LEFT,
                 InventoryAction.PICKUP_ALL
         );
         server.getPluginManager().callEvent(toggleClick2);
         server.getScheduler().performOneTick();
-        ItemStack slot17NormalAgain = player.getOpenInventory().getTopInventory().getItem(17);
-        assertNotNull(slot17NormalAgain);
-        assertEquals(Material.MAGMA_BLOCK, slot17NormalAgain.getType());
+        assertEquals(TerminalMenu.View.NORMAL, menu.view());
     }
 
     @Test

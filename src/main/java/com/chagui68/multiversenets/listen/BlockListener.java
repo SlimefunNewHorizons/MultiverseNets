@@ -98,7 +98,22 @@ public class BlockListener implements Listener {
             event.getPlayer().sendMessage(Text.msg("Network devices cannot be used in this world.", NamedTextColor.RED));
             return;
         }
-        NodeStore.put(event.getBlockPlaced(), NodeBlob.create(type.name()));
+        NodeBlob placed = NodeBlob.create(type.name());
+        if (type == DeviceType.MVN_CABLE) {
+            // El color del cable es solo aspecto, pero tiene que volver con el item al romperlo.
+            org.bukkit.DyeColor color = Items.cableColor(event.getItemInHand());
+            placed.cableColor = color == null ? null : color.name();
+        }
+        NodeStore.put(event.getBlockPlaced(), placed);
+
+        if (type == DeviceType.MVN_STATUS_LIGHT) {
+            // No forma parte de la red: no hace falta reescanear nada.
+            plugin.statusLights().add(event.getBlockPlaced());
+            if (!NodeStore.hasNode(event.getBlockPlaced().getRelative(org.bukkit.block.BlockFace.DOWN))) {
+                event.getPlayer().sendMessage(Text.msg("Place the Status Light on top of a network block.", NamedTextColor.YELLOW));
+            }
+            return;
+        }
 
         restoreCargo(event);
 
@@ -152,7 +167,7 @@ public class BlockListener implements Listener {
         }
         // Los modulos de un DRAM Bay (hasta 16) salen como items con todo su stock, tambien en
         // creativo: el stock es del jugador, no del bloque.
-        if (type == DeviceType.MVN_DRAM_BAY) {
+        if (type.holdsModules()) {
             for (ItemStack module : com.chagui68.multiversenets.net.MemoryModules.ejectAll(blob)) {
                 block.getWorld().dropItemNaturally(block.getLocation().add(0.5, 0.5, 0.5), module);
             }
@@ -167,6 +182,11 @@ public class BlockListener implements Listener {
             }
             blob.recoveredModules = new ArrayList<>();
         }
+        // El bloque de camuflaje de un cable es del jugador: sale siempre, tambien en creativo.
+        if (blob.camouflage != null && !blob.camouflage.getType().isAir()) {
+            block.getWorld().dropItemNaturally(block.getLocation().add(0.5, 0.5, 0.5), blob.camouflage);
+            blob.camouflage = null;
+        }
         if (blob.encoderBlank != null && !blob.encoderBlank.getType().isAir()) {
             block.getWorld().dropItemNaturally(block.getLocation().add(0.5, 0.5, 0.5), blob.encoderBlank);
             blob.encoderBlank = null;
@@ -180,7 +200,9 @@ public class BlockListener implements Listener {
         }
 
         NodeStore.remove(block);
-        if (type == DeviceType.MVN_CONTROLLER) {
+        if (type == DeviceType.MVN_STATUS_LIGHT) {
+            plugin.statusLights().remove(block);
+        } else if (type == DeviceType.MVN_CONTROLLER) {
             long pos = PosUtil.pack(block.getX(), block.getY(), block.getZ());
             com.chagui68.multiversenets.net.NetworkHologramManager.removeHologram(block.getWorld(), pos);
             manager.removeController(block);
@@ -195,8 +217,11 @@ public class BlockListener implements Listener {
      * Construye el ItemStack soltado al romper un nodo de red, preservando su estado interno en PDC.
      */
     private ItemStack createDropItem(DeviceType type, NodeBlob blob) {
+        if (type == DeviceType.MVN_CABLE) {
+            return Items.cable(Items.parseColor(blob.cableColor));
+        }
         ItemStack item = Items.create(type);
-        if (type == DeviceType.MVN_CABLE || isEmptyState(blob)) {
+        if (isEmptyState(blob)) {
             return item;
         }
         var meta = item.getItemMeta();
@@ -281,7 +306,10 @@ public class BlockListener implements Listener {
                 && blob.chickenKnown == null
                 && blob.chickenAge == null
                 && blob.chickenMinStrength <= 0
-                && !blob.chickenPureOnly;
+                && !blob.chickenPureOnly
+                && blob.loaderTarget == null
+                && blob.loaderFluid == null
+                && blob.loaderAmount <= 0;
     }
 
     /**
@@ -339,6 +367,11 @@ public class BlockListener implements Listener {
         actual.chickenAge = loaded.chickenAge;
         actual.chickenMinStrength = loaded.chickenMinStrength;
         actual.chickenPureOnly = loaded.chickenPureOnly;
+        // La configuracion del DRAM Loader viaja con el bloque, pero vuelve parado.
+        actual.loaderTarget = loaded.loaderTarget;
+        actual.loaderFluid = loaded.loaderFluid;
+        actual.loaderAmount = loaded.loaderAmount;
+        actual.loaderActive = false;
         if (loaded.txWorld != null) {
             actual.txWorld = loaded.txWorld;
             actual.txX = loaded.txX;
@@ -459,6 +492,9 @@ public class BlockListener implements Listener {
             } else {
                 player.sendActionBar(Component.text("✔ MultiverseNets: Connected (" + net.size() + " nodes)", NamedTextColor.GREEN));
             }
+            // El menu del cable: estado y camuflaje.
+            event.setCancelled(true);
+            new com.chagui68.multiversenets.gui.CableCamouflageMenu(plugin, player, block).openMenu();
             return;
         }
 
@@ -468,8 +504,8 @@ public class BlockListener implements Listener {
             return;
         }
 
-        if (type == DeviceType.MVN_DRAM_BAY && heldType != null && heldType.isMemoryModule()
-                && com.chagui68.multiversenets.net.MemoryModules.freeSlots(blob) > 0) {
+        if (type.holdsModules() && heldType != null && heldType.isMemoryModule()
+                && com.chagui68.multiversenets.net.ModuleIO.freeSlots(blob) > 0) {
             event.setCancelled(true);
             interactions.installMemoryModule(player, block, blob, held);
             return;
@@ -526,8 +562,13 @@ public class BlockListener implements Listener {
         }
         // El rastrillo desmonta y RECUPERA el nodo, como en Networks: antes ponia el bloque en aire
         // y el dispositivo (con su filtro o sus planos) se perdia sin dejar nada.
-        List<ItemStack> modules = type == DeviceType.MVN_DRAM_BAY
-                ? com.chagui68.multiversenets.net.MemoryModules.ejectAll(blob) : List.of();
+        List<ItemStack> modules = new ArrayList<>(type.holdsModules()
+                ? com.chagui68.multiversenets.net.MemoryModules.ejectAll(blob) : List.of());
+        if (blob.camouflage != null && !blob.camouflage.getType().isAir()) {
+            // El camuflaje de un cable vuelve al jugador junto con el cable.
+            modules.add(blob.camouflage);
+            blob.camouflage = null;
+        }
         ItemStack recovered = createDropItem(type, blob);
         if (type.isCell() && Settings.compatSlimefun() && SlimefunBridge.isAvailable()) {
             SlimefunBridge.unregisterCell(block);

@@ -156,6 +156,22 @@ public class NodeBlob implements Serializable {
     public int chickenMinStrength;
     /** EN: Chicken Sorter: only chickens without mixed (Aa) genes / ES: solo pollos sin genes mixtos (Aa). */
     public boolean chickenPureOnly;
+    /** EN: DRAM Loader: item to load into the module / ES: DRAM Loader: ítem a cargar en el módulo. */
+    public ItemStack loaderTarget;
+    /** EN: DRAM Loader: fluid to load into a Fluid DRAM / ES: DRAM Loader: fluido a cargar en un Fluid DRAM. */
+    public String loaderFluid;
+    /** EN: DRAM Loader: amount the module must end up holding, 0 = fill it / ES: cantidad final, 0 = llenarlo. */
+    public long loaderAmount;
+    /** EN: DRAM Loader: loading / ES: DRAM Loader: cargando. */
+    public boolean loaderActive;
+    /**
+     * EN: Network Cable: the block (1 unit) it is camouflaged as, held here until taken back or the
+     * cable is broken. ES: Cable de red: el bloque (1 unidad) cuyo aspecto tiene, guardado aquí hasta
+     * que se recupera o se rompe el cable.
+     */
+    public ItemStack camouflage;
+    /** EN: Network Cable: its colour (DyeColor name), null = plain glass / ES: color del cable, null = cristal. */
+    public String cableColor;
 
     public long totalDramFluid() {
         long total = 0;

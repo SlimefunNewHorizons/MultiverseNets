@@ -54,13 +54,13 @@ MultiverseNets/
 - **`gui/`** – Un menú por dispositivo (`TerminalMenu`, `FilterMenu`, `CellMenu`, `BarrelMenu`,
   `GreedyMenu`, `CrafterMenu`, `EncoderMenu`, `SfEncoderMenu`, `CraftingGridMenu`,
   `RequestTerminalMenu`, `QuotaLimiterMenu`, `FluidCellMenu`, `LiquidPumpMenu`, `MonitorMenu`,
-  `ControllerMenu`, `QuantumWorkbenchMenu`, `DramBayMenu`, `ChickenSorterMenu`, `GuideMenu`), la base `MenuHolder`, la protección anti-dupe
+  `ControllerMenu`, `QuantumWorkbenchMenu`, `DramBayMenu`, `ModuleUnloaderMenu`, `ModuleLoaderMenu`, `CableCamouflageMenu`, `QuotaManagerMenu`, `ChickenSorterMenu`, `GuideMenu`), la base `MenuHolder` (y `ModuleHolderMenu` para los menús de tarjetas), `TerminalPages` (las páginas personalizadas de un jugador), la protección anti-dupe
   `GuiListener` y `ChatPrompts`.
-- **`item/`** – `DeviceType` (enumeración de los 46 dispositivos, módulos y herramientas), `Items`
-  (creación de ítems, lore, ayudantes de PDC y las 46 recetas) y `GuideContent` (el texto de la guía, EN/ES).
+- **`item/`** – `DeviceType` (enumeración de los 50 dispositivos, módulos y herramientas), `Items`
+  (creación de ítems, lore, ayudantes de PDC y las 66 recetas (16 de ellas cables de color)) y `GuideContent` (el texto de la guía, EN/ES).
 - **`net/`** – Núcleo de red: topología (`Network`), registro (`NetworkManager`), el latido
   (`NetworkTicker`), almacenamiento de ítems y fluidos, `MemoryModules` (instalar/expulsar módulos del
-  DRAM Bay con su stock), holograma del controlador y medición de flujo.
+  DRAM Bay con su stock), `ModuleIO` (ciclos del DRAM Unloader/Loader), `StatusLights` (luces de estado), holograma del controlador y medición de flujo.
 - **`persist/`** – `NodeBlob` (estado serializable de un nodo) y `NodeStore` (la fachada que usa todo
   el plugin, más el registro de controladores). Detrás: `WorldNodes` (las regiones de un mundo),
   `NodeRegion` (una región de 32×32 chunks en memoria, con contadores por chunk), `NodeRecord` (un

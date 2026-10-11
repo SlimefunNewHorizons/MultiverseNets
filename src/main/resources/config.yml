@@ -119,6 +119,14 @@ transfer:
   # [ES] Multiplicador de velocidad para Grabbers y Pushers de alto rendimiento (HT).
   ht-multiplier: 8
 
+  # [EN] Items a DRAM Loader or DRAM Unloader moves per transfer cycle, in total.
+  # [ES] Ítems que mueve un DRAM Loader o DRAM Unloader por ciclo de transferencia, en total.
+  module-items-per-op: 4096
+
+  # [EN] Fluid (mB) a DRAM Loader or DRAM Unloader moves per transfer cycle (64,000 = 64 buckets).
+  # [ES] Fluido (mB) que mueve un DRAM Loader o DRAM Unloader por ciclo de transferencia.
+  module-fluid-per-op: 64000
+
 # -------------------------------------------------------------------------------------
 #  Machine Settings / Configuración de Dispositivos y Máquinas
 # -------------------------------------------------------------------------------------

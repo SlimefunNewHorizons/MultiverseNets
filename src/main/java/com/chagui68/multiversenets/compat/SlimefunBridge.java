@@ -369,6 +369,46 @@ public final class SlimefunBridge {
     }
 
     /**
+     * EN: Puts back into the machine's output slots what {@link #extract} took and the network did
+     * not accept. Tops up slots holding the same item first, then empty ones, one stack per slot.
+     *
+     * ES: Devuelve a los huecos de salida de la máquina lo que {@link #extract} sacó y la red no
+     * aceptó. Primero rellena los huecos con el mismo ítem y luego los vacíos, un stack por hueco.
+     *
+     * @return units that did not fit / unidades que no cupieron
+     */
+    public static int returnToOutput(Block block, ItemStack stack) {
+        if (stack == null || stack.getAmount() <= 0) return 0;
+        Object menu = menuOf(block);
+        if (menu == null) return stack.getAmount();
+        int remaining = stack.getAmount();
+        int max = stack.getMaxStackSize();
+        try {
+            int[] slots = getTransportSlots(menu, flowWithdraw, null);
+            for (int pass = 0; pass < 2 && remaining > 0; pass++) {
+                for (int slot : slots) {
+                    if (remaining <= 0) break;
+                    Object raw = mGetItemInSlot.invoke(menu, slot);
+                    ItemStack current = raw instanceof ItemStack item && !item.getType().isAir() ? item : null;
+                    // Pasada 0: huecos con el mismo item. Pasada 1: huecos vacios.
+                    if (pass == 0 ? current == null || !StackUtils.itemsMatch(current, stack) : current != null) {
+                        continue;
+                    }
+                    int have = current == null ? 0 : current.getAmount();
+                    int put = Math.min(max - have, remaining);
+                    if (put <= 0) continue;
+                    ItemStack placed = StackUtils.getAsQuantity(stack, have + put);
+                    mReplaceExistingItem.invoke(menu, slot, placed);
+                    remaining -= put;
+                }
+            }
+        } catch (ReflectiveOperationException | RuntimeException error) {
+            logError(block, error);
+        }
+        return remaining;
+    }
+
+    /**
      * EN: Inserts an ItemStack into the machine's valid input slots.
  *
      * ES: Inserta un ItemStack en los huecos de entrada declarados por la máquina.

@@ -105,7 +105,26 @@ public enum DeviceType {
     /** Fluid-only memory module for the DRAM Bay / Modulo de memoria exclusivo para fluidos */
     MVN_FLUID_DRAM(Material.HEART_OF_THE_SEA, "Fluid DRAM Module", false, -1),
     /** Sorts GeneticChickengineering pocket chickens by their genes / Clasifica pollos de GeneticChickengineering por genes */
-    MVN_CHICKEN_SORTER(Material.HAY_BLOCK, "Genetic Chicken Sorter", true, -1);
+    MVN_CHICKEN_SORTER(Material.HAY_BLOCK, "Genetic Chicken Sorter", true, -1),
+    /** Light placed on a network block: green when it reaches a controller, red when not / Luz de estado: verde conectado, roja sin conexión */
+    MVN_STATUS_LIGHT(Material.LIME_STAINED_GLASS, "Network Status Light", true, -1),
+    /** Empties memory modules into the network / Vacía módulos de memoria en la red */
+    MVN_MODULE_UNLOADER(Material.WAXED_EXPOSED_COPPER_BULB, "DRAM Unloader", true, -1),
+    /** Fills one memory module with a chosen item or fluid from the network / Llena un módulo con un ítem o fluido elegido */
+    MVN_MODULE_LOADER(Material.WAXED_OXIDIZED_COPPER_BULB, "DRAM Loader", true, -1),
+    /** Lists and edits every Quota Limiter of its network / Lista y edita los Quota Limiters de su red */
+    MVN_QUOTA_MANAGER(Material.VERDANT_FROGLIGHT, "Quota Manager", true, -1),
+
+    /*
+     * Crafting components: only ingredients of MultiverseNets recipes, so the device recipes never
+     * collide with vanilla ones. Componentes de crafteo: solo ingredientes de las recetas del plugin.
+     */
+    MVN_SILICON_WAFER(Material.PRISMARINE_CRYSTALS, "Silicon Wafer", false, -1),
+    MVN_NETWORK_CIRCUIT(Material.PRISMARINE_SHARD, "Network Circuit", false, -1),
+    MVN_LOGIC_PROCESSOR(Material.SHULKER_SHELL, "Logic Processor", false, -1),
+    MVN_STORAGE_MATRIX(Material.DISC_FRAGMENT_5, "Storage Matrix", false, -1),
+    MVN_TRANSFER_COIL(Material.TRIPWIRE_HOOK, "Transfer Coil", false, -1),
+    MVN_QUANTUM_CORE(Material.ECHO_SHARD, "Quantum Core", false, -1);
 
     private final Material material;
     private final String display;
@@ -255,6 +274,22 @@ public enum DeviceType {
      */
     public boolean isMemoryModule() {
         return isCacheModule() || this == MVN_FLUID_DRAM;
+    }
+
+    /**
+     * @return true if the block holds memory modules (DRAM Bay, Loader, Unloader) /
+     *         true si el bloque guarda módulos de memoria
+     */
+    public boolean isComponent() {
+        return switch (this) {
+            case MVN_SILICON_WAFER, MVN_NETWORK_CIRCUIT, MVN_LOGIC_PROCESSOR, MVN_STORAGE_MATRIX,
+                 MVN_TRANSFER_COIL, MVN_QUANTUM_CORE -> true;
+            default -> false;
+        };
+    }
+
+    public boolean holdsModules() {
+        return this == MVN_DRAM_BAY || this == MVN_MODULE_UNLOADER || this == MVN_MODULE_LOADER;
     }
 
     /**

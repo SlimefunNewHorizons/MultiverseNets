@@ -204,10 +204,10 @@ class DramBayTest {
 
         player.getInventory().clear();
         new com.chagui68.multiversenets.gui.TerminalMenu(plugin, player, net).openMenu();
-        ItemStack shown = player.getOpenInventory().getTopInventory().getItem(0);
+        ItemStack shown = player.getOpenInventory().getTopInventory().getItem(com.chagui68.multiversenets.gui.TerminalMenu.GRID_START);
         assertEquals(DeviceType.MVN_CACHE_L3, Items.typeOf(shown), "the Terminal shows it first, apart from the stock");
         server.getPluginManager().callEvent(new InventoryClickEvent(player.getOpenInventory(),
-                InventoryType.SlotType.CONTAINER, 0, ClickType.LEFT, InventoryAction.PICKUP_ALL));
+                InventoryType.SlotType.CONTAINER, com.chagui68.multiversenets.gui.TerminalMenu.GRID_START, ClickType.LEFT, InventoryAction.PICKUP_ALL));
 
         ItemStack taken = player.getOpenInventory().getCursor();
         assertEquals(DeviceType.MVN_CACHE_L3, Items.typeOf(taken), "clicking it hands the module over");
@@ -222,7 +222,7 @@ class DramBayTest {
 
     private java.util.List<String> terminalLore(Network net) {
         new com.chagui68.multiversenets.gui.TerminalMenu(plugin, player, net).openMenu();
-        ItemStack icon = player.getOpenInventory().getTopInventory().getItem(0);
+        ItemStack icon = player.getOpenInventory().getTopInventory().getItem(com.chagui68.multiversenets.gui.TerminalMenu.GRID_START);
         assertNotNull(icon);
         java.util.List<String> lines = new java.util.ArrayList<>();
         for (Component line : icon.getItemMeta().lore()) {

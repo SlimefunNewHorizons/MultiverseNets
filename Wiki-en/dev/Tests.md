@@ -56,31 +56,36 @@ Things to know:
 - `src/test/java/dev/espi/protectionstones/PSRegion.java` is a stub of the ProtectionStones API that
   the provider tests load by reflection.
 
-## 3. Overview: 39 classes, 292 tests
+## 3. Overview: 51 classes, 351 tests
 
 | Class (package `com.chagui68.multiversenets` unless stated) | Tests | Covers |
 | --- | --- | --- |
 | `BlockFlowsTest` | 24 | Break/place with embedded state, pistons, explosions, wireless binding, rake, wrench, sneaking guard, dimensions, bridge linking from the Transmitter item, cable status. |
 | `BlueprintDupeTest` | 3 | Encoder Blueprints are never duplicated (two viewers, breaking with the menu open); installing a Blueprint consumes it and *Clear All* returns it. |
+| `CableCamouflageTest` | 5 | Right-clicking a cable opens its menu; a block in the camouflage slot is kept (one unit), the cable looks like it and still connects, taking it back restores glass; shift-click swaps and returns the old block; unstable, interactive or non-full blocks and devices are refused; breaking drops the cable and the block. |
 | `CellGuiTest` | 9 | Quantum Cell menu: template, quick deposit, withdrawal, capacity, no duplication when the ticker runs. |
 | `ChickenSorterTest` | 6 | GeneticChickengineering genes read like the addon (product, tier, strength, purity, age, special species); every rule must pass; the sorter moves only matching chickens, only while running, and never other items. Menu: the summary spells out what passes, products show their own item, a cursor chicken adds its product and clicking removes it; rule buttons step, reset, glow and keep the tier range valid; the control bar toggles status, direction and side (backwards with right-click). |
+| `ColoredCableTest` | 4 | A coloured cable is still `mvn_cable` (stained glass, colour in PDC); red and blue cables connect like plain ones and drop with their colour; taking the camouflage back restores the colour; the 16 colour recipes give 4 cables each. |
 | `CrafterGuiTest` | 10 | Crafter menu: install/uninstall/clear; Slimefun crafters accept Slimefun and vanilla Blueprints, standard crafters refuse Slimefun ones. |
 | `DramBayTest` | 13 | A module in a DRAM Bay stores items; a module taken out moves its stock to another network; breaking the bay drops every module with its stock; the Fluid DRAM holds several fluids and travels with them; a controller no longer takes modules; an old controller module waits in the Terminal; a bay holds 18 modules (a 19th stays in the hand) and the network fills all of them; clicking a module in the menu takes out only that one; a bay saved with a single module keeps it and its stock; the menu shows 18 slots and an item gauge lit in proportion to the fill. |
 | `DeviceTypeTest` | 7 | `DeviceType` classification: filterable devices, Greedy Cell is not a cell, hand items, directional devices, request and Slimefun crafters. |
 | `FilterGuiTest` | 15 | Filter menu: add/remove templates, whitelist/blacklist, shift-click, faces, clear. |
 | `FluidAndRequesterTest` | 13 | Fluid storage and fluid cell quick interaction, Liquid Pump, terminal fluid page, Request Terminal (orders, chat amount, recursive chains, ignores Auto-Crafters, Slimefun Request Crafter), Slimefun Auto-Crafter. |
 | `GuideMenuTest` | 6 | Every device is documented in both languages and its recipe is found; `/mvnets guide en|es` opens the menu (no book); navigation to a device shows its real recipe; the language toggle keeps the page; device ingredients open their own page; nothing can be taken out. |
-| `GrabberQuotaTest` | 8 | `extractMatching`: honours the full per-cycle quota (including HT), merges slots of one item, leaves other items alone. |
+| `GrabberQuotaTest` | 9 | `extractMatching`: honours the full per-cycle quota (including HT), merges slots of one item, leaves other items alone; a refused item goes back with `returnToSlots` without losing anything and the next item is reached. |
 | `GreedyCellTest` | 8 | Greedy Cell multi-item storage, shared capacity, menu and terminal integration. |
 | `GreedyReserveTest` | 3 | A Pusher takes from a Greedy Cell but leaves 1 of a defined item; any withdrawal leaves that unit; a Pusher whitelisting the item empties the Greedy Cell into the cells, new deposits skip it, and without that Pusher the Greedy Cell takes the item again. |
 | `GuiDupeGuardTest` | 3 | `GuiListener` cancels dangerous clicks (also in cell and barrel menus); shift-click deposits never duplicate. |
-| `GuiFlowsTest` | 10 | Terminal, Encoder, Auto-Crafter (atomic crafting), Crafting Grid and Monitor flows. |
+| `GuiFlowsTest` | 11 | Terminal, Encoder, Auto-Crafter (atomic crafting), Crafting Grid and Monitor flows; number key 1 pins an item to custom page 1, which then shows only that item and still withdraws. |
 | `InfinityBarrelTest` | 4 | Barrel capacity, menu, network integration and break/place persistence. |
+| `ModuleIOTest` | 5 | DRAM Unloader empties a card into the network and its cards are not network storage; what the network can not take stays on the card; DRAM Loader fills a card up to the amount (and up to its capacity) and stops; the Loader menu sets the target and starts; amounts like `1m`/`500k`/`max` are read. |
+| `StatusLightTest` | 4 | The Status Light is green on a connected block and red once the link is cut; red without a network; it never bridges two networks; breaking it forgets it. |
 | `NetworksCoexistenceTest` | 5 | Plugin name, main class, commands and permissions never collide with NetworksV6; Slimefun is a soft dependency. |
 | `NewDevicesTest` | 6 | Purger and Probe properties; every `DeviceType` has a material and a name. |
 | `PluginResourcesTest` | 3 | `plugin.yml` and `config.yml` on the classpath; version sanity check. |
 | `PosUtilTest` | 2 | Coordinate packing round-trips, including world borders and negative Y. |
 | `QuantumWorkbenchTest` | 2 | Cell upgrade keeps the cargo; ingredients are returned on close. |
+| `QuotaManagerTest` | 3 | The Quota Manager lists the network's limiters, adds an item to a free limiter without taking it, adds nothing when none is free, removes and toggles; a Grabber empties an Infinity Barrel that is not wired to the network (and does not pull it in); a barrel wired by cable stays network storage and the Grabber leaves it alone. |
 | `RecipeTest` | 9 | Every recipe registered once, cable and cell recipes craft, a cell with cargo matches its upgrade recipe and keeps the cargo. |
 | `RecipeValidationTest` | 5 | Device ingredients are tracked per recipe; a plain material cannot stand in for a device; cell and module upgrades keep their cargo; a fluid cell that still holds fluid is refused; devices never feed vanilla recipes. |
 | `ReportedIssuesTest` | 8 | Advanced Pusher never loses items (one stack per slot); a multi-item whitelist leaves room for every ingredient; blacklisted items stay in the network; nothing goes into an Infinity Barrel's block inventory; hoppers never touch a device; custom items match after their name is stored differently; the barrel takes back a custom item it handed out; the Slimefun Recipe Encoder keeps its Blueprints. |

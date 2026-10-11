@@ -57,31 +57,36 @@ A tener en cuenta:
 - `src/test/java/dev/espi/protectionstones/PSRegion.java` es un stub de la API de ProtectionStones que
   los tests del provider cargan por reflexión.
 
-## 3. Resumen: 39 clases, 292 tests
+## 3. Resumen: 51 clases, 351 tests
 
 | Clase (paquete `com.chagui68.multiversenets` salvo que se indique) | Tests | Cubre |
 | --- | --- | --- |
 | `BlockFlowsTest` | 24 | Romper/colocar con estado embebido, pistones, explosiones, vínculo inalámbrico, rake, llave, corte por agachado, dimensiones, enlace del puente desde el ítem Transmisor, estado del cable. |
 | `BlueprintDupeTest` | 3 | Los Blueprints del Encoder nunca se duplican (dos jugadores, romperlo con el menú abierto); instalar un Blueprint lo consume y *Clear All* lo devuelve. |
+| `CableCamouflageTest` | 5 | Clic derecho en un cable abre su menú; un bloque en el hueco de camuflaje se guarda (una unidad), el cable toma su aspecto y sigue conectando, recuperarlo devuelve el cristal; shift+clic cambia el bloque y devuelve el anterior; se rechazan bloques inestables, interactivos o no completos y dispositivos; romper suelta el cable y el bloque. |
 | `CellGuiTest` | 9 | Menú de la Celda Cuántica: plantilla, depósito rápido, retirada, capacidad, sin duplicación al correr el ticker. |
 | `ChickenSorterTest` | 6 | Los genes de GeneticChickengineering se leen como en el addon (producto, nivel, fuerza, pureza, edad, especies especiales); todas las reglas deben cumplirse; el clasificador mueve solo los pollos que cumplen, solo mientras está activo, y nunca otros ítems. Menú: el resumen dice qué pasa, los productos muestran su propio ítem, un pollo en el cursor añade su producto y un clic lo quita; los botones de reglas suben, bajan, se reinician, brillan y mantienen válido el rango de niveles; la barra de control cambia estado, dirección y lado (hacia atrás con clic derecho). |
+| `ColoredCableTest` | 4 | Un cable de color sigue siendo `mvn_cable` (cristal tintado, color en el PDC); los cables rojo y azul conectan como los normales y salen con su color; recuperar el camuflaje devuelve el color; las 16 recetas de color dan 4 cables cada una. |
 | `CrafterGuiTest` | 10 | Menú del crafter: instalar/desinstalar/limpiar; los crafters de Slimefun aceptan Blueprints de Slimefun y vanilla, los estándar rechazan los de Slimefun. |
 | `DramBayTest` | 13 | Un módulo en un DRAM Bay guarda ítems; un módulo sacado lleva su stock a otra red; romper el bay suelta todos los módulos con su stock; el Fluid DRAM guarda varios fluidos y viaja con ellos; un controlador ya no acepta módulos; un módulo antiguo del controlador espera en el Terminal; un bay admite 18 módulos (el 19.º se queda en la mano) y la red los llena todos; hacer clic en un módulo del menú saca solo ese; un bay guardado con un solo módulo lo conserva con su stock; el menú muestra 18 huecos y un medidor de ítems encendido según el llenado. |
 | `DeviceTypeTest` | 7 | Clasificación de `DeviceType`: dispositivos con filtro, la Greedy Cell no es celda, ítems de mano, dispositivos direccionales, request y crafters de Slimefun. |
 | `FilterGuiTest` | 15 | Menú de filtro: añadir/quitar plantillas, whitelist/blacklist, shift+clic, caras, limpiar. |
 | `FluidAndRequesterTest` | 13 | Almacenamiento de fluidos e interacción rápida con la celda, Liquid Pump, página de fluidos del terminal, Request Terminal (pedidos, cantidad por chat, cadenas recursivas, ignora Auto-Crafters, Slimefun Request Crafter), Slimefun Auto-Crafter. |
 | `GuideMenuTest` | 6 | Cada dispositivo está documentado en los dos idiomas y se encuentra su receta; `/mvnets guide en|es` abre el menú (sin libro); navegar a un dispositivo muestra su receta real; el cambio de idioma conserva la página; los ingredientes que son dispositivos abren su página; no se puede sacar nada. |
-| `GrabberQuotaTest` | 8 | `extractMatching`: respeta toda la cuota por ciclo (también HT), junta ranuras del mismo ítem, no toca otros ítems. |
+| `GrabberQuotaTest` | 9 | `extractMatching`: respeta toda la cuota por ciclo (también HT), junta ranuras del mismo ítem, no toca otros ítems; un ítem rechazado vuelve con `returnToSlots` sin perder nada y se llega al siguiente. |
 | `GreedyCellTest` | 8 | Greedy Cell: almacenamiento multi-ítem, capacidad compartida, menú e integración con el terminal. |
 | `GreedyReserveTest` | 3 | Un Pusher saca de una Greedy Cell pero deja 1 de un ítem definido; cualquier retirada deja esa unidad; un Pusher con el ítem en su whitelist vacía la Greedy Cell hacia las celdas, los depósitos nuevos se la saltan y sin ese Pusher la Greedy Cell vuelve a tomar el ítem. |
 | `GuiDupeGuardTest` | 3 | `GuiListener` cancela los clics peligrosos (también en los menús de celda y barril); los depósitos con shift+clic nunca duplican. |
-| `GuiFlowsTest` | 10 | Flujos de Terminal, Encoder, Auto-Crafter (crafteo atómico), Crafting Grid y Monitor. |
+| `GuiFlowsTest` | 11 | Flujos de Terminal, Encoder, Auto-Crafter (crafteo atómico), Crafting Grid y Monitor; la tecla 1 fija un ítem en la página personalizada 1, que luego muestra solo ese ítem y permite retirarlo. |
 | `InfinityBarrelTest` | 4 | Capacidad del barril, menú, integración con la red y persistencia al romper/colocar. |
+| `ModuleIOTest` | 5 | El DRAM Unloader vacía una tarjeta en la red y sus tarjetas no son almacenamiento de la red; lo que la red no admite se queda en la tarjeta; el DRAM Loader llena una tarjeta hasta la cantidad (y hasta su capacidad) y se para; el menú del Loader fija el objetivo e inicia; se leen cantidades como `1m`/`500k`/`max`. |
+| `StatusLightTest` | 4 | La luz de estado es verde sobre un bloque conectado y roja al cortar el enlace; roja sin red; nunca une dos redes; romperla la olvida. |
 | `NetworksCoexistenceTest` | 5 | Nombre, clase principal, comandos y permisos nunca chocan con NetworksV6; Slimefun es dependencia blanda. |
 | `NewDevicesTest` | 6 | Propiedades del Purger y la Probe; todo `DeviceType` tiene material y nombre. |
 | `PluginResourcesTest` | 3 | `plugin.yml` y `config.yml` en el classpath; comprobación de versión. |
 | `PosUtilTest` | 2 | El empaquetado de coordenadas ida y vuelta, incluidos bordes del mundo e Y negativa. |
 | `QuantumWorkbenchTest` | 2 | La mejora de celdas conserva la carga; los ingredientes se devuelven al cerrar. |
+| `QuotaManagerTest` | 3 | El Quota Manager lista los limitadores de la red, añade un ítem a uno libre sin quitarlo, no añade nada sin uno libre, quita y activa/desactiva; un Grabber vacía un Infinity Barrel que no está conectado a la red (y no lo mete en ella); un barril conectado por cable sigue siendo almacenamiento y el Grabber no lo toca. |
 | `RecipeTest` | 9 | Cada receta registrada una vez, las recetas de cable y celda funcionan, una celda con carga casa con su receta de mejora y la conserva. |
 | `RecipeValidationTest` | 5 | Los ingredientes dispositivo se registran por receta; un material simple no sustituye a un dispositivo; las mejoras de celdas y módulos conservan su carga; una celda de fluidos con fluido se rechaza; los dispositivos nunca alimentan recetas vanilla. |
 | `ReportedIssuesTest` | 8 | El Advanced Pusher nunca pierde ítems (un stack por ranura); una whitelist de varios ítems deja sitio a cada ingrediente; lo que está en la blacklist se queda en la red; nada entra en el inventario del bloque de un Infinity Barrel; las tolvas nunca tocan un dispositivo; los ítems custom coinciden aunque su nombre se guarde distinto; el barril acepta de vuelta un ítem custom que entregó; el Slimefun Recipe Encoder guarda sus Blueprints. |

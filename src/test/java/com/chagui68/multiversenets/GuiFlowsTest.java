@@ -131,18 +131,58 @@ class GuiFlowsTest {
 
         rightClick(world.getBlockAt(0, 64, 1));
 
-        clickTop(0, ClickType.LEFT);
+        clickTop(TerminalMenu.GRID_START, ClickType.LEFT);
         assertEquals(Material.COBBLESTONE, player.getItemOnCursor().getType(),
                 "left click leaves 1 item on cursor");
         assertEquals(1, player.getItemOnCursor().getAmount());
 
         player.setItemOnCursor(null);
-        clickTop(0, ClickType.SHIFT_LEFT);
+        clickTop(TerminalMenu.GRID_START, ClickType.SHIFT_LEFT);
         assertEquals(Material.COBBLESTONE, player.getInventory().getItem(0) == null
                         ? null : player.getInventory().getItem(0).getType(),
                 "shift sends up to a stack to player inventory");
         assertEquals(64, player.getInventory().getItem(0).getAmount());
         assertEquals(63, net.storage().count(i -> i.getType() == Material.COBBLESTONE));
+    }
+
+    /**
+     * [EN] Number key 1 over an item pins it to custom page 1, which then shows only pinned items.
+     * [ES] La tecla 1 sobre un ítem lo fija en la página personalizada 1, que solo muestra lo fijado.
+     */
+    @Test
+    void terminalCustomPageShowsOnlyPinnedItems() {
+        Network net = networkWithCell();
+        place(-1, 64, 0, DeviceType.MVN_CELL_T2);
+        net.scan();
+        assertEquals(0, net.storage().deposit(new ItemStack(Material.COBBLESTONE, 10)));
+        assertEquals(0, net.storage().deposit(new ItemStack(Material.DIRT, 5)));
+        plugin.networks().invalidateNear(world.getBlockAt(1, 64, 0));
+
+        rightClick(world.getBlockAt(0, 64, 1));
+        TerminalMenu menu = (TerminalMenu) player.getOpenInventory().getTopInventory().getHolder();
+        var top = player.getOpenInventory().getTopInventory();
+        // A-Z: COBBLESTONE antes que DIRT.
+        assertEquals(Material.COBBLESTONE, top.getItem(TerminalMenu.GRID_START).getType());
+        assertEquals(Material.DIRT, top.getItem(TerminalMenu.GRID_START + 1).getType());
+
+        InventoryClickEvent key = new InventoryClickEvent(player.getOpenInventory(),
+                InventoryType.SlotType.CONTAINER, TerminalMenu.GRID_START + 1, ClickType.NUMBER_KEY,
+                InventoryAction.HOTBAR_SWAP, 0);
+        server.getPluginManager().callEvent(key);
+        assertTrue(key.isCancelled(), "the key never moves items");
+        assertTrue(new com.chagui68.multiversenets.gui.TerminalPages(plugin, player)
+                .contains(0, new ItemStack(Material.DIRT)), "dirt is pinned to page 1, and saved");
+
+        clickTop(TerminalMenu.TAB_FIRST_PAGE, ClickType.LEFT);
+        server.getScheduler().performOneTick();
+        assertEquals(TerminalMenu.View.CUSTOM, menu.view());
+        assertEquals(Material.DIRT, top.getItem(TerminalMenu.GRID_START).getType(), "page 1 shows the pinned item");
+        assertNull(top.getItem(TerminalMenu.GRID_START + 1), "and nothing else");
+
+        // Retirar desde la pagina funciona igual que en la vista normal.
+        clickTop(TerminalMenu.GRID_START, ClickType.LEFT);
+        assertEquals(Material.DIRT, player.getItemOnCursor().getType());
+        assertEquals(4, net.storage().count(i -> i.getType() == Material.DIRT));
     }
 
     /**
@@ -194,7 +234,7 @@ class GuiFlowsTest {
         rightClick(world.getBlockAt(0, 64, 1));
 
         // 1) Left click withdraws 1 custom item onto cursor
-        clickTop(0, ClickType.LEFT);
+        clickTop(TerminalMenu.GRID_START, ClickType.LEFT);
         ItemStack onCursor = player.getItemOnCursor();
         assertNotNull(onCursor, "item on cursor must not be null");
         assertEquals(Material.STICK, onCursor.getType());
@@ -207,7 +247,7 @@ class GuiFlowsTest {
 
         // 2) Shift click withdraws remaining custom items into inventory
         player.setItemOnCursor(null);
-        clickTop(0, ClickType.SHIFT_LEFT);
+        clickTop(TerminalMenu.GRID_START, ClickType.SHIFT_LEFT);
         ItemStack inPlayerInv = player.getInventory().getItem(0);
         assertNotNull(inPlayerInv, "shift click must withdraw custom items to inventory");
         assertEquals(9, inPlayerInv.getAmount());

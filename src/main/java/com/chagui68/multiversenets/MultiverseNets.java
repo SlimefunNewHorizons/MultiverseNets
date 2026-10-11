@@ -27,6 +27,14 @@ public class MultiverseNets extends JavaPlugin {
     private BlockListener blockListener;
     private org.bukkit.scheduler.BukkitTask protectionTask;
     private org.bukkit.scheduler.BukkitTask storageTask;
+    private com.chagui68.multiversenets.net.StatusLights statusLights;
+
+    /**
+     * @return Network Status Lights registry / Registro de luces de estado de red
+     */
+    public com.chagui68.multiversenets.net.StatusLights statusLights() {
+        return statusLights;
+    }
 
     /**
      * @return Global singleton plugin instance / Instancia singleton global del plugin
@@ -106,6 +114,8 @@ public class MultiverseNets extends JavaPlugin {
                 Settings.protectionCacheTicks(), Settings.protectionCacheTicks());
         ticker = new NetworkTicker(this, networks);
         ticker.start();
+        statusLights = new com.chagui68.multiversenets.net.StatusLights(this);
+        statusLights.start();
 
         PluginCommand command = getCommand("mvnets");
         if (command != null) {
@@ -121,6 +131,9 @@ public class MultiverseNets extends JavaPlugin {
     public void onDisable() {
         if (ticker != null) {
             ticker.stop();
+        }
+        if (statusLights != null) {
+            statusLights.stop();
         }
         if (protectionTask != null) {
             protectionTask.cancel();

@@ -44,7 +44,9 @@ class RecipeTest {
                 "encoder", "sf_encoder", "crafting_grid", "blueprint", "configurator", "rake",
                 "quantum_workbench", "infinity_barrel", "limiter",
                 "fluid_cell", "liquid_pump", "request_terminal", "request_crafter",
-                "sf_crafter", "sf_request_crafter", "dram_bay", "fluid_dram", "chicken_sorter"
+                "sf_crafter", "sf_request_crafter", "dram_bay", "fluid_dram", "chicken_sorter",
+                "silicon_wafer", "network_circuit", "logic_processor", "storage_matrix", "transfer_coil",
+                "quantum_core"
         };
         for (String key : keys) {
             NamespacedKey nk = new NamespacedKey(plugin, key);
@@ -60,34 +62,47 @@ class RecipeTest {
 
     @Test
     void canCraftCableInMatrix() {
-        ItemStack[] matrix = new ItemStack[9];
-        // 8 Glass and 1 Redstone in the center
-        for (int i = 0; i < 9; i++) {
-            if (i == 4) {
-                matrix[i] = new ItemStack(Material.REDSTONE);
-            } else {
-                matrix[i] = new ItemStack(Material.GLASS);
-            }
-        }
-        Recipe recipe = Bukkit.getCraftingRecipe(matrix, Bukkit.getWorlds().get(0));
-        assertNotNull(recipe, "Crafting matrix should match cable recipe");
+        // 8 Glass and 1 Network Circuit in the center. Comprobado sobre la receta registrada: el
+        // buscador de recetas de MockBukkit casa materiales sueltos con recetas vanilla.
+        ShapedRecipe recipe = (ShapedRecipe) Bukkit.getRecipe(new NamespacedKey(plugin, "cable"));
+        assertNotNull(recipe);
+        assertArrayEquals(new String[]{"GGG", "GCG", "GGG"}, recipe.getShape());
+        assertTrue(recipe.getChoiceMap().get('G').test(new ItemStack(Material.GLASS)));
+        assertTrue(recipe.getChoiceMap().get('C').test(
+                com.chagui68.multiversenets.item.Items.create(com.chagui68.multiversenets.item.DeviceType.MVN_NETWORK_CIRCUIT)));
+        assertEquals(com.chagui68.multiversenets.item.DeviceType.MVN_NETWORK_CIRCUIT,
+                com.chagui68.multiversenets.item.Items.deviceIngredientAt(recipe.getKey(), 'C'));
         assertEquals(Material.GLASS, recipe.getResult().getType());
         assertEquals(16, recipe.getResult().getAmount());
     }
 
     @Test
-    void canCraftCellT1InMatrix() {
-        ItemStack[] matrix = new ItemStack[9];
-        // 8 Glass and 1 Diamond in the center
-        for (int i = 0; i < 9; i++) {
-            if (i == 4) {
-                matrix[i] = new ItemStack(Material.DIAMOND);
-            } else {
-                matrix[i] = new ItemStack(Material.GLASS);
+    void componentsAreHandItemsUsedByDeviceRecipes() {
+        java.util.Set<DeviceType> used = java.util.EnumSet.noneOf(DeviceType.class);
+        for (var it = Bukkit.recipeIterator(); it.hasNext(); ) {
+            if (it.next() instanceof ShapedRecipe shaped
+                    && shaped.getKey().getNamespace().equals(plugin.getName().toLowerCase(java.util.Locale.ROOT))) {
+                used.addAll(Items.deviceIngredients(shaped.getKey()).keySet());
             }
         }
-        Recipe recipe = Bukkit.getCraftingRecipe(matrix, Bukkit.getWorlds().get(0));
-        assertNotNull(recipe, "Crafting matrix should match cell_t1 recipe");
+        for (DeviceType type : DeviceType.values()) {
+            if (!type.isComponent()) {
+                continue;
+            }
+            assertFalse(type.placeable(), type + " is only an ingredient");
+            assertNotNull(Bukkit.getRecipe(new NamespacedKey(plugin, type.id().substring(4))), type + " has a recipe");
+            assertTrue(used.contains(type), type + " is used by some recipe");
+        }
+    }
+
+    @Test
+    void canCraftCellT1InMatrix() {
+        // 8 Glass and 1 Storage Matrix in the center.
+        ShapedRecipe recipe = (ShapedRecipe) Bukkit.getRecipe(new NamespacedKey(plugin, "cell_t1"));
+        assertNotNull(recipe);
+        assertArrayEquals(new String[]{"GGG", "GMG", "GGG"}, recipe.getShape());
+        assertEquals(com.chagui68.multiversenets.item.DeviceType.MVN_STORAGE_MATRIX,
+                com.chagui68.multiversenets.item.Items.deviceIngredientAt(recipe.getKey(), 'M'));
         assertEquals(Material.TERRACOTTA, recipe.getResult().getType());
     }
 

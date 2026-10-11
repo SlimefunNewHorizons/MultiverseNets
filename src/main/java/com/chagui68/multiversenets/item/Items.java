@@ -52,6 +52,8 @@ public final class Items {
             }
             case MVN_CABLE -> {
                 lore.add(Component.text("Digital conduit connecting devices across the network.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("Right-click it to camouflage it as any solid block.", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("4 cables + a dye: coloured cables to tell areas apart.", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
             }
             case MVN_TERMINAL -> {
                 lore.add(Component.text("Interactive console to view, store, and withdraw items and liquids.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
@@ -180,6 +182,34 @@ public final class Items {
                 lore.add(Component.text("Sorts GeneticChickengineering pocket chickens by their genes.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
                 lore.add(Component.text("Filter by product, tier, DNA strength, purity, DNA and age.", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
             }
+            case MVN_SILICON_WAFER, MVN_NETWORK_CIRCUIT, MVN_LOGIC_PROCESSOR, MVN_STORAGE_MATRIX,
+                 MVN_TRANSFER_COIL, MVN_QUANTUM_CORE -> {
+                lore.add(Component.text(switch (type) {
+                    case MVN_SILICON_WAFER -> "Base of every circuit.";
+                    case MVN_NETWORK_CIRCUIT -> "Basic logic for cables, terminals and devices.";
+                    case MVN_LOGIC_PROCESSOR -> "Brain of controllers, crafters and terminals.";
+                    case MVN_STORAGE_MATRIX -> "Core of every storage block and module.";
+                    case MVN_TRANSFER_COIL -> "Moves items: Grabbers, Pushers, Vacuum, Pump.";
+                    default -> "Links far places: wireless, routers, workbench.";
+                }, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("Crafting component: only used in MultiverseNets recipes.", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+            }
+            case MVN_QUOTA_MANAGER -> {
+                lore.add(Component.text("Shows and edits every Quota Limiter of its network.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("Add, set or remove limited items; each uses a free limiter.", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+            }
+            case MVN_MODULE_UNLOADER -> {
+                lore.add(Component.text("Empties memory modules (cards) into the network.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("Holds 9 cards; what does not fit stays on the card.", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+            }
+            case MVN_MODULE_LOADER -> {
+                lore.add(Component.text("Fills a memory module with one item or fluid from the network.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("Choose the item and the amount, press Start.", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+            }
+            case MVN_STATUS_LIGHT -> {
+                lore.add(Component.text("Place it on top of a network block.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("Green: connected to a Controller. Red: no connection.", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+            }
             default -> {
                 if (type.isCacheModule()) {
                     lore.add(Component.text("Item memory module for a DRAM Bay.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
@@ -196,6 +226,66 @@ public final class Items {
         meta.getPersistentDataContainer().set(Keys.DEVICE_TYPE, PersistentDataType.STRING, type.name());
         item.setItemMeta(meta);
         return item;
+    }
+
+    // ---------------------------------------------------------------- Coloured cables / Cables de color
+
+    /** Glass for a plain cable, the matching stained glass for a coloured one / Material del cable. */
+    public static Material cableMaterial(org.bukkit.DyeColor color) {
+        return color == null ? DeviceType.MVN_CABLE.material() : Material.valueOf(color.name() + "_STAINED_GLASS");
+    }
+
+    /** "Light Blue" for LIGHT_BLUE / Nombre legible del color. */
+    public static String colorName(org.bukkit.DyeColor color) {
+        StringBuilder out = new StringBuilder();
+        for (String part : color.name().toLowerCase(java.util.Locale.ROOT).split("_")) {
+            if (!out.isEmpty()) {
+                out.append(' ');
+            }
+            out.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+        }
+        return out.toString();
+    }
+
+    /**
+     * EN: A Network Cable of a colour (null = plain glass). Colour is only a look: every colour
+     * connects like the plain cable; it helps telling areas of a build apart.
+     * ES: Un Cable de red de un color (null = cristal). El color es solo aspecto: todos conectan
+     * igual que el cable normal; sirve para distinguir zonas.
+     */
+    public static ItemStack cable(org.bukkit.DyeColor color) {
+        ItemStack plain = create(DeviceType.MVN_CABLE);
+        if (color == null) {
+            return plain;
+        }
+        ItemStack item = plain.withType(cableMaterial(color));
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text(DeviceType.MVN_CABLE.display() + " ", NamedTextColor.AQUA)
+                .append(Component.text("(" + colorName(color) + ")",
+                        net.kyori.adventure.text.format.TextColor.color(color.getColor().asRGB())))
+                .decoration(TextDecoration.ITALIC, false));
+        meta.getPersistentDataContainer().set(Keys.CABLE_COLOR, PersistentDataType.STRING, color.name());
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    /** The colour of a cable item, or null for a plain one / El color de un cable, o null. */
+    public static org.bukkit.DyeColor cableColor(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return null;
+        }
+        return parseColor(item.getPersistentDataContainer().get(Keys.CABLE_COLOR, PersistentDataType.STRING));
+    }
+
+    public static org.bukkit.DyeColor parseColor(String name) {
+        if (name == null) {
+            return null;
+        }
+        try {
+            return org.bukkit.DyeColor.valueOf(name);
+        } catch (IllegalArgumentException unknown) {
+            return null;
+        }
     }
 
     /**
@@ -596,26 +686,84 @@ public final class Items {
             }
             RECIPE_KEYS.clear();
         }
+        // Componentes intermedios: solo existen para las recetas del plugin, asi ningun
+        // dispositivo depende de una forma que una receta vanilla pueda pisar.
+        shaped(plugin, "silicon_wafer", stackOf(create(DeviceType.MVN_SILICON_WAFER), 2), r -> {
+            r.shape(" Q ", "QSQ", " Q ");
+            r.setIngredient('Q', Material.QUARTZ);
+            r.setIngredient('S', Material.SAND);
+        });
+        shaped(plugin, "network_circuit", stackOf(create(DeviceType.MVN_NETWORK_CIRCUIT), 2), r -> {
+            r.shape("RGR", "WIW", "RGR");
+            r.setIngredient('R', Material.REDSTONE);
+            r.setIngredient('G', Material.GOLD_NUGGET);
+            device(r, 'W', DeviceType.MVN_SILICON_WAFER);
+            r.setIngredient('I', Material.IRON_INGOT);
+        });
+        shaped(plugin, "logic_processor", create(DeviceType.MVN_LOGIC_PROCESSOR), r -> {
+            r.shape("QCQ", "CRC", "QCQ");
+            r.setIngredient('Q', Material.QUARTZ);
+            device(r, 'C', DeviceType.MVN_NETWORK_CIRCUIT);
+            r.setIngredient('R', Material.REDSTONE_BLOCK);
+        });
+        shaped(plugin, "storage_matrix", create(DeviceType.MVN_STORAGE_MATRIX), r -> {
+            r.shape("IWI", "CDC", "IWI");
+            r.setIngredient('I', Material.IRON_INGOT);
+            device(r, 'W', DeviceType.MVN_SILICON_WAFER);
+            device(r, 'C', DeviceType.MVN_NETWORK_CIRCUIT);
+            r.setIngredient('D', Material.DIAMOND);
+        });
+        shaped(plugin, "transfer_coil", stackOf(create(DeviceType.MVN_TRANSFER_COIL), 2), r -> {
+            r.shape("KRK", "RIR", "KRK");
+            r.setIngredient('K', Material.COPPER_INGOT);
+            r.setIngredient('R', Material.REDSTONE);
+            r.setIngredient('I', Material.IRON_INGOT);
+        });
+        shaped(plugin, "quantum_core", create(DeviceType.MVN_QUANTUM_CORE), r -> {
+            r.shape("ADA", "PEP", "ADA");
+            r.setIngredient('A', Material.AMETHYST_SHARD);
+            r.setIngredient('D', Material.DIAMOND);
+            device(r, 'P', DeviceType.MVN_LOGIC_PROCESSOR);
+            r.setIngredient('E', Material.ENDER_PEARL);
+        });
         shaped(plugin, "controller", create(DeviceType.MVN_CONTROLLER), r -> {
-            r.shape("III", "INI", "III");
+            r.shape("IPI", "CNC", "IPI");
             r.setIngredient('I', Material.IRON_BLOCK);
+            device(r, 'P', DeviceType.MVN_LOGIC_PROCESSOR);
+            device(r, 'C', DeviceType.MVN_NETWORK_CIRCUIT);
             r.setIngredient('N', Material.NETHER_STAR);
         });
         shaped(plugin, "cable", stackOf(create(DeviceType.MVN_CABLE), 16), r -> {
-            r.shape("GGG", "GRG", "GGG");
+            r.shape("GGG", "GCG", "GGG");
             r.setIngredient('G', Material.GLASS);
-            r.setIngredient('R', Material.REDSTONE);
+            device(r, 'C', DeviceType.MVN_NETWORK_CIRCUIT);
         });
+        // Cables de color: 4 cables de cualquier color + un tinte = 4 cables de ese color. En cruz y
+        // no 8 + 1 para no chocar con la receta vanilla de cristal tintado.
+        List<Material> anyCable = new ArrayList<>();
+        anyCable.add(DeviceType.MVN_CABLE.material());
+        for (org.bukkit.DyeColor color : org.bukkit.DyeColor.values()) {
+            anyCable.add(cableMaterial(color));
+        }
+        for (org.bukkit.DyeColor color : org.bukkit.DyeColor.values()) {
+            shaped(plugin, "cable_" + color.name().toLowerCase(java.util.Locale.ROOT), stackOf(cable(color), 4), r -> {
+                r.shape(" C ", "CDC", " C ");
+                r.setIngredient('C', new org.bukkit.inventory.RecipeChoice.MaterialChoice(anyCable));
+                PENDING_DEVICES.put('C', DeviceType.MVN_CABLE);
+                r.setIngredient('D', Material.valueOf(color.name() + "_DYE"));
+            });
+        }
         shaped(plugin, "terminal", create(DeviceType.MVN_TERMINAL), r -> {
-            r.shape("GEG", "EBE", "GEG");
+            r.shape("GCG", "EBE", "GCG");
             r.setIngredient('G', Material.GLASS);
+            device(r, 'C', DeviceType.MVN_NETWORK_CIRCUIT);
             r.setIngredient('E', Material.ENDER_PEARL);
             r.setIngredient('B', Material.BEACON);
         });
         shaped(plugin, "cell_t1", create(DeviceType.MVN_CELL_T1), r -> {
-            r.shape("GGG", "GDG", "GGG");
+            r.shape("GGG", "GMG", "GGG");
             r.setIngredient('G', Material.GLASS);
-            r.setIngredient('D', Material.DIAMOND);
+            device(r, 'M', DeviceType.MVN_STORAGE_MATRIX);
         });
         for (int tier = 2; tier <= 6; tier++) {
             DeviceType prev = DeviceType.parse("MVN_CELL_T" + (tier - 1));
@@ -628,104 +776,117 @@ public final class Items {
             });
         }
         shaped(plugin, "grabber", create(DeviceType.MVN_GRABBER), r -> {
-            r.shape("IOI", "ORO", "IOI");
+            r.shape("ITI", "OCO", "ITI");
             r.setIngredient('I', Material.IRON_INGOT);
+            device(r, 'T', DeviceType.MVN_TRANSFER_COIL);
             r.setIngredient('O', Material.OBSERVER);
-            r.setIngredient('R', Material.REDSTONE_BLOCK);
+            device(r, 'C', DeviceType.MVN_NETWORK_CIRCUIT);
         });
         shaped(plugin, "pusher", create(DeviceType.MVN_PUSHER), r -> {
-            r.shape("IDI", "DRD", "IDI");
+            r.shape("ITI", "DCD", "ITI");
             r.setIngredient('I', Material.IRON_INGOT);
+            device(r, 'T', DeviceType.MVN_TRANSFER_COIL);
             r.setIngredient('D', Material.DROPPER);
-            r.setIngredient('R', Material.REDSTONE_BLOCK);
+            device(r, 'C', DeviceType.MVN_NETWORK_CIRCUIT);
         });
         shaped(plugin, "vacuum", create(DeviceType.MVN_VACUUM), r -> {
-            r.shape("SRS", "RHR", "SRS");
+            r.shape("STS", "THT", "SCS");
             r.setIngredient('S', Material.STRING);
-            r.setIngredient('R', Material.REDSTONE);
+            device(r, 'T', DeviceType.MVN_TRANSFER_COIL);
             r.setIngredient('H', Material.HOPPER);
+            device(r, 'C', DeviceType.MVN_NETWORK_CIRCUIT);
         });
         shaped(plugin, "purger", create(DeviceType.MVN_PURGER), r -> {
-            r.shape("ILI", "LHL", "ILI");
+            r.shape("ILI", "LHL", "ICI");
             r.setIngredient('I', Material.IRON_INGOT);
             r.setIngredient('L', Material.MAGMA_BLOCK);
             r.setIngredient('H', Material.HOPPER);
+            device(r, 'C', DeviceType.MVN_NETWORK_CIRCUIT);
         });
         shaped(plugin, "probe", create(DeviceType.MVN_PROBE), r -> {
-            r.shape(" A ", "ASA", " A ");
+            r.shape(" A ", "ASA", " C ");
             r.setIngredient('A', Material.AMETHYST_SHARD);
             r.setIngredient('S', Material.SPYGLASS);
+            device(r, 'C', DeviceType.MVN_NETWORK_CIRCUIT);
         });
         shaped(plugin, "crafter", create(DeviceType.MVN_CRAFTER), r -> {
-            r.shape("RCR", "ITI", "RCR");
+            r.shape("RCR", "IPI", "RCR");
             r.setIngredient('R', Material.REDSTONE);
             r.setIngredient('C', Material.CRAFTING_TABLE);
             r.setIngredient('I', Material.IRON_INGOT);
-            r.setIngredient('T', Material.TARGET);
+            device(r, 'P', DeviceType.MVN_LOGIC_PROCESSOR);
         });
         shaped(plugin, "wireless_terminal", create(DeviceType.MVN_WIRELESS_TERMINAL), r -> {
-            r.shape(" P ", "PNP", " C ");
+            r.shape(" Q ", "PNP", " C ");
+            device(r, 'Q', DeviceType.MVN_QUANTUM_CORE);
             r.setIngredient('P', Material.ENDER_PEARL);
             r.setIngredient('N', Material.NETHER_STAR);
             r.setIngredient('C', Material.COMPASS);
         });
         shaped(plugin, "monitor", create(DeviceType.MVN_MONITOR), r -> {
-            r.shape("GGG", "GCG", "GGG");
+            r.shape("GGG", "KCK", "GGG");
             r.setIngredient('G', Material.GLASS_PANE);
-            r.setIngredient('C', Material.COMPARATOR);
+            r.setIngredient('K', Material.COMPARATOR);
+            device(r, 'C', DeviceType.MVN_NETWORK_CIRCUIT);
         });
         shaped(plugin, "transmitter", create(DeviceType.MVN_TRANSMITTER), r -> {
-            r.shape("IRI", "RCR", "IRI");
+            r.shape("IRI", "RCR", "IQI");
             r.setIngredient('I', Material.IRON_INGOT);
             r.setIngredient('R', Material.REDSTONE_BLOCK);
             r.setIngredient('C', Material.CONDUIT);
+            device(r, 'Q', DeviceType.MVN_QUANTUM_CORE);
         });
         shaped(plugin, "receiver", create(DeviceType.MVN_RECEIVER), r -> {
-            r.shape("IPI", "PLP", "IPI");
+            r.shape("IPI", "PLP", "IQI");
             r.setIngredient('I', Material.IRON_INGOT);
             r.setIngredient('P', Material.ENDER_PEARL);
             r.setIngredient('L', Material.REDSTONE_LAMP);
+            device(r, 'Q', DeviceType.MVN_QUANTUM_CORE);
         });
         shaped(plugin, "greedy_cell", create(DeviceType.MVN_GREEDY_CELL), r -> {
-            r.shape("GHG", "HSH", "GHG");
+            r.shape("GHG", "HSH", "GMG");
             r.setIngredient('G', Material.GOLD_INGOT);
             r.setIngredient('H', Material.HOPPER);
             r.setIngredient('S', Material.SLIME_BLOCK);
+            device(r, 'M', DeviceType.MVN_STORAGE_MATRIX);
         });
         shaped(plugin, "grabber_ht", create(DeviceType.MVN_GRABBER_HT), r -> {
-            r.shape("OPO");
-            r.setIngredient('O', Material.OBSERVER);
+            r.shape("TPT");
+            device(r, 'T', DeviceType.MVN_TRANSFER_COIL);
             r.setIngredient('P', Material.STICKY_PISTON);
         });
         shaped(plugin, "pusher_ht", create(DeviceType.MVN_PUSHER_HT), r -> {
-            r.shape("DPD");
-            r.setIngredient('D', Material.DROPPER);
+            r.shape("TPT");
+            device(r, 'T', DeviceType.MVN_TRANSFER_COIL);
             r.setIngredient('P', Material.PISTON);
         });
         shaped(plugin, "encoder", create(DeviceType.MVN_ENCODER), r -> {
-            r.shape("KPK", "PSP", "KPK");
+            r.shape("KPK", "CSC", "KPK");
             r.setIngredient('K', Material.INK_SAC);
             r.setIngredient('P', Material.PAPER);
+            device(r, 'C', DeviceType.MVN_NETWORK_CIRCUIT);
             r.setIngredient('S', Material.SMITHING_TABLE);
         });
         if (Settings.sfEncoderEnabled()) {
             shaped(plugin, "sf_encoder", create(DeviceType.MVN_SF_ENCODER), r -> {
-                r.shape("EPE", "PBP", "EPE");
+                r.shape("EPE", "CBC", "EPE");
                 r.setIngredient('E', Material.ENDER_PEARL);
                 r.setIngredient('P', Material.PAPER);
+                device(r, 'C', DeviceType.MVN_NETWORK_CIRCUIT);
                 r.setIngredient('B', Material.ENCHANTING_TABLE);
             });
         }
         shaped(plugin, "router", create(DeviceType.MVN_ROUTER), r -> {
-            r.shape(" L ", " C ", " R ");
+            r.shape(" L ", " C ", " Q ");
             r.setIngredient('L', Material.LIGHTNING_ROD);
             device(r, 'C', DeviceType.MVN_CABLE);
-            r.setIngredient('R', Material.REDSTONE_BLOCK);
+            device(r, 'Q', DeviceType.MVN_QUANTUM_CORE);
         });
         shaped(plugin, "cache_l1", create(DeviceType.MVN_CACHE_L1), r -> {
-            r.shape("CRC", "RCR", "CRC");
+            r.shape("CRC", "RMR", "CRC");
             r.setIngredient('C', Material.COPPER_INGOT);
             r.setIngredient('R', Material.REDSTONE);
+            device(r, 'M', DeviceType.MVN_STORAGE_MATRIX);
         });
         shaped(plugin, "cache_l2", create(DeviceType.MVN_CACHE_L2), r -> {
             r.shape("GLG", "LPL", "GLG");
@@ -752,21 +913,23 @@ public final class Items {
             device(r, 'P', DeviceType.MVN_CACHE_DRAM);
         });
         shaped(plugin, "crafting_grid", create(DeviceType.MVN_CRAFTING_GRID), r -> {
-            r.shape("CRC", "RGR", "CRC");
+            r.shape("CRC", "RGR", "CPC");
             r.setIngredient('C', Material.CRAFTING_TABLE);
             r.setIngredient('R', Material.REDSTONE);
             r.setIngredient('G', Material.CARTOGRAPHY_TABLE);
+            device(r, 'P', DeviceType.MVN_LOGIC_PROCESSOR);
         });
         // Blueprint en blanco: el Encoder lo rellena con la receta de la matriz.
         shaped(plugin, "blueprint", stackOf(create(DeviceType.MVN_BLUEPRINT), 4), r -> {
-            r.shape("PPP", "PBP", "PPP");
+            r.shape("PPP", "PWP", "PBP");
             r.setIngredient('P', Material.PAPER);
+            device(r, 'W', DeviceType.MVN_SILICON_WAFER);
             r.setIngredient('B', Material.BLUE_DYE);
         });
         shaped(plugin, "configurator", create(DeviceType.MVN_CONFIGURATOR), r -> {
             r.shape("I I", " C ", " I ");
             r.setIngredient('I', Material.IRON_INGOT);
-            r.setIngredient('C', Material.COMPARATOR);
+            device(r, 'C', DeviceType.MVN_NETWORK_CIRCUIT);
         });
         shaped(plugin, "rake", rake(), r -> {
             r.shape("D D", " S ", " S ");
@@ -774,73 +937,105 @@ public final class Items {
             r.setIngredient('S', Material.STICK);
         });
         shaped(plugin, "quantum_workbench", create(DeviceType.MVN_QUANTUM_WORKBENCH), r -> {
-            r.shape("DDD", "DCD", "DDD");
+            r.shape("DQD", "DCD", "DDD");
             r.setIngredient('D', Material.DIAMOND);
+            device(r, 'Q', DeviceType.MVN_QUANTUM_CORE);
             r.setIngredient('C', Material.CRAFTING_TABLE);
         });
         shaped(plugin, "infinity_barrel", create(DeviceType.MVN_INFINITY_BARREL), r -> {
-            r.shape("NDN", "DBD", "NDN");
+            r.shape("NMN", "DBD", "NDN");
             r.setIngredient('N', Material.NETHERITE_INGOT);
+            device(r, 'M', DeviceType.MVN_STORAGE_MATRIX);
             r.setIngredient('D', Material.DIAMOND_BLOCK);
             r.setIngredient('B', Material.BARREL);
         });
         shaped(plugin, "limiter", create(DeviceType.MVN_LIMITER), r -> {
-            r.shape("RCR", "CTC", "RCR");
+            r.shape("RKR", "TCT", "RKR");
             r.setIngredient('R', Material.REDSTONE);
-            r.setIngredient('C', Material.COMPARATOR);
+            r.setIngredient('K', Material.COMPARATOR);
             r.setIngredient('T', Material.TARGET);
+            device(r, 'C', DeviceType.MVN_NETWORK_CIRCUIT);
         });
         shaped(plugin, "fluid_cell", create(DeviceType.MVN_FLUID_CELL), r -> {
-            r.shape("GBG", "GLG", "GGG");
+            r.shape("GBG", "GMG", "GLG");
             r.setIngredient('G', Material.GLASS);
             r.setIngredient('B', Material.BUCKET);
+            device(r, 'M', DeviceType.MVN_STORAGE_MATRIX);
             r.setIngredient('L', Material.LAPIS_BLOCK);
         });
         shaped(plugin, "liquid_pump", create(DeviceType.MVN_LIQUID_PUMP), r -> {
-            r.shape(" G ", "PBP", " R ");
+            r.shape(" G ", "PBP", " T ");
             r.setIngredient('G', Material.BLUE_STAINED_GLASS);
             r.setIngredient('P', Material.PISTON);
             r.setIngredient('B', Material.BUCKET);
-            r.setIngredient('R', Material.REDSTONE);
+            device(r, 'T', DeviceType.MVN_TRANSFER_COIL);
         });
         shaped(plugin, "request_terminal", create(DeviceType.MVN_REQUEST_TERMINAL), r -> {
-            r.shape("GLG", "RCR", "GGG");
+            r.shape("GLG", "CPC", "GGG");
             r.setIngredient('G', Material.GLASS);
             r.setIngredient('L', Material.LECTERN);
             r.setIngredient('C', Material.CRAFTING_TABLE);
-            r.setIngredient('R', Material.REDSTONE);
+            device(r, 'P', DeviceType.MVN_LOGIC_PROCESSOR);
         });
         shaped(plugin, "request_crafter", create(DeviceType.MVN_REQUEST_CRAFTER), r -> {
-            r.shape("RCR", "ILI", "RCR");
+            r.shape("RCR", "LPL", "RCR");
             r.setIngredient('R', Material.REDSTONE);
             r.setIngredient('C', Material.CRAFTING_TABLE);
-            r.setIngredient('I', Material.IRON_INGOT);
             r.setIngredient('L', Material.LECTERN);
+            device(r, 'P', DeviceType.MVN_LOGIC_PROCESSOR);
         });
         if (Settings.sfCrafterEnabled()) {
             shaped(plugin, "sf_crafter", create(DeviceType.MVN_SF_CRAFTER), r -> {
-                r.shape("RCR", "ITI", "RCR");
-                r.setIngredient('R', Material.ENDER_PEARL);
+                r.shape("ECE", "IPI", "ECE");
+                r.setIngredient('E', Material.ENDER_PEARL);
                 r.setIngredient('C', Material.CRYING_OBSIDIAN);
                 r.setIngredient('I', Material.IRON_INGOT);
-                r.setIngredient('T', Material.TARGET);
+                device(r, 'P', DeviceType.MVN_LOGIC_PROCESSOR);
             });
             shaped(plugin, "sf_request_crafter", create(DeviceType.MVN_SF_REQUEST_CRAFTER), r -> {
-                r.shape("RCR", "ILI", "RCR");
-                r.setIngredient('R', Material.ENDER_PEARL);
+                r.shape("ECE", "LPL", "ECE");
+                r.setIngredient('E', Material.ENDER_PEARL);
                 r.setIngredient('C', Material.PURPUR_PILLAR);
-                r.setIngredient('I', Material.IRON_INGOT);
                 r.setIngredient('L', Material.LECTERN);
+                device(r, 'P', DeviceType.MVN_LOGIC_PROCESSOR);
             });
         }
         // El bloque que aloja los modulos de memoria: hierro, cuarzo y redstone alrededor de un
         // bloque de cobre (el material del propio bay).
         shaped(plugin, "dram_bay", create(DeviceType.MVN_DRAM_BAY), r -> {
-            r.shape("IQI", "RCR", "IQI");
+            r.shape("IMI", "RCR", "IQI");
             r.setIngredient('I', Material.IRON_INGOT);
-            r.setIngredient('Q', Material.QUARTZ);
+            device(r, 'M', DeviceType.MVN_STORAGE_MATRIX);
             r.setIngredient('R', Material.REDSTONE);
             r.setIngredient('C', Material.COPPER_BLOCK);
+            r.setIngredient('Q', Material.QUARTZ);
+        });
+        // El panel de cuotas: un Network Monitor y un Quota Limiter, con papel y comparadores.
+        shaped(plugin, "quota_manager", create(DeviceType.MVN_QUOTA_MANAGER), r -> {
+            r.shape("RKR", "PMP", "RLR");
+            r.setIngredient('R', Material.REDSTONE);
+            r.setIngredient('K', Material.COMPARATOR);
+            r.setIngredient('P', Material.PAPER);
+            device(r, 'M', DeviceType.MVN_MONITOR);
+            device(r, 'L', DeviceType.MVN_LIMITER);
+        });
+        // Descargador y cargador: un DRAM Bay mas lo que mueve los items (tolva para sacar, soltador y
+        // comparador para la cantidad al cargar).
+        shaped(plugin, "module_unloader", create(DeviceType.MVN_MODULE_UNLOADER), r -> {
+            r.shape("IHI", "RBR", "ICI");
+            r.setIngredient('I', Material.IRON_INGOT);
+            r.setIngredient('H', Material.HOPPER);
+            r.setIngredient('R', Material.REDSTONE);
+            device(r, 'B', DeviceType.MVN_DRAM_BAY);
+            device(r, 'C', DeviceType.MVN_CABLE);
+        });
+        shaped(plugin, "module_loader", create(DeviceType.MVN_MODULE_LOADER), r -> {
+            r.shape("IDI", "KBK", "IRI");
+            r.setIngredient('I', Material.IRON_INGOT);
+            r.setIngredient('D', Material.DROPPER);
+            r.setIngredient('K', Material.COMPARATOR);
+            r.setIngredient('R', Material.REDSTONE_BLOCK);
+            device(r, 'B', DeviceType.MVN_DRAM_BAY);
         });
         // Dos celdas de fluidos vacias (64 cubos cada una) mas diamantes y cubos dan un modulo de
         // 512 cubos: compensa frente a 8 celdas, pero no es gratis.
@@ -857,6 +1052,17 @@ public final class Items {
             r.setIngredient('E', Material.EGG);
             r.setIngredient('C', Material.COMPARATOR);
             device(r, 'P', DeviceType.MVN_PUSHER_HT);
+        });
+        // Una sonda (la que comprueba la conexion), un cable, los dos tintes de los dos estados,
+        // redstone y glowstone para la luz. Sin cristal suelto: el cable tambien es GLASS.
+        shaped(plugin, "status_light", create(DeviceType.MVN_STATUS_LIGHT), r -> {
+            r.shape("RGR", "LPD", "RCR");
+            r.setIngredient('R', Material.REDSTONE);
+            r.setIngredient('G', Material.GLOWSTONE);
+            r.setIngredient('L', Material.LIME_DYE);
+            r.setIngredient('D', Material.RED_DYE);
+            device(r, 'P', DeviceType.MVN_PROBE);
+            device(r, 'C', DeviceType.MVN_CABLE);
         });
         plugin.getLogger().info("Registered " + recipeCount() + " crafting recipes with Bukkit.");
     }

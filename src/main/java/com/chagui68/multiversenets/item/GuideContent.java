@@ -46,7 +46,10 @@ public final class GuideContent {
                 "Llave de Configuración y Network Rake."),
         CHICKENS(Material.HAY_BLOCK, "GeneticChickengineering", "GeneticChickengineering",
                 "Sorting pocket chickens by their genes.",
-                "Clasificar pollos de bolsillo por sus genes.");
+                "Clasificar pollos de bolsillo por sus genes."),
+        COMPONENTS(Material.PRISMARINE_SHARD, "Components", "Componentes",
+                "Intermediate parts every device recipe is built from.",
+                "Piezas intermedias con las que se fabrican los dispositivos.");
 
         private final Material icon;
         private final String nameEn;
@@ -237,9 +240,17 @@ public final class GuideContent {
         add(DeviceType.MVN_CABLE, Category.CORE, "Cable de Red",
                 "Connects devices. It has no logic of its own: it only carries the network.",
                 "Conecta dispositivos. No tiene lógica propia: solo lleva la red.",
-                "Right-click a cable to see whether it reaches a controller and how many nodes the network has. "
-                        + "Holding a block while right-clicking places the block.",
-                "Clic derecho en un cable para ver si llega a un controlador y cuántos nodos tiene la red. Con un "
+                "Right-click a cable (empty hand) to see whether it reaches a controller and open its menu. "
+                        + "Camouflage: put a block in its slot and the cable looks exactly like it, so a line of "
+                        + "cables disappears inside a wall. The block is kept, not used up: take it back and the "
+                        + "cable is glass again; breaking the cable drops both. Colours: 4 cables + a dye give 4 "
+                        + "cables of that colour (all 16); they connect like the plain cable. Holding a block while "
+                        + "right-clicking places the block.",
+                "Clic derecho en un cable (mano vacía) para ver si llega a un controlador y abrir su menú. "
+                        + "Camuflaje: pon un bloque en su hueco y el cable tiene exactamente su aspecto, así una "
+                        + "línea de cables desaparece dentro de una pared. El bloque se guarda, no se gasta: "
+                        + "recupéralo y el cable vuelve a ser de cristal; romper el cable suelta los dos. Colores: 4 "
+                        + "cables + un tinte dan 4 cables de ese color (los 16); conectan como el cable normal. Con un "
                         + "bloque en la mano, el clic derecho coloca el bloque.");
         add(DeviceType.MVN_TERMINAL, Category.CORE, "Terminal de Red",
                 "The storage grid: every item in the network (memory, cells, barrels, greedy cells, Slimefun "
@@ -281,6 +292,13 @@ public final class GuideContent {
                         + "escaneo y cortes por protección del bloque que pulsas.",
                 "Right-click any block with it.",
                 "Clic derecho en cualquier bloque.");
+        add(DeviceType.MVN_STATUS_LIGHT, Category.CORE, "Luz de Estado de Red",
+                "Shows from afar whether the block under it reaches a Controller: green when connected, red "
+                        + "when not. It is not part of the network and never links two networks.",
+                "Muestra desde lejos si el bloque de debajo llega a un Controlador: verde si está conectado, "
+                        + "roja si no. No forma parte de la red y nunca une dos redes.",
+                "Place it on top of any network block. It checks once a second.",
+                "Colócala encima de cualquier bloque de red. Se comprueba una vez por segundo.");
 
         // ------------------------------------------------------------------ storage
         String cellWhatEn = "Stores ONE item type in large amounts. An empty cell adopts the first item type that "
@@ -354,6 +372,34 @@ public final class GuideContent {
                         + "cursor o con shift+clic; haz clic en un módulo instalado para sacarlo. Un módulo sacado "
                         + "conserva todo su stock: instálalo en el bay de otra red y el stock aparece allí y sale de "
                         + "la primera. Romper el bay suelta el bay y todos sus módulos con su stock.");
+        add(DeviceType.MVN_MODULE_UNLOADER, Category.MEMORY, "Descargador DRAM",
+                "Empties memory modules (cards) into the network. Unlike a DRAM Bay, the cards inside are not "
+                        + "network storage: their stock flows into the network every cycle. What the network can not "
+                        + "store stays on the card and the next item is tried, so the card ends up as empty as "
+                        + "possible.",
+                "Vacía módulos de memoria (tarjetas) en la red. A diferencia de un DRAM Bay, las tarjetas de "
+                        + "dentro no son almacenamiento de la red: su stock pasa a la red en cada ciclo. Lo que la red "
+                        + "no puede guardar se queda en la tarjeta y se prueba el siguiente ítem, así la tarjeta queda "
+                        + "lo más vacía posible.",
+                "Right-click it with a card in hand, or open its menu: 9 card slots with their progress. Click a "
+                        + "card to take it out; \"Take empty cards\" collects every finished one. It needs free space "
+                        + "in the network.",
+                "Clic derecho con una tarjeta en la mano, o abre su menú: 9 huecos con su progreso. Haz clic en "
+                        + "una tarjeta para sacarla; \"Take empty cards\" recoge todas las terminadas. Necesita espacio "
+                        + "libre en la red.");
+        add(DeviceType.MVN_MODULE_LOADER, Category.MEMORY, "Cargador DRAM",
+                "Fills one memory module with a single item (or fluid, for a Fluid DRAM) taken from the network, "
+                        + "up to the amount you choose. Inserting a card does nothing until you press Start.",
+                "Llena un módulo de memoria con un único ítem (o fluido, en un Fluid DRAM) sacado de la red, hasta "
+                        + "la cantidad que elijas. Meter una tarjeta no hace nada hasta pulsar Start.",
+                "Open it, put an empty card in, click the target slot with the item (a fluid bucket for a Fluid "
+                        + "DRAM), set the amount (buttons, or click it and type 1m, 500k, max) and press Start. It "
+                        + "stops by itself when the card holds that amount or is full. Example: a Quantum card with "
+                        + "500k cobblestone, ready to sell.",
+                "Ábrelo, mete una tarjeta vacía, haz clic en el hueco de objetivo con el ítem (un cubo de fluido "
+                        + "para un Fluid DRAM), fija la cantidad (botones, o haz clic y escribe 1m, 500k, max) y pulsa "
+                        + "Start. Se para solo cuando la tarjeta tiene esa cantidad o está llena. Ejemplo: una "
+                        + "tarjeta Quantum con 500k de adoquín, lista para vender.");
         String moduleWhatEn = "Item memory module for a DRAM Bay: stores any mix of item types up to its capacity. "
                 + "It keeps its items when taken out of the bay.";
         String moduleWhatEs = "Módulo de memoria de ítems para un DRAM Bay: guarda cualquier mezcla de tipos hasta su "
@@ -451,6 +497,20 @@ public final class GuideContent {
                         + "item the lowest wins.",
                 "Clic derecho: ítem objetivo, límite (botones o chat) y activar/desactivar. Con varios limitadores "
                         + "sobre el mismo ítem gana el más bajo.");
+        add(DeviceType.MVN_QUOTA_MANAGER, Category.TRANSPORT, "Gestor de Cuotas",
+                "One screen for every Quota Limiter of its network: each limited item with its limit, the "
+                        + "network's stock and a usage bar, plus how many limiters are still free.",
+                "Una pantalla para todos los Quota Limiters de su red: cada ítem limitado con su límite, el stock "
+                        + "de la red y una barra de uso, y cuántos limitadores quedan libres.",
+                "Right-click it. Add an item with Add (item on the cursor), on a free limiter, or with "
+                        + "Shift-Click from your inventory: it uses one free Quota Limiter, so place more limiters "
+                        + "to limit more items. On a limited item: left-click types the limit, Shift+right-click "
+                        + "turns it on/off, right-click removes the item (the limiter is free again).",
+                "Clic derecho. Añade un ítem con Add (ítem en el cursor), sobre un limitador libre o con "
+                        + "Shift+clic desde tu inventario: ocupa un Quota Limiter libre, así que coloca más "
+                        + "limitadores para limitar más ítems. En un ítem limitado: clic izquierdo escribe el "
+                        + "límite, Shift+clic derecho lo activa/desactiva, clic derecho quita el ítem (el limitador "
+                        + "queda libre).");
         add(DeviceType.MVN_TRANSMITTER, Category.TRANSPORT, "Transmisor Inalámbrico",
                 "One end of the wireless bridge. If it holds the link to a Receiver it PUSHES the items that pass "
                         + "its filter into the receiver's network, at any distance and across worlds.",
@@ -567,5 +627,43 @@ public final class GuideContent {
                         + "de genes, todas deben cumplirse: nivel mín/máx, fuerza de ADN mínima, genes puros, ADN, "
                         + "edad. Izquierdo +1, derecho -1, Shift reinicia; una regla activa brilla. Empieza PARADO: "
                         + "actívalo cuando esté listo.");
+
+        // ------------------------------------------------------------------ components
+        String componentUseEn = "Only an ingredient: it can not be placed or used, and no vanilla recipe accepts it.";
+        String componentUseEs = "Solo es un ingrediente: no se coloca ni se usa, y ninguna receta vanilla lo acepta.";
+        add(DeviceType.MVN_SILICON_WAFER, Category.COMPONENTS, "Oblea de Silicio",
+                "The first component, made from quartz and sand. Network Circuits, Storage Matrices and "
+                        + "Blueprints are built on it.",
+                "El primer componente, de cuarzo y arena. Los Network Circuits, las Storage Matrix y los "
+                        + "Blueprints se fabrican con él.",
+                componentUseEn, componentUseEs);
+        add(DeviceType.MVN_NETWORK_CIRCUIT, Category.COMPONENTS, "Circuito de Red",
+                "Basic network logic. Cables, Terminal, Grabbers, Pushers, Monitor, Limiter, Encoders, Probe and "
+                        + "the Wrench use it, and it is the base of the Logic Processor and the Storage Matrix.",
+                "Lógica básica de red. La usan los cables, el Terminal, Grabbers, Pushers, el Monitor, el "
+                        + "Limitador, los Encoders, la Sonda y la Llave, y es la base del Logic Processor y la "
+                        + "Storage Matrix.",
+                componentUseEn, componentUseEs);
+        add(DeviceType.MVN_LOGIC_PROCESSOR, Category.COMPONENTS, "Procesador Lógico",
+                "The brain of the machines that decide: Controller, Auto-Crafters, Request Crafters, Request "
+                        + "Terminal and Crafting Grid. Two of them make a Quantum Core.",
+                "El cerebro de las máquinas que deciden: Controlador, Auto-Crafters, Request Crafters, Request "
+                        + "Terminal y Crafting Grid. Con dos se hace un Quantum Core.",
+                componentUseEn, componentUseEs);
+        add(DeviceType.MVN_STORAGE_MATRIX, Category.COMPONENTS, "Matriz de Almacenamiento",
+                "The core of every storage: Quantum Cell T1, Infinity Barrel, Greedy Cell, Quantum Fluid Cell, "
+                        + "DRAM Bay and the L1 module.",
+                "El núcleo de todo almacén: Quantum Cell T1, Infinity Barrel, Greedy Cell, Quantum Fluid Cell, "
+                        + "DRAM Bay y el módulo L1.",
+                componentUseEn, componentUseEs);
+        add(DeviceType.MVN_TRANSFER_COIL, Category.COMPONENTS, "Bobina de Transferencia",
+                "Moves things: Grabbers, Pushers (simple and advanced), Vacuum and Liquid Pump.",
+                "Mueve cosas: Grabbers, Pushers (simples y avanzados), Vacuum y Liquid Pump.",
+                componentUseEn, componentUseEs);
+        add(DeviceType.MVN_QUANTUM_CORE, Category.COMPONENTS, "Núcleo Cuántico",
+                "Links far places: Wireless Terminal, Transmitter, Receiver, Network Router and Quantum Workbench.",
+                "Une lugares lejanos: Terminal Inalámbrico, Transmisor, Receptor, Network Router y Quantum "
+                        + "Workbench.",
+                componentUseEn, componentUseEs);
     }
 }

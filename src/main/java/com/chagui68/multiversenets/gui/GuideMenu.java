@@ -43,7 +43,7 @@ public class GuideMenu extends MenuHolder {
     public static final int HOME_SLOT = 49;
     public static final int CLOSE_SLOT = 49;
     public static final int TOPICS_SLOT = 19;
-    public static final int[] CATEGORY_SLOTS = {21, 22, 23, 24, 25, 30, 31, 32};
+    public static final int[] CATEGORY_SLOTS = {21, 22, 23, 24, 25, 30, 31, 32, 33};
     public static final int[] LIST_SLOTS = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34};
     public static final int[] TOPIC_SLOTS = {19, 20, 21, 22, 23, 24, 25, 31};
     public static final int[] GRID_SLOTS = {10, 11, 12, 19, 20, 21, 28, 29, 30};

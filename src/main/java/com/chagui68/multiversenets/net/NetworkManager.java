@@ -536,6 +536,50 @@ public class NetworkManager {
     }
 
     /**
+     * EN: Puts back into the extract slots what {@link #extractMatching} took and the network did
+     * not accept. Tops up slots holding the same item first, then empty ones. A furnace only gets
+     * its result slot back, never the input.
+     *
+     * ES: Devuelve a las ranuras de extracción lo que {@link #extractMatching} sacó y la red no
+     * aceptó. Primero rellena las ranuras con el mismo ítem y luego las vacías. A un horno solo se
+     * le devuelve a la ranura de resultado, nunca a la de entrada.
+     *
+     * @return units that did not fit / unidades que no cupieron
+     */
+    public static int returnToSlots(Inventory inv, ItemStack stack) {
+        if (stack == null || stack.getAmount() <= 0) {
+            return 0;
+        }
+        if (inv == null) {
+            return stack.getAmount();
+        }
+        int remaining = stack.getAmount();
+        int max = Math.min(stack.getMaxStackSize(), inv.getMaxStackSize());
+        int[] slots = extractSlots(inv);
+        for (int pass = 0; pass < 2 && remaining > 0; pass++) {
+            for (int i : slots) {
+                if (remaining <= 0) {
+                    break;
+                }
+                ItemStack it = inv.getItem(i);
+                ItemStack current = it == null || it.getType().isAir() ? null : it;
+                // Pasada 0: ranuras con el mismo item. Pasada 1: ranuras vacias.
+                if (pass == 0 ? current == null || !StackUtils.itemsMatch(current, stack) : current != null) {
+                    continue;
+                }
+                int have = current == null ? 0 : current.getAmount();
+                int put = Math.min(max - have, remaining);
+                if (put <= 0) {
+                    continue;
+                }
+                inv.setItem(i, StackUtils.getAsQuantity(stack, have + put));
+                remaining -= put;
+            }
+        }
+        return remaining;
+    }
+
+    /**
      * EN: Inserts an ItemStack into a vanilla inventory, returning leftover amount.
  *
      * ES: Inserta un ItemStack en un inventario vanilla y devuelve la cantidad sobrante.

@@ -228,6 +228,10 @@ public class Network {
         return world.getBlockAt(PosUtil.unpackX(pos), PosUtil.unpackY(pos), PosUtil.unpackZ(pos));
     }
 
+    private static boolean isImporter(DeviceType type) {
+        return type != null && type.isImporter();
+    }
+
     public void scan() {
         Long2ObjectOpenHashMap<DeviceType> found = new Long2ObjectOpenHashMap<>();
         LongOpenHashSet visited = new LongOpenHashSet();
@@ -329,6 +333,17 @@ public class Network {
                             queue.enqueue(next);
                         }
                     }
+                    continue;
+                }
+                if (type == DeviceType.MVN_STATUS_LIGHT) {
+                    // Solo mira la red de abajo: no es parte de ninguna ni une dos redes.
+                    continue;
+                }
+                if ((type.isCell() || type.isBarrel()) && isImporter(found.get(pos))) {
+                    // Un Grabber no conduce la red hacia una celda o un barril: los vacia, como a un
+                    // cofre. Sin esto el almacen entraba en la red y el Grabber solo lo "monitorizaba".
+                    // Si el almacen llega por otro camino (un cable), entra por ahi.
+                    visited.remove(next);
                     continue;
                 }
                 if (type == DeviceType.MVN_CONTROLLER && next != controllerPos) {

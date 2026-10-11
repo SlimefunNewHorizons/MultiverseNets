@@ -55,6 +55,13 @@ public class GuiListener implements Listener {
                 || action == InventoryAction.CLONE_STACK
                 || action == InventoryAction.UNKNOWN) {
             event.setCancelled(true);
+            // Ya cancelado, nada se mueve: el menu solo lee la tecla (p. ej. fijar en una pagina).
+            if ((type == ClickType.NUMBER_KEY || type == ClickType.DROP)
+                    && top.equals(event.getClickedInventory())
+                    && menu.acceptsKeyClicks()
+                    && !ChatPrompts.isPending((Player) event.getWhoClicked())) {
+                menu.click(event);
+            }
             return;
         }
 
