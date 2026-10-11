@@ -7,11 +7,115 @@ transfer cycle (`network.op-interval-ticks.transfer`, 5 ticks).
 > In the grids, `·` marks an empty slot. Every item can also be given with `/mvnets give <id>`.
 > Back to the [wiki index](README.md).
 
-> **Devices as ingredients.** When a recipe asks for another device (previous cell, previous
-> module, cable, fluid cell, Advanced Pusher) it must be that device: the plain material underneath
-> (terracotta, copper ingot, glass, prismarine bricks, piston) does not count. Cell and module
-> upgrades keep the cargo of the ingredient; every other recipe refuses a device that still stores
-> something. No device can be used as an ingredient of a vanilla recipe.
+> **Components and devices as ingredients.** When a recipe asks for a component or another device
+> (Network Circuit, Storage Matrix, previous cell, previous module, cable, fluid cell, DRAM Bay,
+> Monitor, Advanced Pusher...) it must be that item: the plain material underneath (prismarine shard,
+> disc fragment, terracotta, copper ingot, glass, prismarine bricks, piston...) does not count. Cell
+> and module upgrades keep the cargo of the ingredient; every other recipe refuses a device that still
+> stores something. No component or device can be used as an ingredient of a vanilla recipe.
+
+---
+
+## 🔩 Components
+
+The base devices are crafted from these intermediate parts, so no device recipe can clash with a
+vanilla recipe. They are hand items: they cannot be placed or used, and no vanilla recipe accepts
+them. Blueprints encoded with the old device recipes no longer work: encode them again.
+
+### Silicon Wafer (×2) · `mvn_silicon_wafer`
+
+```
+· Q ·
+Q S Q
+· Q ·
+```
+
+> Q = **Quartz** · S = **Sand**
+
+- **Result**: 2× Silicon Wafer (hand item, Prismarine Crystals)
+- **Function**: The first component. Network Circuits, Storage Matrices and Blank Blueprints are
+  built on it. Only an ingredient.
+
+---
+
+### Network Circuit (×2) · `mvn_network_circuit`
+
+```
+R G R
+W I W
+R G R
+```
+
+> R = **Redstone** · G = **Gold Nugget** · W = **Silicon Wafer** · I = **Iron Ingot**
+
+- **Result**: 2× Network Circuit (hand item, Prismarine Shard)
+- **Function**: Basic network logic. The Controller, cables, Terminal, Simple Grabber and Pusher,
+  Vacuum, Purger, Quota Limiter, Monitor, Probe, both Encoders and the Configuration Wrench use it,
+  and it is the base of the Logic Processor and the Storage Matrix. Only an ingredient.
+
+---
+
+### Logic Processor · `mvn_logic_processor`
+
+```
+Q C Q
+C R C
+Q C Q
+```
+
+> Q = **Quartz** · C = **Network Circuit** · R = **Redstone Block**
+
+- **Result**: 1× Logic Processor (hand item, Shulker Shell)
+- **Function**: The brain of the machines that decide: Controller, Auto-Crafters, Request Crafters,
+  Request Terminal and Crafting Grid. Two of them make a Quantum Core. Only an ingredient.
+
+---
+
+### Storage Matrix · `mvn_storage_matrix`
+
+```
+I W I
+C D C
+I W I
+```
+
+> I = **Iron Ingot** · W = **Silicon Wafer** · C = **Network Circuit** · D = **Diamond**
+
+- **Result**: 1× Storage Matrix (hand item, Disc Fragment)
+- **Function**: The core of every storage: Quantum Cell T1, Infinity Barrel, Greedy Cell, Quantum
+  Fluid Cell, DRAM Bay and the L1 module. Only an ingredient.
+
+---
+
+### Transfer Coil (×2) · `mvn_transfer_coil`
+
+```
+K R K
+R I R
+K R K
+```
+
+> K = **Copper Ingot** · R = **Redstone** · I = **Iron Ingot**
+
+- **Result**: 2× Transfer Coil (hand item, Tripwire Hook)
+- **Function**: Moves things: Grabbers and Pushers (simple and advanced), Vacuum and Liquid Pump.
+  Only an ingredient.
+
+---
+
+### Quantum Core · `mvn_quantum_core`
+
+```
+A D A
+P E P
+A D A
+```
+
+> A = **Amethyst Shard** · D = **Diamond** · P = **Logic Processor** · E = **Ender Pearl**
+
+- **Result**: 1× Quantum Core (hand item, Echo Shard)
+- **Function**: Links far places: Wireless Terminal, Wireless Transmitter and Receiver, Network
+  Router and Quantum Workbench. Only an ingredient.
 
 ---
 
@@ -20,12 +124,12 @@ transfer cycle (`network.op-interval-ticks.transfer`, 5 ticks).
 ### Network Controller · `mvn_controller`
 
 ```
-I I I
-I N I
-I I I
+I P I
+C N C
+I P I
 ```
 
-> I = **Iron Block** · N = **Nether Star**
+> I = **Iron Block** · P = **Logic Processor** · C = **Network Circuit** · N = **Nether Star**
 
 - **Result**: 1× Network Controller (Lodestone)
 - **Function**: Root of the network. Every scan starts here and walks through every connected
@@ -41,11 +145,11 @@ I I I
 
 ```
 G G G
-G R G
+G C G
 G G G
 ```
 
-> G = **Glass** · R = **Redstone**
+> G = **Glass** · C = **Network Circuit**
 
 - **Result**: 16× Network Cable (Glass)
 - **Function**: Connects devices. Every MultiverseNets block conducts, cables are just the cheap way
@@ -65,12 +169,12 @@ G G G
 ### Network Terminal · `mvn_terminal`
 
 ```
-G E G
+G C G
 E B E
-G E G
+G C G
 ```
 
-> G = **Glass** · E = **Ender Pearl** · B = **Beacon**
+> G = **Glass** · C = **Network Circuit** · E = **Ender Pearl** · B = **Beacon**
 
 - **Result**: 1× Network Terminal (Beacon)
 - **Function**: The storage grid. The top row holds the views: **Network Storage**, **Purge Mode**
@@ -89,12 +193,12 @@ G E G
 ### Wireless Terminal · `mvn_wireless_terminal`
 
 ```
-· P ·
+· Q ·
 P N P
 · C ·
 ```
 
-> P = **Ender Pearl** · N = **Nether Star** · C = **Compass**
+> Q = **Quantum Core** · P = **Ender Pearl** · N = **Nether Star** · C = **Compass**
 
 - **Result**: 1× Wireless Terminal (hand item)
 - **Function**: Opens a network's terminal remotely. Shift+right-click a Controller or a Terminal to
@@ -109,10 +213,10 @@ P N P
 ```
 · L ·
 · C ·
-· R ·
+· Q ·
 ```
 
-> L = **Lightning Rod** · C = **Network Cable** · R = **Redstone Block**
+> L = **Lightning Rod** · C = **Network Cable** · Q = **Quantum Core**
 
 - **Result**: 1× Network Router (Lightning Rod)
 - **Function**: Connected anywhere in a network, it lifts the Wireless Terminal limits for that
@@ -124,11 +228,11 @@ P N P
 
 ```
 G G G
-G C G
+K C K
 G G G
 ```
 
-> G = **Glass Pane** · C = **Comparator**
+> G = **Glass Pane** · K = **Comparator** · C = **Network Circuit**
 
 - **Result**: 1× Network Monitor (Respawn Anchor)
 - **Function**: Live diagnostic panel: node counts by type, storage usage and scan errors. It refreshes
@@ -141,10 +245,10 @@ G G G
 ```
 · A ·
 A S A
-· A ·
+· C ·
 ```
 
-> A = **Amethyst Shard** · S = **Spyglass**
+> A = **Amethyst Shard** · S = **Spyglass** · C = **Network Circuit**
 
 - **Result**: 1× Network Probe (hand item)
 - **Function**: Right-click any block (node or not) to see which network it belongs to, how many nodes
@@ -173,12 +277,13 @@ R C R
 ### DRAM Bay · `mvn_dram_bay`
 
 ```
-I Q I
+I M I
 R C R
 I Q I
 ```
 
-> I = **Iron Ingot** · Q = **Quartz** · R = **Redstone** · C = **Copper Block**
+> I = **Iron Ingot** · M = **Storage Matrix** · R = **Redstone** · C = **Copper Block** ·
+> Q = **Quartz**
 
 - **Result**: 1× DRAM Bay (Waxed Copper Bulb)
 - **Function**: Network block that holds **up to 18 memory modules** (any mix of the item modules
@@ -202,11 +307,11 @@ tier is crafted from the previous one; upgrading a module that holds items keeps
 
 ```
 C R C
-R C R
+R M R
 C R C
 ```
 
-> C = **Copper Ingot** · R = **Redstone Dust**
+> C = **Copper Ingot** · R = **Redstone** · M = **Storage Matrix**
 
 #### L2 CPU Cache Module — 8,192 items
 
@@ -258,7 +363,7 @@ F E F
 D B D
 ```
 
-> D = **Diamond** · B = **Bucket** · E = **Eye of Ender** · F = **Quantum Fluid Cell** (empty)
+> D = **Diamond** · B = **Bucket** · F = **Quantum Fluid Cell** (empty) · E = **Eye of Ender**
 
 - **Result**: 1× Fluid DRAM Module (hand item, Heart of the Sea)
 - **Function**: **Fluid-only** memory module for the DRAM Bay. It holds several fluids at once, up to
@@ -296,7 +401,8 @@ K B K
 I R I
 ```
 
-> I = **Iron Ingot** · D = **Dropper** · K = **Comparator** · B = **DRAM Bay** · R = **Redstone Block**
+> I = **Iron Ingot** · D = **Dropper** · K = **Comparator** · B = **DRAM Bay** ·
+> R = **Redstone Block**
 
 - **Result**: 1× DRAM Loader (Waxed Oxidized Copper Bulb)
 - **Function**: **Fills one card** with a single item (or a fluid, for a Fluid DRAM) taken from the
@@ -316,11 +422,11 @@ I R I
 
 ```
 G G G
-G D G
+G M G
 G G G
 ```
 
-> G = **Glass** · D = **Diamond**
+> G = **Glass** · M = **Storage Matrix**
 
 **Tn+1 (n ≥ 1):** the previous cell in the centre, surrounded by diamonds.
 
@@ -352,12 +458,12 @@ D D D
 ### Infinity Barrel · `mvn_infinity_barrel`
 
 ```
-N D N
+N M N
 D B D
 N D N
 ```
 
-> N = **Netherite Ingot** · D = **Diamond Block** · B = **Barrel**
+> N = **Netherite Ingot** · M = **Storage Matrix** · D = **Diamond Block** · B = **Barrel**
 
 - **Result**: 1× Infinity Barrel (Barrel)
 - **Function**: Like a cell, one item type, with `barrel.capacity` (2,000,000,000). It **stays
@@ -373,10 +479,10 @@ N D N
 ```
 G H G
 H S H
-G H G
+G M G
 ```
 
-> G = **Gold Ingot** · H = **Hopper** · S = **Slime Block**
+> G = **Gold Ingot** · H = **Hopper** · S = **Slime Block** · M = **Storage Matrix**
 
 - **Result**: 1× Greedy Cell (Slime Block)
 - **Function**: Multi-item buffer up to `greedy.capacity` (262,144) in total.
@@ -394,12 +500,12 @@ G H G
 ### Quantum Workbench · `mvn_quantum_workbench`
 
 ```
-D D D
+D Q D
 D C D
 D D D
 ```
 
-> D = **Diamond** · C = **Crafting Table**
+> D = **Diamond** · Q = **Quantum Core** · C = **Crafting Table**
 
 - **Result**: 1× Quantum Workbench (Brain Coral Block)
 - **Function**: Upgrades a Quantum Cell T1–T5 to the next tier keeping its cargo. Place the cell in
@@ -414,11 +520,11 @@ D D D
 
 ```
 G B G
+G M G
 G L G
-G G G
 ```
 
-> G = **Glass** · B = **Bucket** · L = **Lapis Block**
+> G = **Glass** · B = **Bucket** · M = **Storage Matrix** · L = **Lapis Block**
 
 - **Result**: 1× Quantum Fluid Cell (Prismarine Bricks)
 - **Function**: Holds one fluid — Water, Lava, Milk, Powder Snow or Honey — up to
@@ -434,10 +540,10 @@ G G G
 ```
 · G ·
 P B P
-· R ·
+· T ·
 ```
 
-> G = **Blue Stained Glass** · P = **Piston** · B = **Bucket** · R = **Redstone**
+> G = **Blue Stained Glass** · P = **Piston** · B = **Bucket** · T = **Transfer Coil**
 
 - **Result**: 1× Liquid Pump (Blue Stained Glass)
 - **Function**: Each cycle drains one **source** block of water or lava directly **below** it
@@ -451,12 +557,12 @@ P B P
 ### Simple Grabber (Importer) · `mvn_grabber`
 
 ```
-I O I
-O R O
-I O I
+I T I
+O C O
+I T I
 ```
 
-> I = **Iron Ingot** · O = **Observer** · R = **Redstone Block**
+> I = **Iron Ingot** · T = **Transfer Coil** · O = **Observer** · C = **Network Circuit**
 
 - **Result**: 1× Simple Grabber (Observer)
 - **Function**: Imports from adjacent containers into the network: up to 128 items of one type per
@@ -472,10 +578,10 @@ I O I
 ### Advanced Grabber · `mvn_grabber_ht`
 
 ```
-O P O
+T P T
 ```
 
-> O = **Observer** · P = **Sticky Piston**
+> T = **Transfer Coil** · P = **Sticky Piston**
 
 - **Result**: 1× Advanced Grabber (Sticky Piston)
 - **Function**: Same as the Simple Grabber ×8 (`transfer.ht-multiplier`): 1,024 items per cycle. Its
@@ -486,12 +592,12 @@ O P O
 ### Simple Pusher (Exporter) · `mvn_pusher`
 
 ```
-I D I
-D R D
-I D I
+I T I
+D C D
+I T I
 ```
 
-> I = **Iron Ingot** · D = **Dropper** · R = **Redstone Block**
+> I = **Iron Ingot** · T = **Transfer Coil** · D = **Dropper** · C = **Network Circuit**
 
 - **Result**: 1× Simple Pusher (Target)
 - **Function**: Exports from the network into adjacent containers through **all six faces** (it has
@@ -508,10 +614,10 @@ I D I
 ### Advanced Pusher · `mvn_pusher_ht`
 
 ```
-D P D
+T P T
 ```
 
-> D = **Dropper** · P = **Piston**
+> T = **Transfer Coil** · P = **Piston**
 
 - **Result**: 1× Advanced Pusher (Piston)
 - **Function**: Same as the Simple Pusher ×8 (1,024 per cycle). With a face selected it delivers
@@ -522,12 +628,12 @@ D P D
 ### Network Vacuum · `mvn_vacuum`
 
 ```
-S R S
-R H R
-S R S
+S T S
+T H T
+S C S
 ```
 
-> S = **String** · R = **Redstone** · H = **Hopper**
+> S = **String** · T = **Transfer Coil** · H = **Hopper** · C = **Network Circuit**
 
 - **Result**: 1× Network Vacuum (Sponge)
 - **Function**: Every 10 ticks picks up dropped items within `vacuum.radius` (4 blocks) into the
@@ -540,10 +646,10 @@ S R S
 ```
 I L I
 L H L
-I L I
+I C I
 ```
 
-> I = **Iron Ingot** · L = **Magma Block** · H = **Hopper**
+> I = **Iron Ingot** · L = **Magma Block** · H = **Hopper** · C = **Network Circuit**
 
 - **Result**: 1× Network Purger (Magma Block)
 - **Function**: Deletes up to 128 items per cycle that match its filter, so waste (gravel, seeds…)
@@ -554,12 +660,12 @@ I L I
 ### Network Quota Limiter · `mvn_limiter`
 
 ```
-R C R
-C T C
-R C R
+R K R
+T C T
+R K R
 ```
 
-> R = **Redstone** · C = **Comparator** · T = **Target**
+> R = **Redstone** · K = **Comparator** · T = **Target** · C = **Network Circuit**
 
 - **Result**: 1× Network Quota Limiter (Target)
 - **Function**: Caps how much of one item the network may hold. Every deposit stops at the cap:
@@ -577,7 +683,8 @@ P M P
 R L R
 ```
 
-> R = **Redstone** · K = **Comparator** · P = **Paper** · M = **Network Monitor** · L = **Network Quota Limiter**
+> R = **Redstone** · K = **Comparator** · P = **Paper** · M = **Network Monitor** ·
+> L = **Network Quota Limiter**
 
 - **Result**: 1× Quota Manager (Verdant Froglight)
 - **Function**: Lists every Quota Limiter of its network: the limited item, its limit, the network's
@@ -594,10 +701,10 @@ R L R
 ```
 I R I
 R C R
-I R I
+I Q I
 ```
 
-> I = **Iron Ingot** · R = **Redstone Block** · C = **Conduit**
+> I = **Iron Ingot** · R = **Redstone Block** · C = **Conduit** · Q = **Quantum Core**
 
 - **Result**: 1× Wireless Transmitter (Conduit)
 - **Function**: One end of a wireless bridge between two networks. Shift+right-click a placed
@@ -613,10 +720,10 @@ I R I
 ```
 I P I
 P L P
-I P I
+I Q I
 ```
 
-> I = **Iron Ingot** · P = **Ender Pearl** · L = **Redstone Lamp**
+> I = **Iron Ingot** · P = **Ender Pearl** · L = **Redstone Lamp** · Q = **Quantum Core**
 
 - **Result**: 1× Wireless Receiver (Redstone Lamp)
 - **Function**: The other end of the bridge. When linked to a Transmitter it **pulls** up to 128 items
@@ -633,11 +740,11 @@ I P I
 
 ```
 P P P
+P W P
 P B P
-P P P
 ```
 
-> P = **Paper** · B = **Blue Dye**
+> P = **Paper** · W = **Silicon Wafer** · B = **Blue Dye**
 
 - **Result**: 4× Blueprint (Book)
 - **Function**: Carries a recipe (3×3 grid + result) once written by a Recipe Encoder. Crafting never
@@ -650,11 +757,11 @@ P P P
 
 ```
 K P K
-P S P
+C S C
 K P K
 ```
 
-> K = **Ink Sac** · P = **Paper** · S = **Smithing Table**
+> K = **Ink Sac** · P = **Paper** · C = **Network Circuit** · S = **Smithing Table**
 
 - **Result**: 1× Recipe Encoder (Smithing Table)
 - **Function**: Build the recipe in its persistent 3×3 template grid (clicking only marks slots, no
@@ -668,11 +775,11 @@ K P K
 
 ```
 E P E
-P B P
+C B C
 E P E
 ```
 
-> E = **Ender Pearl** · P = **Paper** · B = **Enchanting Table**
+> E = **Ender Pearl** · P = **Paper** · C = **Network Circuit** · B = **Enchanting Table**
 
 - **Result**: 1× Slimefun Recipe Encoder (Enchanting Table)
 - **Function**: Same as the Recipe Encoder for Slimefun recipes. Blueprints left in its slots stay
@@ -685,11 +792,11 @@ E P E
 
 ```
 R C R
-I T I
+I P I
 R C R
 ```
 
-> R = **Redstone** · C = **Crafting Table** · I = **Iron Ingot** · T = **Target**
+> R = **Redstone** · C = **Crafting Table** · I = **Iron Ingot** · P = **Logic Processor**
 
 - **Result**: 1× Auto-Crafter (Crafting Table)
 - **Function**: Holds up to 18 vanilla Blueprints (`crafter.max-recipes`) and every 20 ticks tries
@@ -702,12 +809,12 @@ R C R
 ### Slimefun Auto-Crafter · `mvn_sf_crafter`
 
 ```
-R C R
-I T I
-R C R
+E C E
+I P I
+E C E
 ```
 
-> R = **Ender Pearl** · C = **Crying Obsidian** · I = **Iron Ingot** · T = **Target**
+> E = **Ender Pearl** · C = **Crying Obsidian** · I = **Iron Ingot** · P = **Logic Processor**
 
 - **Result**: 1× Slimefun Auto-Crafter (Crying Obsidian)
 - **Function**: Same as the Auto-Crafter and accepts **both Slimefun and vanilla Blueprints**.
@@ -720,11 +827,11 @@ R C R
 
 ```
 R C R
-I L I
+L P L
 R C R
 ```
 
-> R = **Redstone** · C = **Crafting Table** · I = **Iron Ingot** · L = **Lectern**
+> R = **Redstone** · C = **Crafting Table** · L = **Lectern** · P = **Logic Processor**
 
 - **Result**: 1× Request Crafter (Fletching Table)
 - **Function**: Holds vanilla Blueprints that are **only** crafted on demand from a Request Terminal,
@@ -735,12 +842,12 @@ R C R
 ### Slimefun Request Crafter · `mvn_sf_request_crafter`
 
 ```
-R C R
-I L I
-R C R
+E C E
+L P L
+E C E
 ```
 
-> R = **Ender Pearl** · C = **Purpur Pillar** · I = **Iron Ingot** · L = **Lectern**
+> E = **Ender Pearl** · C = **Purpur Pillar** · L = **Lectern** · P = **Logic Processor**
 
 - **Result**: 1× Slimefun Request Crafter (Purpur Pillar)
 - **Function**: Same as the Request Crafter, with Slimefun and vanilla Blueprints. Depends on
@@ -752,11 +859,11 @@ R C R
 
 ```
 G L G
-R C R
+C P C
 G G G
 ```
 
-> G = **Glass** · L = **Lectern** · C = **Crafting Table** · R = **Redstone**
+> G = **Glass** · L = **Lectern** · C = **Crafting Table** · P = **Logic Processor**
 
 - **Result**: 1× Request Terminal (Lectern)
 - **Function**: Lists everything the network's Request Crafters can make and crafts it on demand,
@@ -772,10 +879,10 @@ G G G
 ```
 C R C
 R G R
-C R C
+C P C
 ```
 
-> C = **Crafting Table** · R = **Redstone** · G = **Cartography Table**
+> C = **Crafting Table** · R = **Redstone** · G = **Cartography Table** · P = **Logic Processor**
 
 - **Result**: 1× Network Crafting Grid (Cartography Table)
 - **Function**: A crafting table that pulls ingredients from the network transactionally. The
@@ -824,7 +931,7 @@ I · I
 · I ·
 ```
 
-> I = **Iron Ingot** · C = **Comparator**
+> I = **Iron Ingot** · C = **Network Circuit**
 
 - **Result**: 1× Configuration Wrench (hand item)
 - **Function**: Shift+right-click a filterable device to copy its filter (exact templates, materials

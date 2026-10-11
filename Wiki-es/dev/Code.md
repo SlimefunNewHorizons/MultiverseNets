@@ -318,7 +318,7 @@ terminal, ranura de entrada — solo consume un cubo, botella o bloque fuente en
 
 ## 10. Dispositivos e ítems (`item/DeviceType`, `item/Items`)
 
-`DeviceType` enumera los **46** dispositivos, módulos y herramientas; cada constante tiene `material`,
+`DeviceType` enumera los **56** dispositivos, módulos, herramientas y componentes de crafteo; cada constante tiene `material`,
 `display`, `placeable` y `cellTier`. Propiedades derivadas: `isCell()`, `isBarrel()`, `isFluidCell()`,
 `isLiquidPump()`, `isRequestTerminal()`, `isAutoCrafter()`, `isRequestCrafter()`,
 `isSlimefunCrafter()`, `filterable()` (grabbers, pushers, vacuum, greedy cell, purger, receptor,
@@ -365,8 +365,14 @@ transmisor), `isImporter()`/`isExporter()`, `isDirectional()`, `isRouter()`, `is
 - Herramientas: `rake()`/`rakeUses`/`spendRakeUse`; `saveConfig`/`readConfig` y
   `saveConfigItems`/`readConfigItems` (llave); `linkReceiver`/`readReceiverBind` (enlace del puente,
   usado tanto en ítems Receptor como Transmisor); `bindWireless`/`readWirelessBind`.
-- `registerRecipes(plugin)` — las **46** recetas con forma (43 siempre, más el codificador y los dos
-  crafters de Slimefun mientras sus `enabled` estén activos). Patrones: [Recipes.md](../Recipes.md).
+- `registerRecipes(plugin)` — las **72** recetas con forma (69 siempre, más el codificador y los dos
+  crafters de Slimefun mientras sus `enabled` estén activos): primero los seis componentes (Silicon
+  Wafer, Network Circuit, Logic Processor, Storage Matrix, Transfer Coil, Quantum Core; `isComponent()`,
+  ítems de mano que ninguna receta vanilla acepta), luego los dispositivos que se fabrican con ellos,
+  las cinco mejoras de celda y los 16 cables de color. Quita antes el registro anterior y, al final,
+  vacía `Blueprints.clearRecipeCache()` y `CraftingSupport.clearResultCache()`, así un
+  `/mvnets reload` nunca sirve desde la caché una receta quitada o cambiada. Patrones:
+  [Recipes.md](../Recipes.md).
   Un dispositivo usado como ingrediente se registra con `device(receta, char, tipo)`: un
   `MaterialChoice` del material del dispositivo más una entrada en `deviceIngredients(key)` (tipo →
   cantidad). `isUpgradeRecipe(key)` marca las mejoras de nivel de celdas y módulos.
@@ -423,7 +429,7 @@ transmisor), `isImporter()`/`isExporter()`, `isDirectional()`, `isRouter()`, `is
 | `FluidCellMenu` | 27 | Tanque `13`, interacción con cubo `10`, extraer un cubo `15`, vaciar tanque `16` (shift+clic derecho). |
 | `LiquidPumpMenu` | 27 | Filtro de fluido `12` (ANY/WATER/LAVA), fluidos de la red `14`. |
 | `QuantumWorkbenchMenu` | 45 | Mejora de celdas: centro `20`, craftear `23`, salida `25`; ingredientes devueltos al cerrar. |
-| `GuideMenu` | 54 | `/mvnets guide`: inicio (temas `19`, categorías `21–25`, `30–32`), temas, lista de la categoría, página del dispositivo (receta `10-12/19-21/28-30`, resultado `24`, qué hace `15`, cómo se usa `16`, números `33`, ingredientes `34`, anterior/siguiente `48`/`50`, volver `45`, inicio `49`); el botón de idioma `53` conserva la página. Las páginas se reabren un tick después. |
+| `GuideMenu` | 54 | `/mvnets guide`: inicio (temas `19`, categorías `21–25`, `30–33`, Componentes la última), temas, lista de la categoría, página del dispositivo (receta `10-12/19-21/28-30`, resultado `24`, qué hace `15`, cómo se usa `16`, números `33`, ingredientes `34`, anterior/siguiente `48`/`50`, volver `45`, inicio `49`); el botón de idioma `53` conserva la página. Las páginas se reabren un tick después. |
 | `ChatPrompts` | — | Preguntas numéricas por chat (request terminal, limitador). |
 
 ### 12.2 Seguridad: `GuiListener` (anti-dupe)

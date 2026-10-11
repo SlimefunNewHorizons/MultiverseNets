@@ -148,6 +148,22 @@ whole stack.
 | **Configuration Wrench** | `mvn_configurator` · item (Comparator) | Copies a filter (exact templates, materials and whitelist/blacklist mode) from one device to another. | Shift+right-click a filterable device to copy, right-click another to paste. |
 | **Network Rake** | `mvn_rake` · item (Dead Bush) | Dismantles a node instantly and gives it back to you with its state (filter, Blueprints, binding). 250 uses (`rake.uses`). | Right-click a node. It refuses controllers and storage that still holds items or fluid. |
 
+### 🔩 Components
+
+Intermediate parts the base devices are crafted from, so no device recipe can clash with a vanilla
+recipe. They are hand items: they cannot be placed or used, and no vanilla recipe accepts them.
+Blueprints encoded with the old device recipes no longer work: encode them again. Their recipes are in
+[Recipes & functions](Recipes.md).
+
+| Component | id · item | Used to craft |
+|---|---|---|
+| **Silicon Wafer** (×2) | `mvn_silicon_wafer` · Prismarine Crystals | Network Circuit, Storage Matrix, Blank Blueprint |
+| **Network Circuit** (×2) | `mvn_network_circuit` · Prismarine Shard | Controller, Cable, Terminal, Simple Grabber, Simple Pusher, Vacuum, Purger, Quota Limiter, Monitor, Probe, both Recipe Encoders, Configuration Wrench; Logic Processor, Storage Matrix |
+| **Logic Processor** | `mvn_logic_processor` · Shulker Shell | Controller, Auto-Crafter and Slimefun Auto-Crafter, both Request Crafters, Request Terminal, Crafting Grid; Quantum Core (×2) |
+| **Storage Matrix** | `mvn_storage_matrix` · Disc Fragment | Quantum Cell T1, Infinity Barrel, Greedy Cell, Quantum Fluid Cell, DRAM Bay, L1 CPU Cache Module |
+| **Transfer Coil** (×2) | `mvn_transfer_coil` · Tripwire Hook | Simple and Advanced Grabber, Simple and Advanced Pusher, Vacuum, Liquid Pump |
+| **Quantum Core** | `mvn_quantum_core` · Echo Shard | Wireless Terminal, Wireless Transmitter, Wireless Receiver, Network Router, Quantum Workbench |
+
 ### 🐔 GeneticChickengineering
 
 | Device | id · block | What it does | How to use it |
@@ -357,61 +373,69 @@ each item's function is in [Recipes & functions](Recipes.md). The three Slimefun
 Recipe Encoder, Slimefun Auto-Crafter, Slimefun Request Crafter) only have a recipe while the
 `slimefun-machines` section of `config.yml` keeps them enabled (the default).
 
-When a recipe asks for **another device** (previous cell, previous module, cable, fluid cell,
-Advanced Pusher) it has to be that device: the plain material (terracotta, copper ingot, glass…)
-does not count. Cell and module upgrades keep their cargo; any other recipe refuses a device that
+The base devices are crafted from six **components** (Silicon Wafer, Network Circuit, Logic
+Processor, Storage Matrix, Transfer Coil, Quantum Core), listed first. When a recipe asks for a
+**component or another device** (Network Circuit, previous cell, previous module, cable, fluid cell,
+DRAM Bay, Advanced Pusher…) it has to be that item: the plain material (prismarine shard, terracotta,
+copper ingot, glass…) does not count. Cell and module upgrades keep their cargo; any other recipe refuses a device that
 still stores something, so nothing is lost by crafting. And no device works as an ingredient of a
 vanilla recipe (a Wireless Terminal is no longer spent as a Nether Star).
 
 | Device | Grid (3×3) | Ingredients |
 |---|---|---|
-| Controller | <pre>I I I<br/>I N I<br/>I I I</pre> | I = Iron Block · N = Nether Star |
-| Cable ×16 | <pre>G G G<br/>G R G<br/>G G G</pre> | G = Glass · R = Redstone |
+| Silicon Wafer ×2 | <pre>· Q ·<br/>Q S Q<br/>· Q ·</pre> | Q = Quartz · S = Sand |
+| Network Circuit ×2 | <pre>R G R<br/>W I W<br/>R G R</pre> | R = Redstone · G = Gold Nugget · W = Silicon Wafer · I = Iron Ingot |
+| Logic Processor | <pre>Q C Q<br/>C R C<br/>Q C Q</pre> | Q = Quartz · C = Network Circuit · R = Redstone Block |
+| Storage Matrix | <pre>I W I<br/>C D C<br/>I W I</pre> | I = Iron Ingot · W = Silicon Wafer · C = Network Circuit · D = Diamond |
+| Transfer Coil ×2 | <pre>K R K<br/>R I R<br/>K R K</pre> | K = Copper Ingot · R = Redstone · I = Iron Ingot |
+| Quantum Core | <pre>A D A<br/>P E P<br/>A D A</pre> | A = Amethyst Shard · D = Diamond · P = Logic Processor · E = Ender Pearl |
+| Controller | <pre>I P I<br/>C N C<br/>I P I</pre> | I = Iron Block · P = Logic Processor · C = Network Circuit · N = Nether Star |
+| Cable ×16 | <pre>G G G<br/>G C G<br/>G G G</pre> | G = Glass · C = Network Circuit |
 | Coloured Cable ×4 (16 colours) | <pre>· C ·<br/>C D C<br/>· C ·</pre> | C = Network Cable (any colour) · D = Dye of the colour |
-| Terminal | <pre>G E G<br/>E B E<br/>G E G</pre> | G = Glass · E = Ender Pearl · B = Beacon |
-| Cell T1 | <pre>G G G<br/>G D G<br/>G G G</pre> | G = Glass · D = Diamond |
+| Terminal | <pre>G C G<br/>E B E<br/>G C G</pre> | G = Glass · C = Network Circuit · E = Ender Pearl · B = Beacon |
+| Cell T1 | <pre>G G G<br/>G M G<br/>G G G</pre> | G = Glass · M = Storage Matrix |
 | Cell Tn+1 | <pre>D D D<br/>D P D<br/>D D D</pre> | D = Diamond · P = Previous cell (with or without cargo; it is kept) |
-| Importer | <pre>I O I<br/>O R O<br/>I O I</pre> | I = Iron Ingot · O = Observer · R = Redstone Block |
-| Exporter | <pre>I D I<br/>D R D<br/>I D I</pre> | I = Iron Ingot · D = Dropper · R = Redstone Block |
-| Vacuum | <pre>S R S<br/>R H R<br/>S R S</pre> | S = String · R = Redstone · H = Hopper |
-| Auto-Crafter | <pre>R C R<br/>I T I<br/>R C R</pre> | R = Redstone · C = Crafting Table · I = Iron Ingot · T = Target |
-| Wireless Terminal | <pre>· P ·<br/>P N P<br/>· C ·</pre> | P = Ender Pearl · N = Nether Star · C = Compass |
-| Network Monitor | <pre>G G G<br/>G C G<br/>G G G</pre> | G = Glass Pane · C = Comparator |
-| Transmitter | <pre>I R I<br/>R C R<br/>I R I</pre> | I = Iron Ingot · R = Redstone Block · C = Conduit |
-| Receiver | <pre>I P I<br/>P L P<br/>I P I</pre> | I = Iron Ingot · P = Ender Pearl · L = Redstone Lamp |
-| Greedy Cell | <pre>G H G<br/>H S H<br/>G H G</pre> | G = Gold Ingot · H = Hopper · S = Slime Block |
-| Grabber HT | <pre>O P O</pre> | O = Observer · P = Sticky Piston |
-| Pusher HT | <pre>D P D</pre> | D = Dropper · P = Piston |
-| Recipe Encoder | <pre>K P K<br/>P S P<br/>K P K</pre> | K = Ink Sac · P = Paper · S = Smithing Table |
-| Crafting Grid | <pre>C R C<br/>R G R<br/>C R C</pre> | C = Crafting Table · R = Redstone · G = Cartography Table |
-| Blueprint ×4 | <pre>P P P<br/>P B P<br/>P P P</pre> | P = Paper · B = Blue Dye |
-| Configuration Wrench | <pre>I · I<br/>· C ·<br/>· I ·</pre> | I = Iron Ingot · C = Comparator |
+| Importer | <pre>I T I<br/>O C O<br/>I T I</pre> | I = Iron Ingot · T = Transfer Coil · O = Observer · C = Network Circuit |
+| Exporter | <pre>I T I<br/>D C D<br/>I T I</pre> | I = Iron Ingot · T = Transfer Coil · D = Dropper · C = Network Circuit |
+| Vacuum | <pre>S T S<br/>T H T<br/>S C S</pre> | S = String · T = Transfer Coil · H = Hopper · C = Network Circuit |
+| Auto-Crafter | <pre>R C R<br/>I P I<br/>R C R</pre> | R = Redstone · C = Crafting Table · I = Iron Ingot · P = Logic Processor |
+| Wireless Terminal | <pre>· Q ·<br/>P N P<br/>· C ·</pre> | Q = Quantum Core · P = Ender Pearl · N = Nether Star · C = Compass |
+| Network Monitor | <pre>G G G<br/>K C K<br/>G G G</pre> | G = Glass Pane · K = Comparator · C = Network Circuit |
+| Transmitter | <pre>I R I<br/>R C R<br/>I Q I</pre> | I = Iron Ingot · R = Redstone Block · C = Conduit · Q = Quantum Core |
+| Receiver | <pre>I P I<br/>P L P<br/>I Q I</pre> | I = Iron Ingot · P = Ender Pearl · L = Redstone Lamp · Q = Quantum Core |
+| Greedy Cell | <pre>G H G<br/>H S H<br/>G M G</pre> | G = Gold Ingot · H = Hopper · S = Slime Block · M = Storage Matrix |
+| Grabber HT | <pre>T P T</pre> | T = Transfer Coil · P = Sticky Piston |
+| Pusher HT | <pre>T P T</pre> | T = Transfer Coil · P = Piston |
+| Recipe Encoder | <pre>K P K<br/>C S C<br/>K P K</pre> | K = Ink Sac · P = Paper · C = Network Circuit · S = Smithing Table |
+| Crafting Grid | <pre>C R C<br/>R G R<br/>C P C</pre> | C = Crafting Table · R = Redstone · G = Cartography Table · P = Logic Processor |
+| Blueprint ×4 | <pre>P P P<br/>P W P<br/>P B P</pre> | P = Paper · W = Silicon Wafer · B = Blue Dye |
+| Configuration Wrench | <pre>I · I<br/>· C ·<br/>· I ·</pre> | I = Iron Ingot · C = Network Circuit |
 | Network Rake | <pre>D · D<br/>· S ·<br/>· S ·</pre> | D = Dead Bush · S = Stick |
-| Network Purger | <pre>I L I<br/>L H L<br/>I L I</pre> | I = Iron Ingot · L = Magma Block · H = Hopper |
-| Network Probe | <pre>· A ·<br/>A S A<br/>· A ·</pre> | A = Amethyst Shard · S = Spyglass |
-| Quantum Workbench | <pre>D D D<br/>D C D<br/>D D D</pre> | D = Diamond · C = Crafting Table |
-| Infinity Barrel | <pre>N D N<br/>D B D<br/>N D N</pre> | N = Netherite Ingot · D = Diamond Block · B = Barrel |
-| Network Router | <pre>· L ·<br/>· C ·<br/>· R ·</pre> | L = Lightning Rod · C = Network Cable · R = Redstone Block |
-| L1 CPU Cache | <pre>C R C<br/>R C R<br/>C R C</pre> | C = Copper Ingot · R = Redstone Dust |
-| L2 CPU Cache | <pre>G L G<br/>L P L<br/>G L G</pre> | G = Gold Ingot · L = Lapis Lazuli · P = L1 CPU Cache (keeps its items) |
-| L3 CPU Cache | <pre>D A D<br/>A P A<br/>D A D</pre> | D = Diamond · A = Amethyst Shard · P = L2 CPU Cache |
-| DRAM Module | <pre>N E N<br/>E P E<br/>N E N</pre> | N = Netherite Ingot · E = Eye of Ender · P = L3 CPU Cache |
-| Quantum Cache Matrix | <pre>N S N<br/>S P S<br/>N S N</pre> | N = Netherite Block · S = Nether Star · P = DRAM Module |
-| DRAM Bay | <pre>I Q I<br/>R C R<br/>I Q I</pre> | I = Iron Ingot · Q = Quartz · R = Redstone · C = Copper Block |
-| Fluid DRAM Module | <pre>D B D<br/>F E F<br/>D B D</pre> | D = Diamond · B = Bucket · E = Eye of Ender · F = Quantum Fluid Cell (empty) |
+| Network Purger | <pre>I L I<br/>L H L<br/>I C I</pre> | I = Iron Ingot · L = Magma Block · H = Hopper · C = Network Circuit |
+| Network Probe | <pre>· A ·<br/>A S A<br/>· C ·</pre> | A = Amethyst Shard · S = Spyglass · C = Network Circuit |
+| Quantum Workbench | <pre>D Q D<br/>D C D<br/>D D D</pre> | D = Diamond · Q = Quantum Core · C = Crafting Table |
+| Infinity Barrel | <pre>N M N<br/>D B D<br/>N D N</pre> | N = Netherite Ingot · M = Storage Matrix · D = Diamond Block · B = Barrel |
+| Network Router | <pre>· L ·<br/>· C ·<br/>· Q ·</pre> | L = Lightning Rod · C = Network Cable · Q = Quantum Core |
+| L1 CPU Cache | <pre>C R C<br/>R M R<br/>C R C</pre> | C = Copper Ingot · R = Redstone · M = Storage Matrix |
+| L2 CPU Cache | <pre>G L G<br/>L P L<br/>G L G</pre> | G = Gold Ingot · L = Lapis Lazuli · P = L1 CPU Cache Module (keeps its items) |
+| L3 CPU Cache | <pre>D A D<br/>A P A<br/>D A D</pre> | D = Diamond · A = Amethyst Shard · P = L2 CPU Cache Module |
+| DRAM Module | <pre>N E N<br/>E P E<br/>N E N</pre> | N = Netherite Ingot · E = Eye of Ender · P = L3 CPU Cache Module |
+| Quantum Cache Matrix | <pre>N S N<br/>S P S<br/>N S N</pre> | N = Netherite Block · S = Nether Star · P = DRAM Memory Module |
+| DRAM Bay | <pre>I M I<br/>R C R<br/>I Q I</pre> | I = Iron Ingot · M = Storage Matrix · R = Redstone · C = Copper Block · Q = Quartz |
+| Fluid DRAM Module | <pre>D B D<br/>F E F<br/>D B D</pre> | D = Diamond · B = Bucket · F = Quantum Fluid Cell (empty) · E = Eye of Ender |
 | Genetic Chicken Sorter | <pre>F E F<br/>C P C<br/>F E F</pre> | F = Feather · E = Egg · C = Comparator · P = Advanced Pusher |
-| Slimefun Recipe Encoder | <pre>E P E<br/>P B P<br/>E P E</pre> | E = Ender Pearl · P = Paper · B = Enchanting Table |
-| Network Quota Limiter | <pre>R C R<br/>C T C<br/>R C R</pre> | R = Redstone · C = Comparator · T = Target |
-| Quantum Fluid Cell | <pre>G B G<br/>G L G<br/>G G G</pre> | G = Glass · B = Bucket · L = Lapis Block |
-| Liquid Pump | <pre>· G ·<br/>P B P<br/>· R ·</pre> | G = Blue Stained Glass · P = Piston · B = Bucket · R = Redstone |
-| Request Terminal | <pre>G L G<br/>R C R<br/>G G G</pre> | G = Glass · L = Lectern · C = Crafting Table · R = Redstone |
+| Slimefun Recipe Encoder | <pre>E P E<br/>C B C<br/>E P E</pre> | E = Ender Pearl · P = Paper · C = Network Circuit · B = Enchanting Table |
+| Network Quota Limiter | <pre>R K R<br/>T C T<br/>R K R</pre> | R = Redstone · K = Comparator · T = Target · C = Network Circuit |
+| Quantum Fluid Cell | <pre>G B G<br/>G M G<br/>G L G</pre> | G = Glass · B = Bucket · M = Storage Matrix · L = Lapis Block |
+| Liquid Pump | <pre>· G ·<br/>P B P<br/>· T ·</pre> | G = Blue Stained Glass · P = Piston · B = Bucket · T = Transfer Coil |
+| Request Terminal | <pre>G L G<br/>C P C<br/>G G G</pre> | G = Glass · L = Lectern · C = Crafting Table · P = Logic Processor |
 | Network Status Light | <pre>R G R<br/>L P D<br/>R C R</pre> | R = Redstone · G = Glowstone · L = Lime Dye · P = Network Probe · D = Red Dye · C = Network Cable |
 | DRAM Unloader | <pre>I H I<br/>R B R<br/>I C I</pre> | I = Iron Ingot · H = Hopper · R = Redstone · B = DRAM Bay · C = Network Cable |
 | DRAM Loader | <pre>I D I<br/>K B K<br/>I R I</pre> | I = Iron Ingot · D = Dropper · K = Comparator · B = DRAM Bay · R = Redstone Block |
 | Quota Manager | <pre>R K R<br/>P M P<br/>R L R</pre> | R = Redstone · K = Comparator · P = Paper · M = Network Monitor · L = Network Quota Limiter |
-| Request Crafter | <pre>R C R<br/>I L I<br/>R C R</pre> | R = Redstone · C = Crafting Table · I = Iron Ingot · L = Lectern |
-| Slimefun Auto-Crafter | <pre>R C R<br/>I T I<br/>R C R</pre> | R = Ender Pearl · C = Crying Obsidian · I = Iron Ingot · T = Target |
-| Slimefun Request Crafter | <pre>R C R<br/>I L I<br/>R C R</pre> | R = Ender Pearl · C = Purpur Pillar · I = Iron Ingot · L = Lectern |
+| Request Crafter | <pre>R C R<br/>L P L<br/>R C R</pre> | R = Redstone · C = Crafting Table · L = Lectern · P = Logic Processor |
+| Slimefun Auto-Crafter | <pre>E C E<br/>I P I<br/>E C E</pre> | E = Ender Pearl · C = Crying Obsidian · I = Iron Ingot · P = Logic Processor |
+| Slimefun Request Crafter | <pre>E C E<br/>L P L<br/>E C E</pre> | E = Ender Pearl · C = Purpur Pillar · L = Lectern · P = Logic Processor |
 
 ## ⌨️ Commands
 

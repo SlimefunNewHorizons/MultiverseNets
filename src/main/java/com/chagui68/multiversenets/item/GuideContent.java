@@ -205,23 +205,23 @@ public final class GuideContent {
         topic(Material.SPYGLASS, "Diagnostics & commands", "Diagnóstico y comandos",
                 "Right-click a cable to see if it reaches a controller. The Network Probe and /mvnets doctor "
                         + "explain scan errors. Admins can use /mvnets give (Tab completes the ids), "
-                        + "/mvnets stats (networks and storage) and /mvnets save.",
+                        + "/mvnets stats (networks and storage) and /mvnets save; /mvnets help lists every command.",
                 "Clic derecho en un cable muestra si llega a un controlador. La Network Probe y /mvnets doctor "
                         + "explican los errores del escaneo. Los admins pueden usar /mvnets give (Tab completa los ids), "
-                        + "/mvnets stats (redes y almacenamiento) y /mvnets save.");
+                        + "/mvnets stats (redes y almacenamiento) y /mvnets save; /mvnets help lista todos los comandos.");
         topic(Material.BOOKSHELF, "Building big", "Construir a lo grande",
                 "There is no limit on network blocks per chunk: device data lives in region files inside the "
                         + "world folder, not in the chunk, and a cable or an unconfigured device only stores its "
-                        + "type. Fill a chunk with cables and machines if you like. A server can still cap the "
-                        + "devices that work every cycle (grabbers, pushers, vacuums, crafters...) per chunk; "
-                        + "cables, cells and terminals never count. Data is saved in the background and travels "
+                        + "type. Fill a chunk with cables and machines if you like. Idle devices cost almost "
+                        + "nothing: a Grabber or Pusher that finds nothing checks less often, and storage only "
+                        + "looks at the cells of the item it needs. Data is saved in the background and travels "
                         + "with the world.",
                 "No hay límite de bloques de red por chunk: los datos de los dispositivos viven en archivos de "
                         + "región dentro de la carpeta del mundo, no en el chunk, y un cable o un dispositivo sin "
-                        + "configurar solo guarda su tipo. Llena un chunk de cables y máquinas si quieres. Un "
-                        + "servidor aún puede limitar por chunk los dispositivos que trabajan en cada ciclo "
-                        + "(grabbers, pushers, vacuums, crafters...); cables, celdas y terminales nunca cuentan. "
-                        + "Los datos se guardan en segundo plano y viajan con el mundo.");
+                        + "configurar solo guarda su tipo. Llena un chunk de cables y máquinas si quieres. Los "
+                        + "dispositivos ociosos casi no cuestan: un Grabber o Pusher que no encuentra nada mira "
+                        + "menos a menudo, y el almacenamiento solo mira las celdas del ítem que necesita. Los "
+                        + "datos se guardan en segundo plano y viajan con el mundo.");
 
         // ------------------------------------------------------------------ core
         add(DeviceType.MVN_CONTROLLER, Category.CORE, "Controlador de Red",
@@ -257,15 +257,23 @@ public final class GuideContent {
                         + "barrels) plus a page for fluids.",
                 "La cuadrícula del almacenamiento: todos los ítems de la red (memoria, celdas, barriles, greedy "
                         + "cells, barriles de Slimefun) y una página de fluidos.",
-                "Left-click takes 1, right-click a stack, shift-click to your inventory. Shift-click your items "
-                        + "(or drop them in the input slot) to store them. Search, sort and pages. Buckets and honey "
-                        + "bottles go to the fluid storage. Each item shows its total in the network and how much of it "
-                        + "is in DRAM, cells, barrels and Greedy Buffers. Recovered modules from an old controller are shown first: click to take them.",
-                "Clic izquierdo saca 1, clic derecho un stack, shift+clic al inventario. Shift+clic en tus ítems "
-                        + "(o déjalos en la ranura de entrada) para guardarlos. Búsqueda, orden y páginas. Cubos y "
-                        + "botellas de miel van al almacenamiento de fluidos. Cada ítem muestra su total en la red y "
-                        + "cuánto hay en DRAM, celdas, barriles y Greedy Buffers. Los módulos recuperados de un controlador antiguo salen primero: clic "
-                        + "para recogerlos.");
+                "Top row: Network Storage, Purge Mode (items targeted by purgers), Fluids and 5 custom pages. "
+                        + "Left-click takes 1, right-click a stack, shift-click to your inventory. Click the grid with "
+                        + "an item on the cursor, shift-click your items or leave them in the input slot to store them; "
+                        + "Deposit Inventory stores everything. Search, sort, pages and a network overview. Custom "
+                        + "pages: hover an item and press 1-5 (or use Pin Mode) to pin it; Q unpins it; right-click a "
+                        + "tab to rename it. Buckets and honey bottles go to the fluid storage. Each item shows its "
+                        + "total and how much of it is in DRAM, cells, barrels and Greedy Buffers. Recovered modules "
+                        + "from an old controller are shown first: click to take them.",
+                "Fila superior: Almacenamiento, Modo Purga (ítems que borran los purgers), Fluidos y 5 páginas "
+                        + "personalizadas. Clic izquierdo saca 1, clic derecho un stack, shift+clic al inventario. "
+                        + "Haz clic en la cuadrícula con un ítem en el cursor, shift+clic en tus ítems o déjalos en la "
+                        + "ranura de entrada para guardarlos; Depositar inventario lo guarda todo. Búsqueda, orden, "
+                        + "páginas y un resumen de la red. Páginas personalizadas: pasa el ratón por un ítem y pulsa "
+                        + "1-5 (o usa el Modo Pin) para fijarlo; Q lo quita; clic derecho en una pestaña la renombra. "
+                        + "Cubos y botellas de miel van al almacenamiento de fluidos. Cada ítem muestra su total y "
+                        + "cuánto hay en DRAM, celdas, barriles y Greedy Buffers. Los módulos recuperados de un "
+                        + "controlador antiguo salen primero: clic para recogerlos.");
         add(DeviceType.MVN_WIRELESS_TERMINAL, Category.CORE, "Terminal Inalámbrico",
                 "Opens the Network Terminal from a distance.",
                 "Abre el Terminal de Red a distancia.",
@@ -324,14 +332,15 @@ public final class GuideContent {
                 "Right-click: click Set Item with an item on the cursor to register it; right-click Set Item with "
                         + "an empty cursor clears it (only when empty). Quick deposit / take out buttons. Shift+click "
                         + "Set Item toggles Void excess: when full, the network destroys extra items of its type. "
-                        + "Hoppers do not interact with it. Touching any network block (a Grabber too) makes it part "
-                        + "of that network: its items are already in the Terminal, a Grabber has nothing to pull.",
+                        + "Hoppers do not interact with it. Wired to the network (cable or any device except a "
+                        + "Grabber) it is network storage. Next to a Grabber of a network it does not belong to, the "
+                        + "Grabber empties it like a chest.",
                 "Clic derecho: clic en Set Item con un ítem en el cursor para registrarlo; clic derecho en Set Item "
                         + "con el cursor vacío lo borra (solo vacío). Botones de depósito y retirada rápida. "
                         + "Mayús+clic en Set Item activa Void excess: lleno, la red destruye lo que sobre de su "
-                        + "ítem. Las tolvas no interactúan con él. Si toca cualquier bloque de la red (también un "
-                        + "Grabber) pasa a formar parte de ella: sus ítems ya están en el Terminal y un Grabber no "
-                        + "tiene nada que sacar.");
+                        + "ítem. Las tolvas no interactúan con él. Conectado a la red (por cable o cualquier "
+                        + "dispositivo salvo un Grabber) es almacenamiento de la red. Junto a un Grabber de una red "
+                        + "a la que no pertenece, el Grabber lo vacía como a un cofre.");
         add(DeviceType.MVN_GREEDY_CELL, Category.STORAGE, "Celda Codiciosa",
                 "With a filter: a priority sink. Matching items go to it before any other storage, it pulls more "
                         + "from the network every cycle and pushes them into the containers next to it (not into "
@@ -448,8 +457,12 @@ public final class GuideContent {
                         + "waits in its buffer.",
                 "Importa de los contenedores y máquinas de al lado a la red por LAS SEIS caras, un tipo de ítem "
                         + "por ciclo. De un horno solo saca el resultado. Lo que la red no admite espera en su búfer.",
-                "Right-click for the filter (whitelist / blacklist). An empty filter takes everything.",
-                "Clic derecho para el filtro (whitelist / blacklist). Un filtro vacío lo toma todo.");
+                "Right-click for the filter (whitelist / blacklist). An empty filter takes everything. It does not "
+                        + "carry the network into a Quantum Cell or Infinity Barrel next to it: it empties it like a "
+                        + "chest. An item the network refuses goes back to its slot and the next one is tried.",
+                "Clic derecho para el filtro (whitelist / blacklist). Un filtro vacío lo toma todo. No lleva la red "
+                        + "a una Celda Cuántica o Infinity Barrel de al lado: la vacía como a un cofre. Un ítem que la "
+                        + "red rechaza vuelve a su ranura y se prueba el siguiente.");
         add(DeviceType.MVN_GRABBER_HT, Category.TRANSPORT, "Grabber Avanzado",
                 "Same as the Simple Grabber but 8 times faster, and it can be limited to ONE face.",
                 "Igual que el Grabber Simple pero 8 veces más rápido, y se puede limitar a UNA cara.",
@@ -600,13 +613,15 @@ public final class GuideContent {
                 "Shift+clic derecho en un dispositivo para copiar su filtro, clic derecho en otro para pegarlo.");
         add(DeviceType.MVN_RAKE, Category.TOOLS, "Rastrillo de Red",
                 "Dismantles a device instantly and gives it back with its state (filter, Blueprints, link). A "
-                        + "DRAM Bay comes back together with its module.",
+                        + "DRAM Bay, Unloader or Loader comes back together with every module inside it, and a "
+                        + "camouflaged cable with its block.",
                 "Desmonta un dispositivo al instante y te lo devuelve con su estado (filtro, Blueprints, enlace). "
-                        + "Un DRAM Bay vuelve junto con su módulo.",
-                "Right-click a device. It refuses controllers and cells or barrels that still hold something. "
-                        + "Limited uses.",
-                "Clic derecho en un dispositivo. Rechaza controladores y celdas o barriles que aún guarden algo. "
-                        + "Usos limitados.");
+                        + "Un DRAM Bay, Unloader o Loader vuelve junto con todos sus módulos, y un cable camuflado con "
+                        + "su bloque.",
+                "Right-click a device. It refuses controllers, and cells, barrels, Greedy Cells or fluid cells "
+                        + "that still hold something. Limited uses.",
+                "Clic derecho en un dispositivo. Rechaza controladores, y celdas, barriles, Greedy Cells o celdas "
+                        + "de fluidos que aún guarden algo. Usos limitados.");
 
         // ------------------------------------------------------------------ chickens
         add(DeviceType.MVN_CHICKEN_SORTER, Category.CHICKENS, "Clasificador Genético de Pollos",
@@ -638,11 +653,12 @@ public final class GuideContent {
                         + "Blueprints se fabrican con él.",
                 componentUseEn, componentUseEs);
         add(DeviceType.MVN_NETWORK_CIRCUIT, Category.COMPONENTS, "Circuito de Red",
-                "Basic network logic. Cables, Terminal, Grabbers, Pushers, Monitor, Limiter, Encoders, Probe and "
-                        + "the Wrench use it, and it is the base of the Logic Processor and the Storage Matrix.",
-                "Lógica básica de red. La usan los cables, el Terminal, Grabbers, Pushers, el Monitor, el "
-                        + "Limitador, los Encoders, la Sonda y la Llave, y es la base del Logic Processor y la "
-                        + "Storage Matrix.",
+                "Basic network logic. The Controller, cables, Terminal, Simple Grabber and Pusher, Vacuum, "
+                        + "Purger, Quota Limiter, Monitor, Probe, Encoders and the Wrench use it, and it is the base "
+                        + "of the Logic Processor and the Storage Matrix.",
+                "Lógica básica de red. La usan el Controlador, los cables, el Terminal, el Grabber y el Pusher "
+                        + "simples, el Vacuum, el Purger, el Limitador, el Monitor, la Sonda, los Encoders y la "
+                        + "Llave, y es la base del Logic Processor y la Storage Matrix.",
                 componentUseEn, componentUseEs);
         add(DeviceType.MVN_LOGIC_PROCESSOR, Category.COMPONENTS, "Procesador Lógico",
                 "The brain of the machines that decide: Controller, Auto-Crafters, Request Crafters, Request "

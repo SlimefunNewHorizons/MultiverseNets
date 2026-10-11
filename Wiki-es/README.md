@@ -147,6 +147,22 @@ entero.
 | **Configuration Wrench** | `mvn_configurator` · ítem (Comparador) | Copia un filtro (plantillas exactas, materiales y modo whitelist/blacklist) de un dispositivo a otro. | Shift+clic derecho en un dispositivo con filtro para copiar, clic derecho en otro para pegar. |
 | **Network Rake** | `mvn_rake` · ítem (Arbusto seco) | Desmonta un nodo al instante y te lo devuelve con su estado (filtro, Blueprints, enlace). 250 usos (`rake.uses`). | Clic derecho en un nodo. Rechaza controladores y almacenamientos que aún tengan ítems o fluido. |
 
+### 🔩 Componentes
+
+Piezas intermedias con las que se fabrican los dispositivos base, así ninguna receta de dispositivo
+choca con una receta vanilla. Son ítems de mano: no se colocan ni se usan, y ninguna receta vanilla los
+acepta. Los Blueprints codificados con las recetas antiguas de los dispositivos ya no valen: vuelve a
+codificarlos. Sus recetas están en [Recetas y funciones](Recipes.md).
+
+| Componente | id · ítem | Sirve para fabricar |
+|---|---|---|
+| **Silicon Wafer** (Oblea de Silicio, ×2) | `mvn_silicon_wafer` · Cristales de prismarina | Network Circuit, Storage Matrix, Blueprint en blanco |
+| **Network Circuit** (Circuito de Red, ×2) | `mvn_network_circuit` · Fragmento de prismarina | Controlador, Cable, Terminal, Simple Grabber, Simple Pusher, Vacuum, Purger, Quota Limiter, Monitor, Probe, los dos Recipe Encoders, Configuration Wrench; Logic Processor, Storage Matrix |
+| **Logic Processor** (Procesador Lógico) | `mvn_logic_processor` · Caparazón de shulker | Controlador, Auto-Crafter y Slimefun Auto-Crafter, los dos Request Crafters, Request Terminal, Crafting Grid; Quantum Core (×2) |
+| **Storage Matrix** (Matriz de Almacenamiento) | `mvn_storage_matrix` · Fragmento de disco | Celda Cuántica T1, Infinity Barrel, Greedy Cell, Quantum Fluid Cell, DRAM Bay, L1 CPU Cache Module |
+| **Transfer Coil** (Bobina de Transferencia, ×2) | `mvn_transfer_coil` · Gancho de cuerda | Grabber simple y avanzado, Pusher simple y avanzado, Vacuum, Liquid Pump |
+| **Quantum Core** (Núcleo Cuántico) | `mvn_quantum_core` · Fragmento de eco | Terminal Inalámbrico, Wireless Transmitter, Wireless Receiver, Network Router, Quantum Workbench |
+
 ### 🐔 GeneticChickengineering
 
 | Dispositivo | id · bloque | Qué hace | Cómo se usa |
@@ -356,9 +372,11 @@ el acceso de jugadores).
 Cada dispositivo se fabrica en una mesa de crafteo 3×3 estándar. `·` marca un hueco vacío. La lista
 completa con la función de cada ítem está en [Recetas y funciones](Recipes.md).
 
-Cuando una receta pide **otro dispositivo** (celda anterior, módulo anterior, cable, celda de fluidos,
-Advanced Pusher), tiene que ser ese dispositivo: el material simple (terracota, lingote de cobre,
-vidrio…) no vale. Las mejoras de celdas y de módulos conservan su carga; cualquier otra receta rechaza
+Los dispositivos base se fabrican con seis **componentes** (Silicon Wafer, Network Circuit, Logic
+Processor, Storage Matrix, Transfer Coil, Quantum Core), que van primero. Cuando una receta pide **un
+componente u otro dispositivo** (Network Circuit, celda anterior, módulo anterior, cable, celda de
+fluidos, DRAM Bay, Advanced Pusher…), tiene que ser ese ítem: el material simple (fragmento de
+prismarina, terracota, lingote de cobre, vidrio…) no vale. Las mejoras de celdas y de módulos conservan su carga; cualquier otra receta rechaza
 un dispositivo que aún guarde algo, así nada se pierde crafteando. Y ningún dispositivo sirve como
 ingrediente de una receta vanilla (un Terminal Inalámbrico ya no se gasta como Estrella del Nether). Los tres dispositivos
 de Slimefun (Slimefun Recipe Encoder, Slimefun Auto-Crafter, Slimefun Request Crafter) solo tienen
@@ -366,53 +384,59 @@ receta mientras la sección `slimefun-machines` de `config.yml` las tenga activa
 
 | Dispositivo | Cuadrícula (3×3) | Ingredientes |
 |---|---|---|
-| Controlador | <pre>I I I<br/>I N I<br/>I I I</pre> | I = Bloque de hierro · N = Estrella del Nether |
-| Cable ×16 | <pre>G G G<br/>G R G<br/>G G G</pre> | G = Vidrio · R = Redstone |
+| Silicon Wafer ×2 | <pre>· Q ·<br/>Q S Q<br/>· Q ·</pre> | Q = Cuarzo · S = Arena |
+| Network Circuit ×2 | <pre>R G R<br/>W I W<br/>R G R</pre> | R = Redstone · G = Pepita de oro · W = Silicon Wafer · I = Lingote de hierro |
+| Logic Processor | <pre>Q C Q<br/>C R C<br/>Q C Q</pre> | Q = Cuarzo · C = Network Circuit · R = Bloque de redstone |
+| Storage Matrix | <pre>I W I<br/>C D C<br/>I W I</pre> | I = Lingote de hierro · W = Silicon Wafer · C = Network Circuit · D = Diamante |
+| Transfer Coil ×2 | <pre>K R K<br/>R I R<br/>K R K</pre> | K = Lingote de cobre · R = Redstone · I = Lingote de hierro |
+| Quantum Core | <pre>A D A<br/>P E P<br/>A D A</pre> | A = Fragmento de amatista · D = Diamante · P = Logic Processor · E = Perla de ender |
+| Controlador | <pre>I P I<br/>C N C<br/>I P I</pre> | I = Bloque de hierro · P = Logic Processor · C = Network Circuit · N = Estrella del Nether |
+| Cable ×16 | <pre>G G G<br/>G C G<br/>G G G</pre> | G = Vidrio · C = Network Circuit |
 | Cable de color ×4 (16 colores) | <pre>· C ·<br/>C D C<br/>· C ·</pre> | C = Cable de red (de cualquier color) · D = Tinte del color |
-| Terminal | <pre>G E G<br/>E B E<br/>G E G</pre> | G = Vidrio · E = Perla de ender · B = Faro |
-| Celda T1 | <pre>G G G<br/>G D G<br/>G G G</pre> | G = Vidrio · D = Diamante |
+| Terminal | <pre>G C G<br/>E B E<br/>G C G</pre> | G = Vidrio · C = Network Circuit · E = Perla de ender · B = Faro |
+| Celda T1 | <pre>G G G<br/>G M G<br/>G G G</pre> | G = Vidrio · M = Storage Matrix |
 | Celda Tn+1 | <pre>D D D<br/>D P D<br/>D D D</pre> | D = Diamante · P = Celda anterior (con o sin carga; la conserva) |
-| Simple Grabber | <pre>I O I<br/>O R O<br/>I O I</pre> | I = Lingote de hierro · O = Observador · R = Bloque de redstone |
-| Simple Pusher | <pre>I D I<br/>D R D<br/>I D I</pre> | I = Lingote de hierro · D = Soltador · R = Bloque de redstone |
-| Network Vacuum | <pre>S R S<br/>R H R<br/>S R S</pre> | S = Hilo · R = Redstone · H = Tolva |
-| Auto-Crafter | <pre>R C R<br/>I T I<br/>R C R</pre> | R = Redstone · C = Mesa de crafteo · I = Lingote de hierro · T = Diana |
-| Terminal Inalámbrico | <pre>· P ·<br/>P N P<br/>· C ·</pre> | P = Perla de ender · N = Estrella del Nether · C = Brújula |
-| Network Monitor | <pre>G G G<br/>G C G<br/>G G G</pre> | G = Panel de vidrio · C = Comparador |
-| Wireless Transmitter | <pre>I R I<br/>R C R<br/>I R I</pre> | I = Lingote de hierro · R = Bloque de redstone · C = Conducto |
-| Wireless Receiver | <pre>I P I<br/>P L P<br/>I P I</pre> | I = Lingote de hierro · P = Perla de ender · L = Lámpara de redstone |
-| Greedy Cell | <pre>G H G<br/>H S H<br/>G H G</pre> | G = Lingote de oro · H = Tolva · S = Bloque de slime |
-| Advanced Grabber | <pre>O P O</pre> | O = Observador · P = Pistón pegajoso |
-| Advanced Pusher | <pre>D P D</pre> | D = Soltador · P = Pistón |
-| Recipe Encoder | <pre>K P K<br/>P S P<br/>K P K</pre> | K = Saco de tinta · P = Papel · S = Mesa de herrería |
-| Network Crafting Grid | <pre>C R C<br/>R G R<br/>C R C</pre> | C = Mesa de crafteo · R = Redstone · G = Mesa de cartografía |
-| Blueprint ×4 | <pre>P P P<br/>P B P<br/>P P P</pre> | P = Papel · B = Tinte azul |
-| Configuration Wrench | <pre>I · I<br/>· C ·<br/>· I ·</pre> | I = Lingote de hierro · C = Comparador |
+| Simple Grabber | <pre>I T I<br/>O C O<br/>I T I</pre> | I = Lingote de hierro · T = Transfer Coil · O = Observador · C = Network Circuit |
+| Simple Pusher | <pre>I T I<br/>D C D<br/>I T I</pre> | I = Lingote de hierro · T = Transfer Coil · D = Soltador · C = Network Circuit |
+| Network Vacuum | <pre>S T S<br/>T H T<br/>S C S</pre> | S = Hilo · T = Transfer Coil · H = Tolva · C = Network Circuit |
+| Auto-Crafter | <pre>R C R<br/>I P I<br/>R C R</pre> | R = Redstone · C = Mesa de crafteo · I = Lingote de hierro · P = Logic Processor |
+| Terminal Inalámbrico | <pre>· Q ·<br/>P N P<br/>· C ·</pre> | Q = Quantum Core · P = Perla de ender · N = Estrella del Nether · C = Brújula |
+| Network Monitor | <pre>G G G<br/>K C K<br/>G G G</pre> | G = Panel de vidrio · K = Comparador · C = Network Circuit |
+| Wireless Transmitter | <pre>I R I<br/>R C R<br/>I Q I</pre> | I = Lingote de hierro · R = Bloque de redstone · C = Conducto · Q = Quantum Core |
+| Wireless Receiver | <pre>I P I<br/>P L P<br/>I Q I</pre> | I = Lingote de hierro · P = Perla de ender · L = Lámpara de redstone · Q = Quantum Core |
+| Greedy Cell | <pre>G H G<br/>H S H<br/>G M G</pre> | G = Lingote de oro · H = Tolva · S = Bloque de slime · M = Storage Matrix |
+| Advanced Grabber | <pre>T P T</pre> | T = Transfer Coil · P = Pistón pegajoso |
+| Advanced Pusher | <pre>T P T</pre> | T = Transfer Coil · P = Pistón |
+| Recipe Encoder | <pre>K P K<br/>C S C<br/>K P K</pre> | K = Saco de tinta · P = Papel · C = Network Circuit · S = Mesa de herrería |
+| Network Crafting Grid | <pre>C R C<br/>R G R<br/>C P C</pre> | C = Mesa de crafteo · R = Redstone · G = Mesa de cartografía · P = Logic Processor |
+| Blueprint ×4 | <pre>P P P<br/>P W P<br/>P B P</pre> | P = Papel · W = Silicon Wafer · B = Tinte azul |
+| Configuration Wrench | <pre>I · I<br/>· C ·<br/>· I ·</pre> | I = Lingote de hierro · C = Network Circuit |
 | Network Rake | <pre>D · D<br/>· S ·<br/>· S ·</pre> | D = Arbusto seco · S = Palo |
-| Network Purger | <pre>I L I<br/>L H L<br/>I L I</pre> | I = Lingote de hierro · L = Bloque de magma · H = Tolva |
-| Network Probe | <pre>· A ·<br/>A S A<br/>· A ·</pre> | A = Fragmento de amatista · S = Catalejo |
-| Quantum Workbench | <pre>D D D<br/>D C D<br/>D D D</pre> | D = Diamante · C = Mesa de crafteo |
-| Infinity Barrel | <pre>N D N<br/>D B D<br/>N D N</pre> | N = Lingote de netherita · D = Bloque de diamante · B = Barril |
-| Network Router | <pre>· L ·<br/>· C ·<br/>· R ·</pre> | L = Pararrayos · C = Cable de Red · R = Bloque de redstone |
-| L1 CPU Cache | <pre>C R C<br/>R C R<br/>C R C</pre> | C = Lingote de cobre · R = Redstone |
-| L2 CPU Cache | <pre>G L G<br/>L P L<br/>G L G</pre> | G = Lingote de oro · L = Lapislázuli · P = L1 CPU Cache (conserva sus ítems) |
-| L3 CPU Cache | <pre>D A D<br/>A P A<br/>D A D</pre> | D = Diamante · A = Fragmento de amatista · P = L2 CPU Cache |
-| DRAM Module | <pre>N E N<br/>E P E<br/>N E N</pre> | N = Lingote de netherita · E = Ojo de ender · P = L3 CPU Cache |
-| Quantum Cache Matrix | <pre>N S N<br/>S P S<br/>N S N</pre> | N = Bloque de netherita · S = Estrella del Nether · P = DRAM Module |
-| DRAM Bay | <pre>I Q I<br/>R C R<br/>I Q I</pre> | I = Lingote de hierro · Q = Cuarzo · R = Redstone · C = Bloque de cobre |
-| Fluid DRAM Module | <pre>D B D<br/>F E F<br/>D B D</pre> | D = Diamante · B = Cubo · E = Ojo de ender · F = Quantum Fluid Cell (vacía) |
+| Network Purger | <pre>I L I<br/>L H L<br/>I C I</pre> | I = Lingote de hierro · L = Bloque de magma · H = Tolva · C = Network Circuit |
+| Network Probe | <pre>· A ·<br/>A S A<br/>· C ·</pre> | A = Fragmento de amatista · S = Catalejo · C = Network Circuit |
+| Quantum Workbench | <pre>D Q D<br/>D C D<br/>D D D</pre> | D = Diamante · Q = Quantum Core · C = Mesa de crafteo |
+| Infinity Barrel | <pre>N M N<br/>D B D<br/>N D N</pre> | N = Lingote de netherita · M = Storage Matrix · D = Bloque de diamante · B = Barril |
+| Network Router | <pre>· L ·<br/>· C ·<br/>· Q ·</pre> | L = Pararrayos · C = Cable de Red · Q = Quantum Core |
+| L1 CPU Cache | <pre>C R C<br/>R M R<br/>C R C</pre> | C = Lingote de cobre · R = Redstone · M = Storage Matrix |
+| L2 CPU Cache | <pre>G L G<br/>L P L<br/>G L G</pre> | G = Lingote de oro · L = Lapislázuli · P = L1 CPU Cache Module (conserva sus ítems) |
+| L3 CPU Cache | <pre>D A D<br/>A P A<br/>D A D</pre> | D = Diamante · A = Fragmento de amatista · P = L2 CPU Cache Module |
+| DRAM Module | <pre>N E N<br/>E P E<br/>N E N</pre> | N = Lingote de netherita · E = Ojo de ender · P = L3 CPU Cache Module |
+| Quantum Cache Matrix | <pre>N S N<br/>S P S<br/>N S N</pre> | N = Bloque de netherita · S = Estrella del Nether · P = DRAM Memory Module |
+| DRAM Bay | <pre>I M I<br/>R C R<br/>I Q I</pre> | I = Lingote de hierro · M = Storage Matrix · R = Redstone · C = Bloque de cobre · Q = Cuarzo |
+| Fluid DRAM Module | <pre>D B D<br/>F E F<br/>D B D</pre> | D = Diamante · B = Cubo · F = Quantum Fluid Cell (vacía) · E = Ojo de ender |
 | Genetic Chicken Sorter | <pre>F E F<br/>C P C<br/>F E F</pre> | F = Pluma · E = Huevo · C = Comparador · P = Advanced Pusher |
-| Slimefun Recipe Encoder | <pre>E P E<br/>P B P<br/>E P E</pre> | E = Perla de ender · P = Papel · B = Mesa de encantamientos |
-| Network Quota Limiter | <pre>R C R<br/>C T C<br/>R C R</pre> | R = Redstone · C = Comparador · T = Diana |
-| Quantum Fluid Cell | <pre>G B G<br/>G L G<br/>G G G</pre> | G = Vidrio · B = Cubo · L = Bloque de lapislázuli |
-| Liquid Pump | <pre>· G ·<br/>P B P<br/>· R ·</pre> | G = Vidrio tintado de azul · P = Pistón · B = Cubo · R = Redstone |
-| Request Terminal | <pre>G L G<br/>R C R<br/>G G G</pre> | G = Vidrio · L = Atril · C = Mesa de crafteo · R = Redstone |
-| Network Status Light | <pre>R G R<br/>L P D<br/>R C R</pre> | R = Redstone · G = Piedra luminosa · L = Tinte lima · P = Network Probe · D = Tinte rojo · C = Cable de red |
-| DRAM Unloader | <pre>I H I<br/>R B R<br/>I C I</pre> | I = Lingote de hierro · H = Tolva · R = Redstone · B = DRAM Bay · C = Cable de red |
+| Slimefun Recipe Encoder | <pre>E P E<br/>C B C<br/>E P E</pre> | E = Perla de ender · P = Papel · C = Network Circuit · B = Mesa de encantamientos |
+| Network Quota Limiter | <pre>R K R<br/>T C T<br/>R K R</pre> | R = Redstone · K = Comparador · T = Diana · C = Network Circuit |
+| Quantum Fluid Cell | <pre>G B G<br/>G M G<br/>G L G</pre> | G = Vidrio · B = Cubo · M = Storage Matrix · L = Bloque de lapislázuli |
+| Liquid Pump | <pre>· G ·<br/>P B P<br/>· T ·</pre> | G = Vidrio tintado de azul · P = Pistón · B = Cubo · T = Transfer Coil |
+| Request Terminal | <pre>G L G<br/>C P C<br/>G G G</pre> | G = Vidrio · L = Atril · C = Mesa de crafteo · P = Logic Processor |
+| Network Status Light | <pre>R G R<br/>L P D<br/>R C R</pre> | R = Redstone · G = Piedra luminosa · L = Tinte lima · P = Network Probe · D = Tinte rojo · C = Cable de Red |
+| DRAM Unloader | <pre>I H I<br/>R B R<br/>I C I</pre> | I = Lingote de hierro · H = Tolva · R = Redstone · B = DRAM Bay · C = Cable de Red |
 | DRAM Loader | <pre>I D I<br/>K B K<br/>I R I</pre> | I = Lingote de hierro · D = Soltador · K = Comparador · B = DRAM Bay · R = Bloque de redstone |
 | Quota Manager | <pre>R K R<br/>P M P<br/>R L R</pre> | R = Redstone · K = Comparador · P = Papel · M = Network Monitor · L = Network Quota Limiter |
-| Request Crafter | <pre>R C R<br/>I L I<br/>R C R</pre> | R = Redstone · C = Mesa de crafteo · I = Lingote de hierro · L = Atril |
-| Slimefun Auto-Crafter | <pre>R C R<br/>I T I<br/>R C R</pre> | R = Perla de ender · C = Obsidiana llorosa · I = Lingote de hierro · T = Diana |
-| Slimefun Request Crafter | <pre>R C R<br/>I L I<br/>R C R</pre> | R = Perla de ender · C = Pilar de púrpura · I = Lingote de hierro · L = Atril |
+| Request Crafter | <pre>R C R<br/>L P L<br/>R C R</pre> | R = Redstone · C = Mesa de crafteo · L = Atril · P = Logic Processor |
+| Slimefun Auto-Crafter | <pre>E C E<br/>I P I<br/>E C E</pre> | E = Perla de ender · C = Obsidiana llorosa · I = Lingote de hierro · P = Logic Processor |
+| Slimefun Request Crafter | <pre>E C E<br/>L P L<br/>E C E</pre> | E = Perla de ender · C = Pilar de púrpura · L = Atril · P = Logic Processor |
 
 ## ⌨️ Comandos
 

@@ -313,7 +313,7 @@ whole bucket, bottle or source block only on `0`. `withdraw`, `count`, `getFluid
 
 ## 10. Devices and items (`item/DeviceType`, `item/Items`)
 
-`DeviceType` enumerates the **46** devices, modules and tools; each constant has `material`,
+`DeviceType` enumerates the **56** devices, modules, tools and crafting components; each constant has `material`,
 `display`, `placeable` and `cellTier`. Derived properties: `isCell()`, `isBarrel()`, `isFluidCell()`,
 `isLiquidPump()`, `isRequestTerminal()`, `isAutoCrafter()`, `isRequestCrafter()`,
 `isSlimefunCrafter()`, `filterable()` (grabbers, pushers, vacuum, greedy cell, purger, receiver,
@@ -360,8 +360,13 @@ transmitter), `isImporter()`/`isExporter()`, `isDirectional()`, `isRouter()`, `i
 - Tools: `rake()`/`rakeUses`/`spendRakeUse`; `saveConfig`/`readConfig` and
   `saveConfigItems`/`readConfigItems` (wrench); `linkReceiver`/`readReceiverBind` (bridge link,
   used for both Receiver and Transmitter items); `bindWireless`/`readWirelessBind`.
-- `registerRecipes(plugin)` — the **46** shaped recipes (43 always, plus the Slimefun encoder and the
-  two Slimefun crafters while their `enabled` flags are on). Patterns: [Recipes.md](../Recipes.md).
+- `registerRecipes(plugin)` — the **72** shaped recipes (69 always, plus the Slimefun encoder and the
+  two Slimefun crafters while their `enabled` flags are on): the six components first (Silicon Wafer,
+  Network Circuit, Logic Processor, Storage Matrix, Transfer Coil, Quantum Core; `isComponent()`,
+  hand items no vanilla recipe accepts), then the devices built from them, the five cell upgrades and
+  the 16 coloured cables. It removes the previous registration first and, at the end, clears
+  `Blueprints.clearRecipeCache()` and `CraftingSupport.clearResultCache()` so a `/mvnets reload`
+  never serves a removed or changed recipe from cache. Patterns: [Recipes.md](../Recipes.md).
   A device used as an ingredient is registered with `device(recipe, char, type)`: a plain
   `MaterialChoice` of the device's material plus an entry in `deviceIngredients(key)` (type → count).
   `isUpgradeRecipe(key)` marks the cell and module tier upgrades.
@@ -418,7 +423,7 @@ Abstract `InventoryHolder`. `open(size, title)` creates the inventory, calls `dr
 | `FluidCellMenu` | 27 | Tank `13`, bucket interaction `10`, extract one bucket `15`, void tank `16` (shift+right-click). |
 | `LiquidPumpMenu` | 27 | Fluid filter `12` (ANY/WATER/LAVA), network fluids `14`. |
 | `QuantumWorkbenchMenu` | 45 | Cell upgrade: centre `20`, craft `23`, output `25`; ingredients returned on close. |
-| `GuideMenu` | 54 | `/mvnets guide`: home (topics `19`, categories `21–25`, `30–32`), topics, category list, device page (recipe grid `10-12/19-21/28-30`, result `24`, what `15`, how `16`, numbers `33`, ingredients `34`, previous/next `48`/`50`, back `45`, home `49`); language toggle `53` keeps the page. Pages reopen one tick later. |
+| `GuideMenu` | 54 | `/mvnets guide`: home (topics `19`, categories `21–25`, `30–33`, Components last), topics, category list, device page (recipe grid `10-12/19-21/28-30`, result `24`, what `15`, how `16`, numbers `33`, ingredients `34`, previous/next `48`/`50`, back `45`, home `49`); language toggle `53` keeps the page. Pages reopen one tick later. |
 | `ChatPrompts` | — | Chat-driven numeric prompts (request terminal, limiter). |
 
 ### 12.2 Security: `GuiListener` (dupe guard)

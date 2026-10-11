@@ -7,11 +7,119 @@ de transferencia (`network.op-interval-ticks.transfer`, 5 ticks).
 > En las cuadrículas, `·` marca un hueco vacío. Todo ítem se puede dar también con `/mvnets give <id>`.
 > Volver al [índice de la wiki](README.md).
 
-> **Dispositivos como ingredientes.** Cuando una receta pide otro dispositivo (celda anterior, módulo
-> anterior, cable, celda de fluidos, Advanced Pusher) tiene que ser ese dispositivo: el material simple
-> de debajo (terracota, lingote de cobre, vidrio, ladrillos de prismarina, pistón) no vale. Las mejoras
-> de celdas y módulos conservan la carga del ingrediente; cualquier otra receta rechaza un dispositivo
-> que aún guarde algo. Ningún dispositivo sirve como ingrediente de una receta vanilla.
+> **Componentes y dispositivos como ingredientes.** Cuando una receta pide un componente u otro
+> dispositivo (Network Circuit, Storage Matrix, celda anterior, módulo anterior, cable, celda de
+> fluidos, DRAM Bay, Monitor, Advanced Pusher...) tiene que ser ese ítem: el material simple de debajo
+> (fragmento de prismarina, fragmento de disco, terracota, lingote de cobre, vidrio, ladrillos de
+> prismarina, pistón...) no vale. Las mejoras de celdas y módulos conservan la carga del ingrediente;
+> cualquier otra receta rechaza un dispositivo que aún guarde algo. Ningún componente ni dispositivo
+> sirve como ingrediente de una receta vanilla.
+
+---
+
+## 🔩 Componentes
+
+Las recetas de los dispositivos base se hacen con estas piezas intermedias, así ninguna receta de
+dispositivo choca con una receta vanilla. Son ítems de mano: no se colocan, no se usan y ninguna
+receta vanilla los acepta. Los Blueprints codificados con las recetas antiguas de los dispositivos
+ya no valen: vuelve a codificarlos.
+
+### Oblea de Silicio (Silicon Wafer) (×2) · `mvn_silicon_wafer`
+
+```
+· Q ·
+Q S Q
+· Q ·
+```
+
+> Q = **Cuarzo** · S = **Arena**
+
+- **Resultado**: 2× Silicon Wafer (ítem de mano, Cristales de prismarina)
+- **Función**: El primer componente. Con ella se fabrican los Network Circuits, las Storage Matrix y
+  los Blueprints en blanco. Solo es un ingrediente.
+
+---
+
+### Circuito de Red (Network Circuit) (×2) · `mvn_network_circuit`
+
+```
+R G R
+W I W
+R G R
+```
+
+> R = **Redstone** · G = **Pepita de oro** · W = **Silicon Wafer** · I = **Lingote de hierro**
+
+- **Resultado**: 2× Network Circuit (ítem de mano, Fragmento de prismarina)
+- **Función**: Lógica básica de red. La usan el Controlador, los cables, el Terminal, el Grabber y
+  el Pusher simples, el Vacuum, el Purger, el Quota Limiter, el Monitor, la Probe, los dos Encoders
+  y la Configuration Wrench, y es la base del Logic Processor y la Storage Matrix. Solo es un
+  ingrediente.
+
+---
+
+### Procesador Lógico (Logic Processor) · `mvn_logic_processor`
+
+```
+Q C Q
+C R C
+Q C Q
+```
+
+> Q = **Cuarzo** · C = **Network Circuit** · R = **Bloque de redstone**
+
+- **Resultado**: 1× Logic Processor (ítem de mano, Caparazón de shulker)
+- **Función**: El cerebro de las máquinas que deciden: Controlador, Auto-Crafters, Request Crafters,
+  Request Terminal y Crafting Grid. Con dos se hace un Quantum Core. Solo es un ingrediente.
+
+---
+
+### Matriz de Almacenamiento (Storage Matrix) · `mvn_storage_matrix`
+
+```
+I W I
+C D C
+I W I
+```
+
+> I = **Lingote de hierro** · W = **Silicon Wafer** · C = **Network Circuit** · D = **Diamante**
+
+- **Resultado**: 1× Storage Matrix (ítem de mano, Fragmento de disco)
+- **Función**: El núcleo de todo almacén: Quantum Cell T1, Infinity Barrel, Greedy Cell, Quantum
+  Fluid Cell, DRAM Bay y el módulo L1. Solo es un ingrediente.
+
+---
+
+### Bobina de Transferencia (Transfer Coil) (×2) · `mvn_transfer_coil`
+
+```
+K R K
+R I R
+K R K
+```
+
+> K = **Lingote de cobre** · R = **Redstone** · I = **Lingote de hierro**
+
+- **Resultado**: 2× Transfer Coil (ítem de mano, Gancho de cuerda)
+- **Función**: Mueve cosas: Grabbers y Pushers (simples y avanzados), Vacuum y Liquid Pump. Solo es
+  un ingrediente.
+
+---
+
+### Núcleo Cuántico (Quantum Core) · `mvn_quantum_core`
+
+```
+A D A
+P E P
+A D A
+```
+
+> A = **Fragmento de amatista** · D = **Diamante** · P = **Logic Processor** ·
+> E = **Perla de ender**
+
+- **Resultado**: 1× Quantum Core (ítem de mano, Fragmento de eco)
+- **Función**: Une lugares lejanos: Terminal Inalámbrico, Wireless Transmitter y Receiver, Network
+  Router y Quantum Workbench. Solo es un ingrediente.
 
 ---
 
@@ -20,12 +128,13 @@ de transferencia (`network.op-interval-ticks.transfer`, 5 ticks).
 ### Controlador de Red · `mvn_controller`
 
 ```
-I I I
-I N I
-I I I
+I P I
+C N C
+I P I
 ```
 
-> I = **Bloque de hierro** · N = **Estrella del Nether**
+> I = **Bloque de hierro** · P = **Logic Processor** · C = **Network Circuit** ·
+> N = **Estrella del Nether**
 
 - **Resultado**: 1× Controlador de Red (Magnetita)
 - **Función**: Raíz de la red. Cada escaneo empieza aquí y recorre todos los bloques de MultiverseNets
@@ -41,11 +150,11 @@ I I I
 
 ```
 G G G
-G R G
+G C G
 G G G
 ```
 
-> G = **Vidrio** · R = **Redstone**
+> G = **Vidrio** · C = **Network Circuit**
 
 - **Resultado**: 16× Cable de Red (Vidrio)
 - **Función**: Conecta dispositivos. Todos los bloques de MultiverseNets conducen; los cables son la
@@ -65,12 +174,12 @@ G G G
 ### Terminal de Red · `mvn_terminal`
 
 ```
-G E G
+G C G
 E B E
-G E G
+G C G
 ```
 
-> G = **Vidrio** · E = **Perla de ender** · B = **Faro**
+> G = **Vidrio** · C = **Network Circuit** · E = **Perla de ender** · B = **Faro**
 
 - **Resultado**: 1× Terminal de Red (Faro)
 - **Función**: La cuadrícula de almacenamiento. La fila superior tiene las vistas: **Almacenamiento de
@@ -90,12 +199,12 @@ G E G
 ### Terminal Inalámbrico · `mvn_wireless_terminal`
 
 ```
-· P ·
+· Q ·
 P N P
 · C ·
 ```
 
-> P = **Perla de ender** · N = **Estrella del Nether** · C = **Brújula**
+> Q = **Quantum Core** · P = **Perla de ender** · N = **Estrella del Nether** · C = **Brújula**
 
 - **Resultado**: 1× Terminal Inalámbrico (ítem de mano)
 - **Función**: Abre el terminal de una red a distancia. Shift+clic derecho en un Controlador o un
@@ -110,10 +219,10 @@ P N P
 ```
 · L ·
 · C ·
-· R ·
+· Q ·
 ```
 
-> L = **Pararrayos** · C = **Cable de Red** · R = **Bloque de redstone**
+> L = **Pararrayos** · C = **Cable de Red** · Q = **Quantum Core**
 
 - **Resultado**: 1× Network Router (Pararrayos)
 - **Función**: Conectado en cualquier punto de una red, quita los límites del Terminal Inalámbrico
@@ -125,11 +234,11 @@ P N P
 
 ```
 G G G
-G C G
+K C K
 G G G
 ```
 
-> G = **Panel de vidrio** · C = **Comparador**
+> G = **Panel de vidrio** · K = **Comparador** · C = **Network Circuit**
 
 - **Resultado**: 1× Network Monitor (Nexo de reaparición)
 - **Función**: Panel de diagnóstico en vivo: nodos por tipo, uso de almacenamiento y errores del
@@ -142,10 +251,10 @@ G G G
 ```
 · A ·
 A S A
-· A ·
+· C ·
 ```
 
-> A = **Fragmento de amatista** · S = **Catalejo**
+> A = **Fragmento de amatista** · S = **Catalejo** · C = **Network Circuit**
 
 - **Resultado**: 1× Network Probe (ítem de mano)
 - **Función**: Clic derecho en cualquier bloque (sea nodo o no) para ver a qué red pertenece, cuántos
@@ -163,7 +272,7 @@ R C R
 ```
 
 > R = **Redstone** · G = **Piedra luminosa** · L = **Tinte lima** · P = **Network Probe** ·
-> D = **Tinte rojo** · C = **Cable de red**
+> D = **Tinte rojo** · C = **Cable de Red**
 
 - **Resultado**: 1× Network Status Light (Cristal tintado)
 - **Función**: Colócala encima de cualquier bloque de red. Se pone **verde** si ese bloque llega a un
@@ -175,12 +284,13 @@ R C R
 ### DRAM Bay · `mvn_dram_bay`
 
 ```
-I Q I
+I M I
 R C R
 I Q I
 ```
 
-> I = **Lingote de hierro** · Q = **Cuarzo** · R = **Redstone** · C = **Bloque de cobre**
+> I = **Lingote de hierro** · M = **Storage Matrix** · R = **Redstone** · C = **Bloque de cobre** ·
+> Q = **Cuarzo**
 
 - **Resultado**: 1× DRAM Bay (Bombilla de cobre encerada)
 - **Función**: Bloque de red que aloja **hasta 18 módulos de memoria** (cualquier mezcla de los
@@ -204,11 +314,11 @@ del bay. Cada nivel se craftea con el anterior; mejorar un módulo con ítems lo
 
 ```
 C R C
-R C R
+R M R
 C R C
 ```
 
-> C = **Lingote de cobre** · R = **Redstone**
+> C = **Lingote de cobre** · R = **Redstone** · M = **Storage Matrix**
 
 #### L2 CPU Cache Module — 8.192 ítems
 
@@ -260,7 +370,7 @@ F E F
 D B D
 ```
 
-> D = **Diamante** · B = **Cubo** · E = **Ojo de ender** · F = **Quantum Fluid Cell** (vacía)
+> D = **Diamante** · B = **Cubo** · F = **Quantum Fluid Cell** (vacía) · E = **Ojo de ender**
 
 - **Resultado**: 1× Fluid DRAM Module (ítem de mano, Corazón del mar)
 - **Función**: Módulo de memoria **exclusivo para fluidos** para el DRAM Bay. Guarda varios fluidos a
@@ -278,7 +388,8 @@ R B R
 I C I
 ```
 
-> I = **Lingote de hierro** · H = **Tolva** · R = **Redstone** · B = **DRAM Bay** · C = **Cable de red**
+> I = **Lingote de hierro** · H = **Tolva** · R = **Redstone** · B = **DRAM Bay** ·
+> C = **Cable de Red**
 
 - **Resultado**: 1× DRAM Unloader (Bombilla de cobre expuesto encerada)
 - **Función**: **Vacía tarjetas** (módulos de memoria) en la red. Admite hasta 9 tarjetas; en cada
@@ -319,11 +430,11 @@ I R I
 
 ```
 G G G
-G D G
+G M G
 G G G
 ```
 
-> G = **Vidrio** · D = **Diamante**
+> G = **Vidrio** · M = **Storage Matrix**
 
 **Tn+1 (n ≥ 1):** la celda anterior en el centro, rodeada de diamantes.
 
@@ -355,12 +466,13 @@ D D D
 ### Infinity Barrel · `mvn_infinity_barrel`
 
 ```
-N D N
+N M N
 D B D
 N D N
 ```
 
-> N = **Lingote de netherita** · D = **Bloque de diamante** · B = **Barril**
+> N = **Lingote de netherita** · M = **Storage Matrix** · D = **Bloque de diamante** ·
+> B = **Barril**
 
 - **Resultado**: 1× Infinity Barrel (Barril)
 - **Función**: Como una celda, un tipo de ítem, con `barrel.capacity` (2.000.000.000). **Sigue
@@ -376,10 +488,10 @@ N D N
 ```
 G H G
 H S H
-G H G
+G M G
 ```
 
-> G = **Lingote de oro** · H = **Tolva** · S = **Bloque de slime**
+> G = **Lingote de oro** · H = **Tolva** · S = **Bloque de slime** · M = **Storage Matrix**
 
 - **Resultado**: 1× Greedy Cell (Bloque de slime)
 - **Función**: Búfer multi-ítem de hasta `greedy.capacity` (262.144) en total.
@@ -397,12 +509,12 @@ G H G
 ### Quantum Workbench · `mvn_quantum_workbench`
 
 ```
-D D D
+D Q D
 D C D
 D D D
 ```
 
-> D = **Diamante** · C = **Mesa de crafteo**
+> D = **Diamante** · Q = **Quantum Core** · C = **Mesa de crafteo**
 
 - **Resultado**: 1× Quantum Workbench (Bloque de coral cerebro)
 - **Función**: Sube una Celda Cuántica T1–T5 al siguiente nivel conservando su carga. Pon la celda en
@@ -417,11 +529,11 @@ D D D
 
 ```
 G B G
+G M G
 G L G
-G G G
 ```
 
-> G = **Vidrio** · B = **Cubo** · L = **Bloque de lapislázuli**
+> G = **Vidrio** · B = **Cubo** · M = **Storage Matrix** · L = **Bloque de lapislázuli**
 
 - **Resultado**: 1× Quantum Fluid Cell (Ladrillos de prismarina)
 - **Función**: Guarda un fluido — Agua, Lava, Leche, Nieve polvo o Miel — hasta
@@ -437,10 +549,10 @@ G G G
 ```
 · G ·
 P B P
-· R ·
+· T ·
 ```
 
-> G = **Vidrio tintado de azul** · P = **Pistón** · B = **Cubo** · R = **Redstone**
+> G = **Vidrio tintado de azul** · P = **Pistón** · B = **Cubo** · T = **Transfer Coil**
 
 - **Resultado**: 1× Liquid Pump (Vidrio tintado de azul)
 - **Función**: Cada ciclo drena un bloque **fuente** de agua o lava justo **debajo** (1.000 mB) hacia
@@ -454,12 +566,12 @@ P B P
 ### Simple Grabber (Importador) · `mvn_grabber`
 
 ```
-I O I
-O R O
-I O I
+I T I
+O C O
+I T I
 ```
 
-> I = **Lingote de hierro** · O = **Observador** · R = **Bloque de redstone**
+> I = **Lingote de hierro** · T = **Transfer Coil** · O = **Observador** · C = **Network Circuit**
 
 - **Resultado**: 1× Simple Grabber (Observador)
 - **Función**: Importa de los contenedores vecinos a la red: hasta 128 ítems de un tipo por ciclo, por
@@ -475,10 +587,10 @@ I O I
 ### Advanced Grabber · `mvn_grabber_ht`
 
 ```
-O P O
+T P T
 ```
 
-> O = **Observador** · P = **Pistón pegajoso**
+> T = **Transfer Coil** · P = **Pistón pegajoso**
 
 - **Resultado**: 1× Advanced Grabber (Pistón pegajoso)
 - **Función**: Igual que el Simple Grabber ×8 (`transfer.ht-multiplier`): 1.024 ítems por ciclo. Su
@@ -489,12 +601,12 @@ O P O
 ### Simple Pusher (Exportador) · `mvn_pusher`
 
 ```
-I D I
-D R D
-I D I
+I T I
+D C D
+I T I
 ```
 
-> I = **Lingote de hierro** · D = **Soltador** · R = **Bloque de redstone**
+> I = **Lingote de hierro** · T = **Transfer Coil** · D = **Soltador** · C = **Network Circuit**
 
 - **Resultado**: 1× Simple Pusher (Diana)
 - **Función**: Exporta de la red a los contenedores vecinos por **las seis caras** (no tiene selector
@@ -510,10 +622,10 @@ I D I
 ### Advanced Pusher · `mvn_pusher_ht`
 
 ```
-D P D
+T P T
 ```
 
-> D = **Soltador** · P = **Pistón**
+> T = **Transfer Coil** · P = **Pistón**
 
 - **Resultado**: 1× Advanced Pusher (Pistón)
 - **Función**: Igual que el Simple Pusher ×8 (1.024 por ciclo). Con una cara elegida entrega
@@ -524,12 +636,12 @@ D P D
 ### Network Vacuum · `mvn_vacuum`
 
 ```
-S R S
-R H R
-S R S
+S T S
+T H T
+S C S
 ```
 
-> S = **Hilo** · R = **Redstone** · H = **Tolva**
+> S = **Hilo** · T = **Transfer Coil** · H = **Tolva** · C = **Network Circuit**
 
 - **Resultado**: 1× Network Vacuum (Esponja)
 - **Función**: Cada 10 ticks recoge los ítems del suelo dentro de `vacuum.radius` (4 bloques) hacia la
@@ -542,10 +654,10 @@ S R S
 ```
 I L I
 L H L
-I L I
+I C I
 ```
 
-> I = **Lingote de hierro** · L = **Bloque de magma** · H = **Tolva**
+> I = **Lingote de hierro** · L = **Bloque de magma** · H = **Tolva** · C = **Network Circuit**
 
 - **Resultado**: 1× Network Purger (Bloque de magma)
 - **Función**: Borra hasta 128 ítems por ciclo que pasen su filtro, para que los residuos (grava,
@@ -556,12 +668,12 @@ I L I
 ### Network Quota Limiter · `mvn_limiter`
 
 ```
-R C R
-C T C
-R C R
+R K R
+T C T
+R K R
 ```
 
-> R = **Redstone** · C = **Comparador** · T = **Diana**
+> R = **Redstone** · K = **Comparador** · T = **Diana** · C = **Network Circuit**
 
 - **Resultado**: 1× Network Quota Limiter (Diana)
 - **Función**: Limita cuánto de un ítem puede guardar la red. Todo depósito se detiene en el tope:
@@ -579,7 +691,8 @@ P M P
 R L R
 ```
 
-> R = **Redstone** · K = **Comparador** · P = **Papel** · M = **Network Monitor** · L = **Network Quota Limiter**
+> R = **Redstone** · K = **Comparador** · P = **Papel** · M = **Network Monitor** ·
+> L = **Network Quota Limiter**
 
 - **Resultado**: 1× Quota Manager (Luz de rana verde)
 - **Función**: Lista todos los Quota Limiters de su red: el ítem limitado, su límite, el stock de la
@@ -596,10 +709,10 @@ R L R
 ```
 I R I
 R C R
-I R I
+I Q I
 ```
 
-> I = **Lingote de hierro** · R = **Bloque de redstone** · C = **Conducto**
+> I = **Lingote de hierro** · R = **Bloque de redstone** · C = **Conducto** · Q = **Quantum Core**
 
 - **Resultado**: 1× Wireless Transmitter (Conducto)
 - **Función**: Un extremo del puente inalámbrico entre dos redes. Shift+clic derecho a un Transmisor
@@ -615,10 +728,11 @@ I R I
 ```
 I P I
 P L P
-I P I
+I Q I
 ```
 
-> I = **Lingote de hierro** · P = **Perla de ender** · L = **Lámpara de redstone**
+> I = **Lingote de hierro** · P = **Perla de ender** · L = **Lámpara de redstone** ·
+> Q = **Quantum Core**
 
 - **Resultado**: 1× Wireless Receiver (Lámpara de redstone)
 - **Función**: El otro extremo del puente. Enlazado a un Transmisor, **trae** hasta 128 ítems por ciclo
@@ -635,11 +749,11 @@ I P I
 
 ```
 P P P
+P W P
 P B P
-P P P
 ```
 
-> P = **Papel** · B = **Tinte azul**
+> P = **Papel** · W = **Silicon Wafer** · B = **Tinte azul**
 
 - **Resultado**: 4× Blueprint (Libro)
 - **Función**: Lleva una receta (cuadrícula 3×3 + resultado) una vez escrita por un Recipe Encoder.
@@ -652,11 +766,11 @@ P P P
 
 ```
 K P K
-P S P
+C S C
 K P K
 ```
 
-> K = **Saco de tinta** · P = **Papel** · S = **Mesa de herrería**
+> K = **Saco de tinta** · P = **Papel** · C = **Network Circuit** · S = **Mesa de herrería**
 
 - **Resultado**: 1× Recipe Encoder (Mesa de herrería)
 - **Función**: Monta la receta en su plantilla 3×3 persistente (hacer clic solo marca huecos, no gasta
@@ -670,11 +784,11 @@ K P K
 
 ```
 E P E
-P B P
+C B C
 E P E
 ```
 
-> E = **Perla de ender** · P = **Papel** · B = **Mesa de encantamientos**
+> E = **Perla de ender** · P = **Papel** · C = **Network Circuit** · B = **Mesa de encantamientos**
 
 - **Resultado**: 1× Slimefun Recipe Encoder (Mesa de encantamientos)
 - **Función**: Igual que el Recipe Encoder para recetas de Slimefun. Los Blueprints que dejes en sus
@@ -688,11 +802,11 @@ E P E
 
 ```
 R C R
-I T I
+I P I
 R C R
 ```
 
-> R = **Redstone** · C = **Mesa de crafteo** · I = **Lingote de hierro** · T = **Diana**
+> R = **Redstone** · C = **Mesa de crafteo** · I = **Lingote de hierro** · P = **Logic Processor**
 
 - **Resultado**: 1× Auto-Crafter (Mesa de crafteo)
 - **Función**: Guarda hasta 18 Blueprints vanilla (`crafter.max-recipes`) y cada 20 ticks intenta cada
@@ -705,12 +819,13 @@ R C R
 ### Slimefun Auto-Crafter · `mvn_sf_crafter`
 
 ```
-R C R
-I T I
-R C R
+E C E
+I P I
+E C E
 ```
 
-> R = **Perla de ender** · C = **Obsidiana llorosa** · I = **Lingote de hierro** · T = **Diana**
+> E = **Perla de ender** · C = **Obsidiana llorosa** · I = **Lingote de hierro** ·
+> P = **Logic Processor**
 
 - **Resultado**: 1× Slimefun Auto-Crafter (Obsidiana llorosa)
 - **Función**: Igual que el Auto-Crafter y acepta **Blueprints de Slimefun y vanilla**.
@@ -723,11 +838,11 @@ R C R
 
 ```
 R C R
-I L I
+L P L
 R C R
 ```
 
-> R = **Redstone** · C = **Mesa de crafteo** · I = **Lingote de hierro** · L = **Atril**
+> R = **Redstone** · C = **Mesa de crafteo** · L = **Atril** · P = **Logic Processor**
 
 - **Resultado**: 1× Request Crafter (Mesa de flechas)
 - **Función**: Guarda Blueprints vanilla que **solo** se craftean bajo demanda desde un Request
@@ -738,12 +853,12 @@ R C R
 ### Slimefun Request Crafter · `mvn_sf_request_crafter`
 
 ```
-R C R
-I L I
-R C R
+E C E
+L P L
+E C E
 ```
 
-> R = **Perla de ender** · C = **Pilar de púrpura** · I = **Lingote de hierro** · L = **Atril**
+> E = **Perla de ender** · C = **Pilar de púrpura** · L = **Atril** · P = **Logic Processor**
 
 - **Resultado**: 1× Slimefun Request Crafter (Pilar de púrpura)
 - **Función**: Igual que el Request Crafter, con Blueprints de Slimefun y vanilla. Depende de
@@ -755,11 +870,11 @@ R C R
 
 ```
 G L G
-R C R
+C P C
 G G G
 ```
 
-> G = **Vidrio** · L = **Atril** · C = **Mesa de crafteo** · R = **Redstone**
+> G = **Vidrio** · L = **Atril** · C = **Mesa de crafteo** · P = **Logic Processor**
 
 - **Resultado**: 1× Request Terminal (Atril)
 - **Función**: Lista todo lo que pueden fabricar los Request Crafters de la red y lo craftea bajo
@@ -775,10 +890,10 @@ G G G
 ```
 C R C
 R G R
-C R C
+C P C
 ```
 
-> C = **Mesa de crafteo** · R = **Redstone** · G = **Mesa de cartografía**
+> C = **Mesa de crafteo** · R = **Redstone** · G = **Mesa de cartografía** · P = **Logic Processor**
 
 - **Resultado**: 1× Network Crafting Grid (Mesa de cartografía)
 - **Función**: Una mesa de crafteo que saca los ingredientes de la red de forma transaccional. La
@@ -827,7 +942,7 @@ I · I
 · I ·
 ```
 
-> I = **Lingote de hierro** · C = **Comparador**
+> I = **Lingote de hierro** · C = **Network Circuit**
 
 - **Resultado**: 1× Configuration Wrench (ítem de mano)
 - **Función**: Shift+clic derecho en un dispositivo con filtro para copiarlo (plantillas exactas,

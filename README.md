@@ -156,6 +156,22 @@ whole stack.
 | **Configuration Wrench** | `mvn_configurator` · item (Comparator) | Copies a filter (exact templates, materials and whitelist/blacklist mode) from one device to another. | Shift+right-click a filterable device to copy, right-click another to paste. |
 | **Network Rake** | `mvn_rake` · item (Dead Bush) | Dismantles a node instantly and gives it back to you with its state (filter, Blueprints, binding). 250 uses (`rake.uses`). | Right-click a node. It refuses controllers and storage that still holds items or fluid. |
 
+### 🔩 Components
+
+Intermediate parts the base devices are crafted from, so no device recipe can clash with a vanilla
+recipe. They are hand items: they cannot be placed or used, and no vanilla recipe accepts them.
+Blueprints encoded with the old device recipes no longer work: encode them again. Their recipes are in
+[Recipes & functions](Wiki-en/Recipes.md).
+
+| Component | id · item | Used to craft |
+|---|---|---|
+| **Silicon Wafer** (×2) | `mvn_silicon_wafer` · Prismarine Crystals | Network Circuit, Storage Matrix, Blank Blueprint |
+| **Network Circuit** (×2) | `mvn_network_circuit` · Prismarine Shard | Controller, Cable, Terminal, Simple Grabber, Simple Pusher, Vacuum, Purger, Quota Limiter, Monitor, Probe, both Recipe Encoders, Configuration Wrench; Logic Processor, Storage Matrix |
+| **Logic Processor** | `mvn_logic_processor` · Shulker Shell | Controller, Auto-Crafter and Slimefun Auto-Crafter, both Request Crafters, Request Terminal, Crafting Grid; Quantum Core (×2) |
+| **Storage Matrix** | `mvn_storage_matrix` · Disc Fragment | Quantum Cell T1, Infinity Barrel, Greedy Cell, Quantum Fluid Cell, DRAM Bay, L1 CPU Cache Module |
+| **Transfer Coil** (×2) | `mvn_transfer_coil` · Tripwire Hook | Simple and Advanced Grabber, Simple and Advanced Pusher, Vacuum, Liquid Pump |
+| **Quantum Core** | `mvn_quantum_core` · Echo Shard | Wireless Terminal, Wireless Transmitter, Wireless Receiver, Network Router, Quantum Workbench |
+
 ### 🐔 GeneticChickengineering
 
 | Device | id · block | What it does | How to use it |
