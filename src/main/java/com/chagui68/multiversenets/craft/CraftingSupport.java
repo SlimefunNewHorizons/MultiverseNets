@@ -203,6 +203,11 @@ public final class CraftingSupport {
             java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
     private static final long RESULT_TTL_MS = 30_000L;
 
+    /** Drops every cached blueprint result, together with {@link Blueprints#clearRecipeCache}. */
+    public static void clearResultCache() {
+        RESULTS.clear();
+    }
+
     private static ItemStack blueprintResult(Network net, RecipeData data) {
         long now = System.currentTimeMillis();
         ResolvedResult cached = RESULTS.get(data);

@@ -56,6 +56,29 @@ class RecipeTest {
     }
 
     @Test
+    void reRegisteringRecipesForgetsCachedBlueprintResolutions() {
+        // MockBukkit casa 8 cristales + un Network Circuit con esta receta vanilla (no cuenta
+        // cantidades en las recetas sin forma); fuera, para que el cable sea la unica que casa.
+        server.removeRecipe(NamespacedKey.minecraft("prismarine_bricks"));
+        ItemStack[] grid = new ItemStack[9];
+        for (int i = 0; i < 9; i++) {
+            grid[i] = i == 4 ? Items.create(DeviceType.MVN_NETWORK_CIRCUIT) : new ItemStack(Material.GLASS);
+        }
+        var world = server.getWorlds().get(0);
+        ItemStack cable = Items.create(DeviceType.MVN_CABLE);
+
+        // Sin la receta del cable la matriz no resuelve, y ese "no hay receta" queda en cache.
+        Bukkit.removeRecipe(new NamespacedKey(plugin, "cable"));
+        assertNull(com.chagui68.multiversenets.craft.Blueprints.resolve(grid, world));
+
+        // Como en /mvnets reload: al volver a registrar las recetas la cache se olvida.
+        Items.registerRecipes(plugin);
+        Recipe resolved = com.chagui68.multiversenets.craft.Blueprints.resolve(grid, world);
+        assertTrue(com.chagui68.multiversenets.craft.Blueprints.matchesOutput(resolved, cable),
+                "after re-registering, the grid must resolve to the cable recipe, not a stale cache entry");
+    }
+
+    @Test
     void reRegisteringRecipesDoesNotThrowOrDuplicate() {
         assertDoesNotThrow(() -> Items.registerRecipes(plugin));
     }

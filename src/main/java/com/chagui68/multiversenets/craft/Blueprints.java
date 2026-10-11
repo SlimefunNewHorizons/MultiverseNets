@@ -177,6 +177,15 @@ public final class Blueprints {
     }
 
     /**
+     * Olvida las recetas resueltas. Se llama al volver a registrar las recetas (arranque y
+     * /mvnets reload): sin esto un plano seguia resolviendo una receta ya quitada o cambiada, o
+     * un "no hay receta" de antes de que se registrara.
+     */
+    public static void clearRecipeCache() {
+        RECIPE_CACHE.clear();
+    }
+
+    /**
      * Compara una receta resuelta contra la salida esperada del blueprint. Lo pide NetworksV6
      * (matchesBlueprintRecipe) para que un blueprint deje de funcionar si la receta cambia.
      */

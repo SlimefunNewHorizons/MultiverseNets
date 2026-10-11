@@ -1064,6 +1064,9 @@ public final class Items {
             device(r, 'P', DeviceType.MVN_PROBE);
             device(r, 'C', DeviceType.MVN_CABLE);
         });
+        // Al final y no al principio: una resolucion hecha a mitad del registro tambien se olvida.
+        com.chagui68.multiversenets.craft.Blueprints.clearRecipeCache();
+        com.chagui68.multiversenets.craft.CraftingSupport.clearResultCache();
         plugin.getLogger().info("Registered " + recipeCount() + " crafting recipes with Bukkit.");
     }
 
