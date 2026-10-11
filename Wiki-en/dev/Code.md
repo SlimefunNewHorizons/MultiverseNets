@@ -242,6 +242,15 @@ that contains it), **Quantum Cells**, **Infinity Barrels**,
   topology nor `NodeStore.liveEpoch()` changes. Positions of Pushers, Quota Limiters and Purgers are
   kept per topology version. `changeStamp()` moves on every change of stored items; the Terminal
   redraws only when it (or the fluid stamp) moved, or every 2 s.
+- With that per-tick list goes an index: cells and barrels by the Material of their item, empty ones
+  and Greedy Cells apart, all in network order. A deposit only looks at the cells of the item's
+  Material and at the empty ones; `withdraw`, `peek` and `count` take an optional set of Materials
+  (`NetworkManager.filterMaterials(blob)`, `CraftingSupport.choiceMaterials`, `NetworkStorage.only`)
+  and then look only at those cells. `null` means any Material and walks every cell, as before. A cell
+  that empties or takes its first item moves within the index in the same operation (`clearSample`,
+  `assignSample`), so the result is always the one a walk over every cell would give.
+- `releasedByPushers` reads the Pushers' whitelists once per tick (same keys as the cell list) and
+  rejects by Material before testing any filter.
 
 ## 8. Fluid storage: `NetworkFluidStorage`
 
@@ -262,18 +271,23 @@ whole bucket, bottle or source block only on `0`. `withdraw`, `count`, `getFluid
   loaded, or a Slimefun block next to it changed) and `scan-interval-ticks` have passed since its
   last scan, or when `full-rescan-ticks` (plus a fixed per-network offset) have passed. If any
   operation is due, `assignSharedNodes` gives every node shared by two networks
-  (`touchesForeignController`) to the first one, so **each device works once per cycle**; then
+  (`touchesForeignController`) to the first one, so **each device works once per cycle** (that map is
+  only rebuilt when the set of sharing networks or one of their topology versions changes); then
   transfers, vacuum and crafting run through `forEachWorked`; once per second the hologram is
-  updated inside a try/catch (a hologram failure is logged once and never stops the loop), and
-  its text is only resent when it changed.
+  updated inside a try/catch (a hologram failure is logged once and never stops the loop). Its text
+  is only rebuilt when a player is within 64 blocks and the storage, fluids, node count or error
+  changed (at least every 10 s), and only resent when it changed. Every 6000 ticks the per-node state
+  of positions no network holds any more (backoff, Pusher rotation, idle Purgers) is dropped.
 - Every device reads its blob through `NodeStore.canonical` (the shared live instance), never
   `NodeStore.get`, which encodes and decodes a full copy.
 - **`doTransfers`** (`items-per-op` = 128, HT = ×`ht-multiplier`):
   - **Grabber** (`grabOnce`): retries its transit buffer first; then the first face that yields a
     match — Slimefun machine output slots first, then vanilla containers. Overflow → Pushers that
     accept it (`streamToPushers`) → transit buffer. It is never handed back to the source:
-    `SlimefunBridge.insert` uses the INPUT slots and the product was processed again. Idle grabbers back off
-    (only every third cycle after an empty one, up to 30).
+    `SlimefunBridge.insert` uses the INPUT slots and the product was processed again. Idle grabbers,
+    pushers and chicken sorters back off (`sitsOut` / `wasIdle`): every third cycle after an empty
+    one and, after 30 idle cycles, every sixth; the counter wraps between 30 and 60 instead of stopping
+    at 30, where it used to try every cycle again.
   - **Pusher** (`pushOnce`): retries its transit buffer first; empty whitelist = idle; targets are
     the faces from `facesFor` holding a container or Slimefun machine that is not a network node
     (`isPushTarget`). A whitelist of several entries gives one predicate per entry, rotating the first
@@ -284,7 +298,9 @@ whole bucket, bottle or source block only on `0`. `withdraw`, `count`, `getFluid
     chickens that pass `ChickenGenetics.matches`.
   - **Greedy Cell** (`greedyTick`): suction up to `4 × items-per-op`, distribution up to
     `2 × items-per-op` into adjacent non-network containers.
-  - **Purger**: only with a non-empty filter.
+  - **Purger**: only with a non-empty filter. After a cycle that found nothing it remembers the
+    storage `changeStamp` and `NodeStore.liveEpoch()`, and skips its walk while both stay the same
+    (re-checking every 20 cycles for Slimefun barrels, which change outside the network).
   - **Receiver** (`bridgeOnce`) / **Transmitter** (`transmitOnce`): the end that holds the link
     moves items across. Filter rule `bridgeFilterSet`: non-empty whitelist or any blacklist. Both
     ends pass the protection check with their own network's owner; leftovers go back to the source

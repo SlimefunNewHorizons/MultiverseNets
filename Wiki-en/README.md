@@ -234,8 +234,10 @@ Every 5 ticks the ticker runs these per network (each on its own configurable in
 | vacuum (10 t) | Vacuum | Picks up dropped items within the radius. |
 | craft (20 t) | Auto-Crafter / Slimefun Auto-Crafter | Tries each installed Blueprint once. |
 
-Idle grabbers and pushers back off: after finding nothing they only check every third cycle until
-something moves again, so a thousand idle devices cost almost nothing.
+Idle grabbers and pushers back off: after finding nothing they only check every third cycle, and
+after 30 idle cycles every sixth (1.5 s with the default interval), until something moves again, so a
+thousand idle devices cost almost nothing. A Purger that found nothing to delete does not look again
+until something in the network changes (or 5 s pass), so a new item is still purged on the next cycle.
 
 ### 4. Between networks: the wireless bridge
 

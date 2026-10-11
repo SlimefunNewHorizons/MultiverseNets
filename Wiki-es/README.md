@@ -233,7 +233,10 @@ Cada 5 ticks el ticker ejecuta esto por red (cada familia con su intervalo confi
 | craft (20 t) | Auto-Crafter / Slimefun Auto-Crafter | Intenta una vez cada Blueprint instalado. |
 
 Los grabbers y pushers inactivos se relajan: tras no encontrar nada solo comprueban uno de cada tres
-ciclos hasta que algo vuelve a moverse, así mil dispositivos inactivos casi no cuestan.
+ciclos, y tras 30 ciclos inactivos uno de cada seis (1,5 s con el intervalo por defecto), hasta que algo
+vuelve a moverse, así mil dispositivos inactivos casi no cuestan. Un Purger que no encontró nada que
+borrar no vuelve a mirar hasta que cambie algo en la red (o pasen 5 s), así un ítem nuevo se purga
+igual en el siguiente ciclo.
 
 ### 4. Entre redes: el puente inalámbrico
 

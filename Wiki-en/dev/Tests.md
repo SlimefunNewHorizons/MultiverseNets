@@ -86,7 +86,7 @@ Things to know:
 | `PosUtilTest` | 2 | Coordinate packing round-trips, including world borders and negative Y. |
 | `QuantumWorkbenchTest` | 2 | Cell upgrade keeps the cargo; ingredients are returned on close. |
 | `QuotaManagerTest` | 3 | The Quota Manager lists the network's limiters, adds an item to a free limiter without taking it, adds nothing when none is free, removes and toggles; a Grabber empties an Infinity Barrel that is not wired to the network (and does not pull it in); a barrel wired by cable stays network storage and the Grabber leaves it alone. |
-| `RecipeTest` | 9 | Every recipe registered once, cable and cell recipes craft, a cell with cargo matches its upgrade recipe and keeps the cargo. |
+| `RecipeTest` | 10 | Every recipe registered once, cable and cell recipes craft, a cell with cargo matches its upgrade recipe and keeps the cargo; registering the recipes again forgets every cached Blueprint resolution. |
 | `RecipeValidationTest` | 5 | Device ingredients are tracked per recipe; a plain material cannot stand in for a device; cell and module upgrades keep their cargo; a fluid cell that still holds fluid is refused; devices never feed vanilla recipes. |
 | `ReportedIssuesTest` | 8 | Advanced Pusher never loses items (one stack per slot); a multi-item whitelist leaves room for every ingredient; blacklisted items stay in the network; nothing goes into an Infinity Barrel's block inventory; hoppers never touch a device; custom items match after their name is stored differently; the barrel takes back a custom item it handed out; the Slimefun Recipe Encoder keeps its Blueprints. |
 | `SettingsCellCapacityTest` | 9 | `Settings` defaults and edge cases (capacities, clamps, null config). |
@@ -101,6 +101,7 @@ Things to know:
 | `compat.ProtectionWhitelistTest` | 15 | Protection defaults and `exempt-locations` parsing and geometry; the bridge is inert without providers. |
 | `listen.SneakingRightClickTest` | 3 | Sneaking + right-click never opens a device menu and still allows vanilla placement. |
 | `net.ScanCostTest` | 2 | The BFS neighbour walk allocates nothing per node and a large scan stays linear. |
+| `net.PerformanceGuardsTest` | 4 | A long-idle Grabber keeps sitting cycles out and still wakes up within six; an idle Purger purges a new item, and a filter written by a menu, on the next cycle; cells emptied and refilled within one tick stay consistent with the Material index; filter Material hints cover everything the filter lets through. |
 | `persist.NodeStoreCanonicalTest` | 5 | The shared decoded blob is never older than the last write. |
 | `persist.NodeStoreCorruptionTest` | 6 | Corrupt stored blobs read as missing, silently and cheaply, stay in place and can be overwritten; a large blob still fits the item PDC string limit. |
 | `persist.NodeStoreRegionTest` | 9 | Region storage: thousands of nodes in one chunk (no ceiling), default blobs store only their type, data survives a restart (negative regions too), an emptied region deletes its file, a corrupt file is moved aside, the ticking counter, the optional active-device cap (passive blocks never count), migration out of the 5.2 chunk PDC, unloaded chunks answer "no node". |

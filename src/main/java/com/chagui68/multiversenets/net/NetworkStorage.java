@@ -45,17 +45,23 @@ public class NetworkStorage {
         private final Block block;
         private final NodeBlob blob;
         private final long capacity;
+        /** Position in the network's cell order; every pass keeps it / Orden de la celda en la red. */
+        private final int order;
         private boolean dirty;
 
-        private CellState(long pos, boolean greedy, boolean barrel, Block block, NodeBlob blob, long capacity) {
+        private CellState(long pos, boolean greedy, boolean barrel, Block block, NodeBlob blob, long capacity,
+                          int order) {
             this.pos = pos;
             this.greedy = greedy;
             this.barrel = barrel;
             this.block = block;
             this.blob = blob;
             this.capacity = capacity;
+            this.order = order;
         }
     }
+
+    private static final java.util.Comparator<CellState> BY_ORDER = java.util.Comparator.comparingInt(c -> c.order);
 
     /**
      * One item memory module. {@code blob} holds the stock; {@code owner} is what gets saved: the
@@ -96,6 +102,17 @@ public class NetworkStorage {
     // modulos de memoria y los barriles de Slimefun.
     private static final int NO_TICK = Integer.MIN_VALUE;
     private List<CellState> cachedStates;
+    /**
+     * Indice de {@link #cachedStates}, rehecho con ella. Cada deposito, retirada y conteo recorria
+     * todas las celdas de la red; con miles de celdas y cientos de Grabbers, Pushers, Purgers y
+     * Crafters eso era el coste dominante de una red grande. Ahora cada paso mira solo las celdas
+     * del Material del item (o de los Material que admite el filtro). Todas las listas conservan el
+     * orden de la red, asi que el resultado es el mismo que recorriendolas todas.
+     */
+    private final Map<Material, List<CellState>> cellsByMaterial = new EnumMap<>(Material.class);
+    /** Cells and barrels with no item yet, in network order / Celdas sin ítem, en orden. */
+    private final List<CellState> emptyCells = new ArrayList<>();
+    private final List<CellState> greedyCells = new ArrayList<>();
     private List<VirtualCacheState> cachedCaches;
     private List<Block> cachedBarrels;
     private long cachedVersion = -1;
@@ -138,6 +155,7 @@ public class NetworkStorage {
             return;
         }
         cachedStates = loadCells();
+        indexCells(cachedStates);
         cachedCaches = loadVirtualCachesUncached();
         cachedBarrels = loadSfBarrelsUncached();
         cachedTick = tick;
@@ -148,6 +166,96 @@ public class NetworkStorage {
     private List<VirtualCacheState> loadVirtualCaches() {
         ensureLoaded();
         return cachedCaches;
+    }
+
+    private void indexCells(List<CellState> states) {
+        cellsByMaterial.clear();
+        emptyCells.clear();
+        greedyCells.clear();
+        for (CellState state : states) {
+            if (state.greedy) {
+                greedyCells.add(state);
+            } else if (state.blob.cellSample == null) {
+                emptyCells.add(state);
+            } else {
+                cellsByMaterial.computeIfAbsent(state.blob.cellSample.getType(), m -> new ArrayList<>()).add(state);
+            }
+        }
+    }
+
+    /** Inserts keeping network order / Inserta conservando el orden de la red. */
+    private static void insertOrdered(List<CellState> list, CellState state) {
+        int at = java.util.Collections.binarySearch(list, state, BY_ORDER);
+        list.add(at < 0 ? -at - 1 : at, state);
+    }
+
+    /** An empty cell takes its first item: it moves to that item's Material / Celda vacía que recibe ítem. */
+    private void assignSample(CellState state, ItemStack item) {
+        state.blob.cellSample = StackUtils.getAsQuantity(item, 1);
+        emptyCells.remove(state);
+        insertOrdered(cellsByMaterial.computeIfAbsent(item.getType(), m -> new ArrayList<>()), state);
+    }
+
+    /** A cell gave its last unit away and forgets its item / Celda que se vacía y olvida su ítem. */
+    private void clearSample(CellState state) {
+        ItemStack old = state.blob.cellSample;
+        state.blob.cellSample = null;
+        if (old != null) {
+            List<CellState> list = cellsByMaterial.get(old.getType());
+            if (list != null) {
+                list.remove(state);
+            }
+        }
+        insertOrdered(emptyCells, state);
+    }
+
+    /**
+     * EN: Non-greedy cells and barrels that can hold an item of these Materials, in network order;
+     * every cell (greedy ones included, callers skip them) for null. {@code copy} for a caller that
+     * may empty a cell while walking the list.
+     *
+     * ES: Celdas y barriles (no Greedy) que pueden tener un ítem de estos Material, en orden; todas
+     * (Greedy incluidas, el llamante las salta) para null. {@code copy} para quien puede vaciar una
+     * celda mientras recorre la lista.
+     */
+    private List<CellState> cellsFor(java.util.Set<Material> materials, List<CellState> states, boolean copy) {
+        if (materials == null) {
+            // clearSample y assignSample nunca tocan states: no hace falta copiarla.
+            return states;
+        }
+        if (materials.size() == 1) {
+            List<CellState> list = cellsByMaterial.get(materials.iterator().next());
+            if (list == null) {
+                return List.of();
+            }
+            return copy ? new ArrayList<>(list) : list;
+        }
+        List<CellState> merged = new ArrayList<>();
+        for (Material material : materials) {
+            List<CellState> list = cellsByMaterial.get(material);
+            if (list != null) {
+                merged.addAll(list);
+            }
+        }
+        merged.sort(BY_ORDER);
+        return merged;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static final java.util.Set<Material>[] SINGLE = new java.util.Set[Material.values().length];
+
+    /** A shared one-Material hint / Una pista de un solo Material, compartida. */
+    public static java.util.Set<Material> only(Material material) {
+        java.util.Set<Material> set = SINGLE[material.ordinal()];
+        if (set == null) {
+            set = java.util.Collections.unmodifiableSet(java.util.EnumSet.of(material));
+            SINGLE[material.ordinal()] = set;
+        }
+        return set;
+    }
+
+    private static boolean admits(java.util.Set<Material> materials, ItemStack sample) {
+        return materials == null || materials.contains(sample.getType());
     }
 
     private List<Block> loadSfBarrels() {
@@ -294,7 +402,7 @@ public class NetworkStorage {
             if (!stillValid) {
                 continue;
             }
-            states.add(new CellState(ref.pos(), ref.greedy(), ref.barrel(), block, blob, cap));
+            states.add(new CellState(ref.pos(), ref.greedy(), ref.barrel(), block, blob, cap, states.size()));
         }
         return states;
     }
@@ -358,7 +466,7 @@ public class NetworkStorage {
         if (!hasLimiter) {
             return Long.MAX_VALUE;
         }
-        long currentTotal = count(i -> StackUtils.itemsMatch(i, item), states, vCaches, sfBarrels);
+        long currentTotal = count(i -> StackUtils.itemsMatch(i, item), only(item.getType()), states, vCaches, sfBarrels);
         return Math.max(0, minAllowed - currentTotal);
     }
 
@@ -401,8 +509,7 @@ public class NetworkStorage {
         boolean released = releasedByPushers(item);
 
         // 1. Greedy cells
-        for (CellState state : states) {
-            if (!state.greedy || released) continue;
+        for (CellState state : released ? List.<CellState>of() : greedyCells) {
             long space = state.capacity - state.blob.totalGreedyAmount();
             if (space <= 0) continue;
             boolean matchesExisting = state.blob.indexOfGreedySample(item) >= 0;
@@ -446,7 +553,7 @@ public class NetworkStorage {
         // 4. Normal cells with same type
         boolean voidExcess = false;
         if (remaining > 0) {
-            for (CellState state : states) {
+            for (CellState state : cellsFor(only(item.getType()), states, false)) {
                 if (state.greedy || state.blob.cellSample == null
                         || !StackUtils.itemsMatch(state.blob.cellSample, item)) {
                     continue;
@@ -490,20 +597,21 @@ public class NetworkStorage {
 
         // 7. Empty normal cells
         if (remaining > 0) {
-            for (CellState state : states) {
+            // assignSample saca la celda de emptyCells, asi que el indice no avanza al usarla.
+            for (int i = 0; i < emptyCells.size() && remaining > 0; ) {
+                CellState state = emptyCells.get(i);
                 if (state.greedy || state.blob.cellSample != null) {
+                    i++;
                     continue;
                 }
-                state.blob.cellSample = StackUtils.getAsQuantity(item, 1);
+                assignSample(state, item);
                 remaining = pour(state, item, remaining);
-                if (remaining <= 0) break;
             }
         }
 
         // 8. Open Greedy cells (fallback when greedy cell has no filter configured: acts as shared general storage)
         if (remaining > 0 && !released) {
-            for (CellState state : states) {
-                if (!state.greedy) continue;
+            for (CellState state : greedyCells) {
                 boolean hasFilter = (state.blob.filterMaterials != null && !state.blob.filterMaterials.isEmpty())
                         || (state.blob.filterItems != null && !state.blob.filterItems.isEmpty());
                 if (hasFilter) continue; // Filtered greedy cells were handled in step 1
@@ -555,7 +663,42 @@ public class NetworkStorage {
         if (item == null || item.getType().isAir()) {
             return false;
         }
+        ensureReleases();
+        // Casi ningun deposito es de un item que algun Pusher tenga en su whitelist: el Material
+        // descarta sin mirar ningun filtro.
+        if (!releaseAnyMaterial && !releaseMaterials.contains(item.getType())) {
+            return false;
+        }
+        for (Predicate<ItemStack> release : releases) {
+            if (release.test(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whitelists de los Pushers cargados, leidas una vez por tick mientras no cambien ni la
+     * topologia ni ningun nodo (un menu o la llave escriben una copia nueva). Antes cada deposito
+     * recorria todos los Pushers de la red y leia el blob de cada uno.
+     */
+    private final List<Predicate<ItemStack>> releases = new ArrayList<>();
+    private final java.util.EnumSet<Material> releaseMaterials = java.util.EnumSet.noneOf(Material.class);
+    private boolean releaseAnyMaterial;
+    private long releaseVersion = -1;
+    private long releaseEpoch = -1;
+    private int releaseTick = NO_TICK;
+
+    private void ensureReleases() {
         sync();
+        int tick = currentTick();
+        long epoch = NodeStore.liveEpoch();
+        if (tick != NO_TICK && releaseTick == tick && releaseEpoch == epoch && releaseVersion == boundVersion) {
+            return;
+        }
+        releases.clear();
+        releaseMaterials.clear();
+        releaseAnyMaterial = false;
         for (long pos : pushers) {
             int cx = PosUtil.unpackX(pos) >> 4;
             int cz = PosUtil.unpackZ(pos) >> 4;
@@ -568,11 +711,20 @@ public class NetworkStorage {
             }
             boolean hasFilter = (blob.filterMaterials != null && !blob.filterMaterials.isEmpty())
                     || (blob.filterItems != null && !blob.filterItems.isEmpty());
-            if (hasFilter && NetworkManager.filterPredicate(blob).test(item)) {
-                return true;
+            if (!hasFilter) {
+                continue;
+            }
+            releases.add(NetworkManager.filterPredicate(blob));
+            java.util.Set<Material> materials = NetworkManager.filterMaterials(blob);
+            if (materials == null) {
+                releaseAnyMaterial = true;
+            } else {
+                releaseMaterials.addAll(materials);
             }
         }
-        return false;
+        releaseTick = tick;
+        releaseEpoch = epoch;
+        releaseVersion = boundVersion;
     }
 
     private static long pour(CellState state, ItemStack item, long remaining) {
@@ -598,11 +750,41 @@ public class NetworkStorage {
         return withdraw(matcher, want, -1L, true);
     }
 
+    /**
+     * EN: {@link #withdraw(Predicate, int, long, boolean)} for a matcher that only accepts items of
+     * {@code materials} (null: any). Only the cells of those Materials are looked at.
+     * ES: Igual, para un matcher que solo acepta ítems de {@code materials} (null: cualquiera). Solo
+     * se miran las celdas de esos Material.
+     */
+    public synchronized ItemStack withdraw(Predicate<ItemStack> matcher, java.util.Set<Material> materials,
+                                           int want, long excludePos, boolean includeGreedy) {
+        return withdrawIndexed(matcher, materials, want, excludePos, includeGreedy);
+    }
+
+    /** Units matching {@code matcher}, an item of {@code materials} (null: any) / Unidades que casan. */
+    public synchronized long count(Predicate<ItemStack> matcher, java.util.Set<Material> materials) {
+        List<CellState> states = load();
+        return count(matcher, materials, states, loadVirtualCaches(), loadSfBarrels());
+    }
+
+    /** Units equal to {@code sample} (lore compared when {@code checkLore}) / Unidades iguales a la muestra. */
+    public synchronized long countOf(ItemStack sample, boolean checkLore) {
+        if (sample == null || sample.getType().isAir()) {
+            return 0;
+        }
+        return count(item -> StackUtils.itemsMatch(item, sample, checkLore), only(sample.getType()));
+    }
+
     public synchronized ItemStack withdraw(Predicate<ItemStack> matcher, int want, long excludePos) {
         return withdraw(matcher, want, excludePos, true);
     }
 
     public synchronized ItemStack peek(Predicate<ItemStack> matcher, long excludePos, boolean includeGreedy) {
+        return peek(matcher, null, excludePos, includeGreedy);
+    }
+
+    public synchronized ItemStack peek(Predicate<ItemStack> matcher, java.util.Set<Material> materials,
+                                       long excludePos, boolean includeGreedy) {
         List<CellState> states = load();
         List<VirtualCacheState> vCaches = loadVirtualCaches();
         List<Block> sfBarrels = loadSfBarrels();
@@ -622,7 +804,7 @@ public class NetworkStorage {
         }
 
         // Pass 1: Quantum Cells & Infinity Barrels
-        for (CellState state : states) {
+        for (CellState state : cellsFor(materials, states, false)) {
             if (state.greedy || state.pos == excludePos || blobEmpty(state.blob) || !matcher.test(state.blob.cellSample)) {
                 continue;
             }
@@ -643,14 +825,15 @@ public class NetworkStorage {
 
         // Pass 3: Greedy cells (output buffer sink)
         if (includeGreedy) {
-            for (CellState state : states) {
-                if (!state.greedy || state.pos == excludePos || state.blob.greedySamples == null || state.blob.greedyAmounts == null) {
+            for (CellState state : greedyCells) {
+                if (state.pos == excludePos || state.blob.greedySamples == null || state.blob.greedyAmounts == null) {
                     continue;
                 }
                 for (int i = 0; i < state.blob.greedySamples.size(); i++) {
                     ItemStack sample = state.blob.greedySamples.get(i);
                     Long amount = state.blob.greedyAmounts.get(i);
-                    if (sample != null && amount != null && amount > greedyReserve(state.blob, sample) && matcher.test(sample)) {
+                    if (sample != null && amount != null && admits(materials, sample)
+                            && amount > greedyReserve(state.blob, sample) && matcher.test(sample)) {
                         return StackUtils.getAsQuantity(sample, 1);
                     }
                 }
@@ -660,6 +843,11 @@ public class NetworkStorage {
     }
 
     public synchronized ItemStack withdraw(Predicate<ItemStack> matcher, int want, long excludePos, boolean includeGreedy) {
+        return withdrawIndexed(matcher, null, want, excludePos, includeGreedy);
+    }
+
+    private ItemStack withdrawIndexed(Predicate<ItemStack> matcher, java.util.Set<Material> materials,
+                                      int want, long excludePos, boolean includeGreedy) {
         if (want <= 0) {
             return null;
         }
@@ -698,7 +886,8 @@ public class NetworkStorage {
 
         // Pass 1: Quantum Cells & Infinity Barrels
         if (got < want) {
-            for (CellState state : states) {
+            // Copia: clearSample saca de la lista de su Material la celda que se vacia.
+            for (CellState state : cellsFor(materials, states, true)) {
                 if (state.greedy || state.pos == excludePos || blobEmpty(state.blob) || !matcher.test(state.blob.cellSample)) {
                     continue;
                 }
@@ -713,7 +902,7 @@ public class NetworkStorage {
                 if (state.blob.cellAmount <= 0) {
                     state.blob.cellAmount = 0;
                     if (!state.barrel) {
-                        state.blob.cellSample = null;
+                        clearSample(state);
                     }
                 }
                 state.dirty = true;
@@ -741,14 +930,15 @@ public class NetworkStorage {
 
         // Pass 3: Greedy cells (output buffer sink)
         if (includeGreedy && got < want) {
-            for (CellState state : states) {
-                if (!state.greedy || state.pos == excludePos || state.blob.greedySamples == null || state.blob.greedyAmounts == null) {
+            for (CellState state : greedyCells) {
+                if (state.pos == excludePos || state.blob.greedySamples == null || state.blob.greedyAmounts == null) {
                     continue;
                 }
                 for (int i = 0; i < state.blob.greedySamples.size(); i++) {
                     ItemStack sample = state.blob.greedySamples.get(i);
                     Long amount = state.blob.greedyAmounts.get(i);
-                    if (sample == null || amount == null || amount <= 0 || !matcher.test(sample)) {
+                    if (sample == null || amount == null || amount <= 0 || !admits(materials, sample)
+                            || !matcher.test(sample)) {
                         continue;
                     }
                     if (result != null && !StackUtils.itemsMatch(result, sample)) {
@@ -790,11 +980,10 @@ public class NetworkStorage {
     }
 
     public synchronized long count(Predicate<ItemStack> matcher) {
-        List<CellState> states = load();
-        return count(matcher, states, loadVirtualCaches(), loadSfBarrels());
+        return count(matcher, null);
     }
 
-    private long count(Predicate<ItemStack> matcher, List<CellState> states,
+    private long count(Predicate<ItemStack> matcher, java.util.Set<Material> materials, List<CellState> states,
                        List<VirtualCacheState> vCaches, List<Block> sfBarrels) {
         long total = 0;
         for (VirtualCacheState vCache : vCaches) {
@@ -809,21 +998,20 @@ public class NetworkStorage {
                 }
             }
         }
-        for (CellState state : states) {
-            if (state.greedy) {
-                if (state.blob.greedySamples != null && state.blob.greedyAmounts != null) {
-                    for (int i = 0; i < state.blob.greedySamples.size(); i++) {
-                        ItemStack sample = state.blob.greedySamples.get(i);
-                        Long amount = state.blob.greedyAmounts.get(i);
-                        if (sample != null && amount != null && amount > 0 && matcher.test(sample)) {
-                            total += amount;
-                        }
+        for (CellState state : greedyCells) {
+            if (state.blob.greedySamples != null && state.blob.greedyAmounts != null) {
+                for (int i = 0; i < state.blob.greedySamples.size(); i++) {
+                    ItemStack sample = state.blob.greedySamples.get(i);
+                    Long amount = state.blob.greedyAmounts.get(i);
+                    if (sample != null && amount != null && amount > 0 && matcher.test(sample)) {
+                        total += amount;
                     }
                 }
-            } else {
-                if (!blobEmpty(state.blob) && matcher.test(state.blob.cellSample)) {
-                    total += state.blob.cellAmount;
-                }
+            }
+        }
+        for (CellState state : cellsFor(materials, states, false)) {
+            if (!state.greedy && !blobEmpty(state.blob) && matcher.test(state.blob.cellSample)) {
+                total += state.blob.cellAmount;
             }
         }
         for (Block barrel : sfBarrels) {
@@ -902,8 +1090,9 @@ public class NetworkStorage {
             return 0;
         }
         long total = 0;
-        for (CellState state : load()) {
-            if (state.greedy && state.blob.greedySamples != null && state.blob.greedyAmounts != null) {
+        load();
+        for (CellState state : greedyCells) {
+            if (state.blob.greedySamples != null && state.blob.greedyAmounts != null) {
                 for (int i = 0; i < state.blob.greedySamples.size(); i++) {
                     ItemStack sample = state.blob.greedySamples.get(i);
                     Long amt = state.blob.greedyAmounts.get(i);
@@ -950,19 +1139,20 @@ public class NetworkStorage {
         long cellTotal = 0;
         long barrelTotal = 0;
         long greedyTotal = 0;
-        for (CellState state : states) {
-            if (state.greedy) {
-                if (state.blob.greedySamples == null || state.blob.greedyAmounts == null) {
-                    continue;
+        for (CellState state : greedyCells) {
+            if (state.blob.greedySamples == null || state.blob.greedyAmounts == null) {
+                continue;
+            }
+            for (int i = 0; i < state.blob.greedySamples.size(); i++) {
+                ItemStack sample = state.blob.greedySamples.get(i);
+                Long amt = state.blob.greedyAmounts.get(i);
+                if (sample != null && amt != null && amt > 0 && StackUtils.itemsMatch(sample, item)) {
+                    greedyTotal += amt;
                 }
-                for (int i = 0; i < state.blob.greedySamples.size(); i++) {
-                    ItemStack sample = state.blob.greedySamples.get(i);
-                    Long amt = state.blob.greedyAmounts.get(i);
-                    if (sample != null && amt != null && amt > 0 && StackUtils.itemsMatch(sample, item)) {
-                        greedyTotal += amt;
-                    }
-                }
-            } else if (!blobEmpty(state.blob) && StackUtils.itemsMatch(state.blob.cellSample, item)) {
+            }
+        }
+        for (CellState state : cellsFor(only(item.getType()), states, false)) {
+            if (!state.greedy && !blobEmpty(state.blob) && StackUtils.itemsMatch(state.blob.cellSample, item)) {
                 if (state.barrel) {
                     barrelTotal += state.blob.cellAmount;
                 } else {

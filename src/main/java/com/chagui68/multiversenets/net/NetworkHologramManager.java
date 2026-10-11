@@ -32,6 +32,19 @@ public final class NetworkHologramManager {
     private static final Map<String, UUID> HOLOGRAM_ENTITIES = new ConcurrentHashMap<>();
     /** Last text sent per hologram: an unchanged text is not resent / Último texto enviado. */
     private static final Map<String, Component> LAST_TEXT = new ConcurrentHashMap<>();
+
+    /** What the last text was built from / De qué se hizo el último texto. */
+    private record Inputs(long storageStamp, long fluidStamp, int nodes, int maxNodes, String error) {
+    }
+
+    private record Built(Inputs inputs, long at) {
+    }
+
+    private static final Map<String, Built> LAST_BUILT = new ConcurrentHashMap<>();
+    /** Rebuild at least this often: Slimefun barrels change without going through the network. */
+    private static final long MAX_AGE_MS = 10_000L;
+    /** Nobody farther than this reads the text / Nadie más lejos lee el texto. */
+    private static final double VIEW_DISTANCE_SQ = 64.0 * 64.0;
     private static NamespacedKey HOLO_KEY;
 
     private NetworkHologramManager() {}
@@ -83,10 +96,26 @@ public final class NetworkHologramManager {
             });
             HOLOGRAM_ENTITIES.put(key, textDisplay.getUniqueId());
             LAST_TEXT.remove(key);
+            LAST_BUILT.remove(key);
         }
 
         int nodeCount = net.size();
         int maxNodes = com.chagui68.multiversenets.util.Settings.maxNodes();
+
+        // Cada segundo y por cada red se rehacia la vista entera del almacenamiento (todas las
+        // celdas, modulos y barriles) solo para el total de items, aunque nadie estuviera cerca o
+        // nada hubiera cambiado. Un holograma recien creado se rellena siempre.
+        Inputs inputs = new Inputs(net.storage().changeStamp(), net.fluidStorage().changeStamp(),
+                nodeCount, maxNodes, net.error);
+        long now = System.currentTimeMillis();
+        Built last = LAST_BUILT.get(key);
+        if (last != null) {
+            boolean unchanged = last.inputs().equals(inputs) && now - last.at() < MAX_AGE_MS;
+            if (unchanged || !playerNear(world, controllerLoc)) {
+                return;
+            }
+        }
+        LAST_BUILT.put(key, new Built(inputs, now));
 
         // 1. Header: "MultiverseNets"
         Component header = Component.text("MultiverseNets", NamedTextColor.AQUA, TextDecoration.BOLD);
@@ -159,6 +188,15 @@ public final class NetworkHologramManager {
         }
     }
 
+    private static boolean playerNear(World world, Location at) {
+        for (org.bukkit.entity.Player player : world.getPlayers()) {
+            if (player.getLocation().distanceSquared(at) <= VIEW_DISTANCE_SQ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Mundo + posicion: dos controladores en las mismas coordenadas de mundos distintos compartian holograma. */
     private static String key(World world, long pos) {
         return world.getUID() + "|" + pos;
@@ -167,6 +205,7 @@ public final class NetworkHologramManager {
     public static void removeHologram(World world, long pos) {
         if (world != null) {
             LAST_TEXT.remove(key(world, pos));
+            LAST_BUILT.remove(key(world, pos));
         }
         UUID entityId = world == null ? null : HOLOGRAM_ENTITIES.remove(key(world, pos));
         if (entityId != null && world != null) {
@@ -201,5 +240,6 @@ public final class NetworkHologramManager {
         }
         HOLOGRAM_ENTITIES.clear();
         LAST_TEXT.clear();
+        LAST_BUILT.clear();
     }
 }

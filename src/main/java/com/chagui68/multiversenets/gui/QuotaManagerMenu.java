@@ -138,7 +138,7 @@ public class QuotaManagerMenu extends MenuHolder {
     }
 
     private long stock(ItemStack sample) {
-        return network.storage().count(i -> StackUtils.itemsMatch(i, sample));
+        return network.storage().countOf(sample, true);
     }
 
     // ------------------------------------------------------------------ dibujo

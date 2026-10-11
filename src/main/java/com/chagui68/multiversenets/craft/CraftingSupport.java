@@ -118,13 +118,14 @@ public final class CraftingSupport {
         for (var entry : reqs) {
             RecipeChoice choice = entry.getKey();
             int needed = entry.getValue();
-            if (net.storage().count(choice::test) < needed) {
+            if (net.storage().count(choice::test, choiceMaterials(choice)) < needed) {
                 return false;
             }
         }
         List<ItemStack> taken = new ArrayList<>();
         for (var entry : reqs) {
-            ItemStack got = net.storage().withdraw(entry.getKey()::test, entry.getValue());
+            ItemStack got = net.storage().withdraw(entry.getKey()::test, choiceMaterials(entry.getKey()),
+                    entry.getValue(), -1L, true);
             if (got == null || got.getAmount() < entry.getValue()) {
                 if (got != null) {
                     taken.add(got);
@@ -137,6 +138,27 @@ public final class CraftingSupport {
         // El crafteo ya ocurrio: lo que no quepa en la red cae junto al controlador, no desaparece.
         returnOrDrop(net, List.of(recipe.getResult().clone()));
         return true;
+    }
+
+    /**
+     * EN: The Materials a recipe choice can accept, or null when it is not a material or exact
+     * choice. Lets the storage look only at those cells.
+     * ES: Los Material que acepta una opción de receta, o null si no es de material ni exacta.
+     */
+    static java.util.Set<org.bukkit.Material> choiceMaterials(RecipeChoice choice) {
+        if (choice instanceof RecipeChoice.MaterialChoice mc) {
+            return mc.getChoices().isEmpty() ? java.util.Set.of() : java.util.EnumSet.copyOf(mc.getChoices());
+        }
+        if (choice instanceof RecipeChoice.ExactChoice ec) {
+            java.util.EnumSet<org.bukkit.Material> out = java.util.EnumSet.noneOf(org.bukkit.Material.class);
+            for (ItemStack option : ec.getChoices()) {
+                if (option != null) {
+                    out.add(option.getType());
+                }
+            }
+            return out;
+        }
+        return null;
     }
 
     /**
@@ -263,7 +285,7 @@ public final class CraftingSupport {
             }
         }
         for (Need need : needs) {
-            if (net.storage().count(item -> StackUtils.itemsMatch(item, need.sample())) < need.amount()) {
+            if (net.storage().countOf(need.sample(), true) < need.amount()) {
                 return false;
             }
         }
@@ -271,7 +293,7 @@ public final class CraftingSupport {
         List<ItemStack> taken = new ArrayList<>();
         for (Need need : needs) {
             ItemStack got = net.storage().withdraw(item -> StackUtils.itemsMatch(item, need.sample()),
-                    need.amount());
+                    com.chagui68.multiversenets.net.NetworkStorage.only(need.sample().getType()), need.amount(), -1L, true);
             if (got == null || got.getAmount() < need.amount()) {
                 if (got != null) {
                     taken.add(got);

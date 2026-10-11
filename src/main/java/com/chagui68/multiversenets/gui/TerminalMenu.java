@@ -465,11 +465,18 @@ public class TerminalMenu extends MenuHolder {
         List<NetworkStorage.View> all = view == View.PURGE
                 ? network.storage().getPurgedItemsView()
                 : network.storage().view();
-        Comparator<NetworkStorage.View> comparator = sortOrder == SortOrder.MVN_AMOUNT
-                ? Comparator.comparingLong(NetworkStorage.View::amount).reversed()
-                : Comparator.comparing(v -> readableName(v.sample()));
         List<NetworkStorage.View> out = new ArrayList<>(all);
-        out.sort(comparator);
+        if (sortOrder == SortOrder.MVN_AMOUNT) {
+            out.sort(Comparator.comparingLong(NetworkStorage.View::amount).reversed());
+        } else {
+            // El nombre se calcula una vez por item: como clave del comparador se recalculaba (con
+            // dos copias de ItemMeta) en cada comparacion, n·log n veces por redibujado.
+            java.util.Map<NetworkStorage.View, String> names = new java.util.IdentityHashMap<>(out.size() * 2);
+            for (NetworkStorage.View v : out) {
+                names.put(v, readableName(v.sample()));
+            }
+            out.sort(Comparator.comparing(names::get));
+        }
         if (query.isBlank()) {
             return out;
         }

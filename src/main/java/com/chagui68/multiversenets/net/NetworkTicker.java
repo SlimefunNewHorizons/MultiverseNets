@@ -52,7 +52,68 @@ public class NetworkTicker {
     private BukkitTask task;
 
     // Adaptive backoff: counts consecutive empty/idle cycles per node to skip redundant container lookups
-    private final java.util.Map<Long, Integer> backoffCycles = new java.util.concurrent.ConcurrentHashMap<>();
+    private final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap backoffCycles =
+            new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
+
+    /**
+     * Ciclos ociosos a partir de los cuales un nodo solo lo intenta uno de cada {@link #LONG_IDLE_PERIOD}
+     * (antes: uno de cada {@link #IDLE_PERIOD}). El contador da la vuelta a este valor, asi nunca
+     * crece sin limite ni pierde el ritmo.
+     */
+    private static final int LONG_IDLE = 30;
+    private static final int IDLE_PERIOD = 3;
+    private static final int LONG_IDLE_PERIOD = 6;
+
+    /**
+     * EN: True when an idle node sits this cycle out. A node that moved nothing tries every third
+     * cycle; after {@link #LONG_IDLE} idle cycles, every sixth. The counter used to stop at 30, where
+     * {@code 30 % 3 == 0}: from then on a long-idle Grabber or Pusher (an empty chest, a full machine)
+     * looked at its containers every cycle again, which is the case the backoff exists for.
+     *
+     * ES: True si un nodo ocioso se salta este ciclo. Uno que no movió nada lo intenta cada tres
+     * ciclos; tras {@link #LONG_IDLE} ciclos ociosos, cada seis. El contador se quedaba en 30, donde
+     * {@code 30 % 3 == 0}: desde ahí un Grabber o Pusher ocioso miraba sus contenedores en cada ciclo.
+     */
+    private boolean sitsOut(long pos) {
+        int idle = backoffCycles.get(pos);
+        if (idle <= 0) {
+            return false;
+        }
+        int period = idle < LONG_IDLE ? IDLE_PERIOD : LONG_IDLE_PERIOD;
+        if (idle % period == 0) {
+            return false;
+        }
+        backoffCycles.put(pos, nextIdle(idle));
+        return true;
+    }
+
+    /** An attempt that moved nothing / Un intento que no movió nada. */
+    private void wasIdle(long pos) {
+        backoffCycles.put(pos, nextIdle(backoffCycles.get(pos)));
+    }
+
+    private static int nextIdle(int idle) {
+        int next = idle + 1;
+        // 2 * LONG_IDLE es multiplo de LONG_IDLE_PERIOD: volver a LONG_IDLE conserva el ritmo.
+        return next >= 2 * LONG_IDLE ? LONG_IDLE : next;
+    }
+
+    /**
+     * Purgers que no encontraron nada que borrar, con el estado del almacen en ese momento. Mientras
+     * no cambie nada (ni un deposito, ni una retirada, ni un menu, ni la topologia) el purger no
+     * vuelve a recorrer todo el almacen. Cada {@link #PURGE_RECHECK_CYCLES} ciclos mira igual: los
+     * barriles de Slimefun cambian sin pasar por la red.
+     */
+    private record IdleStamp(NetworkStorage storage, long change, long epoch, long at) {
+    }
+
+    private static final int PURGE_RECHECK_CYCLES = 20;
+    private final it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<IdleStamp> idlePurgers =
+            new it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<>();
+
+    /** Ticks between sweeps of per-node state left by removed nodes / Barrido de estado huérfano. */
+    private static final int PRUNE_TICKS = 6000;
+    private int pruneIn = PRUNE_TICKS;
 
     // Cada familia cuenta sus ticks restantes; al llegar a 0 se ejecuta y se rearma.
     private int transferIn;
@@ -136,6 +197,11 @@ public class NetworkTicker {
         if (hologramIn <= 0) {
             hologramIn = 20;
         }
+        pruneIn -= 5;
+        if (pruneIn <= 0) {
+            pruneIn = PRUNE_TICKS;
+            pruneRemovedNodes(networks);
+        }
         if (transferIn <= 0) {
             transferIn = Settings.transferIntervalTicks();
         }
@@ -145,6 +211,35 @@ public class NetworkTicker {
         if (craftIn <= 0) {
             craftIn = Settings.craftIntervalTicks();
         }
+    }
+
+    /**
+     * EN: Drops the backoff, rotation and purge state of positions that no network holds any more.
+     * These maps only ever gained entries, one per device that was ever placed.
+     *
+     * ES: Quita el estado de backoff, rotación y purga de posiciones que ya no son de ninguna red.
+     * Estos mapas solo crecían, una entrada por cada dispositivo colocado alguna vez.
+     */
+    private void pruneRemovedNodes(List<Network> networks) {
+        java.util.function.LongPredicate gone = pos -> {
+            for (Network net : networks) {
+                if (net.contains(pos)) {
+                    return false;
+                }
+            }
+            return true;
+        };
+        for (var it = backoffCycles.keySet().iterator(); it.hasNext(); ) {
+            if (gone.test(it.nextLong())) {
+                it.remove();
+            }
+        }
+        for (var it = idlePurgers.keySet().iterator(); it.hasNext(); ) {
+            if (gone.test(it.nextLong())) {
+                it.remove();
+            }
+        }
+        pushRotation.keySet().removeIf(pos -> gone.test(pos));
     }
 
     private boolean hologramFailureLogged;
@@ -182,12 +277,35 @@ public class NetworkTicker {
      */
     private final java.util.Map<UUID, java.util.Map<Long, Network>> sharedOwners = new java.util.HashMap<>();
 
+    /** Networks (and their topology versions) the current {@link #sharedOwners} were built from. */
+    private final List<Network> sharedNets = new ArrayList<>();
+    private long[] sharedVersions = new long[0];
+
     private void assignSharedNodes(List<Network> networks) {
-        sharedOwners.clear();
+        // Se rehacia cada 5 ticks: un mapa con cada nodo de cada red compartida (hasta max-nodes por
+        // red, con un Long por entrada). Solo cambia cuando cambia la topologia de alguna de esas
+        // redes, que es cuando cambia su version.
+        List<Network> touching = new ArrayList<>();
         for (Network net : networks) {
-            if (!net.touchesForeignController()) {
-                continue;
+            if (net.touchesForeignController()) {
+                touching.add(net);
             }
+        }
+        boolean same = touching.size() == sharedNets.size();
+        for (int i = 0; same && i < touching.size(); i++) {
+            same = touching.get(i) == sharedNets.get(i) && touching.get(i).versionSnapshot() == sharedVersions[i];
+        }
+        if (same) {
+            return;
+        }
+        sharedNets.clear();
+        sharedNets.addAll(touching);
+        sharedVersions = new long[touching.size()];
+        for (int i = 0; i < touching.size(); i++) {
+            sharedVersions[i] = touching.get(i).versionSnapshot();
+        }
+        sharedOwners.clear();
+        for (Network net : touching) {
             java.util.Map<Long, Network> owners =
                     sharedOwners.computeIfAbsent(net.world().getUID(), key -> new java.util.HashMap<>());
             synchronized (net.nodes()) {
@@ -386,9 +504,7 @@ public class NetworkTicker {
                 return; // Wait until buffer clears before grabbing more
             }
         }
-        int backoff = backoffCycles.getOrDefault(pos, 0);
-        if (backoff > 0 && (backoff % 3 != 0)) {
-            backoffCycles.put(pos, backoff + 1);
+        if (sitsOut(pos)) {
             return;
         }
 
@@ -473,7 +589,7 @@ public class NetworkTicker {
             }
         }
         // Nada entro en la red (inventarios vacios o todo rechazado): se espacian los intentos.
-        backoffCycles.put(pos, Math.min(30, backoff + 1));
+        wasIdle(pos);
     }
 
     /**
@@ -561,9 +677,7 @@ public class NetworkTicker {
             return;
         }
 
-        int backoff = backoffCycles.getOrDefault(pos, 0);
-        if (backoff > 0 && (backoff % 3 != 0)) {
-            backoffCycles.put(pos, backoff + 1);
+        if (sitsOut(pos)) {
             return;
         }
 
@@ -582,7 +696,7 @@ public class NetworkTicker {
             }
         }
         if (targets.isEmpty() || !anyRoom) {
-            backoffCycles.put(pos, Math.min(30, backoff + 1));
+            wasIdle(pos);
             return;
         }
 
@@ -590,7 +704,8 @@ public class NetworkTicker {
         int budget = rate;
         int deliveredTotal = 0;
         List<ItemStack> tried = new ArrayList<>();
-        for (Predicate<ItemStack> base : pushPredicates(pos, blob)) {
+        for (PushFilter filter : pushPredicates(pos, blob)) {
+            Predicate<ItemStack> base = filter.test();
             // Una whitelist de varias entradas se recorre entrada a entrada (empezando cada ciclo
             // por la siguiente) para que todos los ingredientes lleguen a la maquina. Un filtro
             // unico prueba hasta 4 tipos distintos: si el primero no cabe, otro aun puede entrar.
@@ -599,7 +714,7 @@ public class NetworkTicker {
                 Predicate<ItemStack> pred = base.and(item -> notTried(tried, item));
 
                 // Inspección sin mutar estado: ¿hay ítem disponible en almacenamiento?
-                ItemStack peekSample = net.storage().peek(pred, -1L, true);
+                ItemStack peekSample = net.storage().peek(pred, filter.materials(), -1L, true);
                 if (peekSample == null) {
                     break;
                 }
@@ -618,7 +733,7 @@ public class NetworkTicker {
                 }
 
                 // Extracción real hacia los contenedores
-                ItemStack stack = net.storage().withdraw(pred, budget, -1L, true);
+                ItemStack stack = net.storage().withdraw(pred, filter.materials(), budget, -1L, true);
                 if (stack == null) {
                     break;
                 }
@@ -646,7 +761,7 @@ public class NetworkTicker {
             backoffCycles.remove(pos);
             net.throughput().recordFlow(pos, deliveredTotal);
         } else {
-            backoffCycles.put(pos, Math.min(30, backoff + 1));
+            wasIdle(pos);
         }
     }
 
@@ -700,30 +815,64 @@ public class NetworkTicker {
 
     private final java.util.Map<Long, Integer> pushRotation = new java.util.HashMap<>();
 
+    /** One filter a Pusher serves, with the Materials it can let through (null: any). */
+    private record PushFilter(Predicate<ItemStack> test, java.util.Set<Material> materials) {
+    }
+
+    /**
+     * Las entradas de una whitelist, analizadas una vez por instancia de blob: se rehacian (con la
+     * lectura del PDC y la copia de ItemMeta de cada plantilla) en cada ciclo de cada Pusher.
+     */
+    private final java.util.Map<NodeBlob, PushEntries> pushEntries = new java.util.WeakHashMap<>();
+
+    /** Same guard as NetworkManager's filter cache: lists and sizes / Misma guarda que esa caché. */
+    private record PushEntries(List<ItemStack> items, int itemCount, List<String> materials, int materialCount,
+                               List<PushFilter> filters) {
+        boolean matches(NodeBlob blob) {
+            return blob.filterItems == items && sizeOf(items) == itemCount
+                    && blob.filterMaterials == materials && sizeOf(materials) == materialCount;
+        }
+
+        private static int sizeOf(List<?> list) {
+            return list == null ? -1 : list.size();
+        }
+    }
+
     /**
      * Una whitelist de varias entradas da un predicado por entrada, empezando cada ciclo por la
      * siguiente; cualquier otro filtro es un unico predicado.
      */
-    private List<Predicate<ItemStack>> pushPredicates(long pos, NodeBlob blob) {
-        List<Predicate<ItemStack>> preds = new ArrayList<>();
+    private List<PushFilter> pushPredicates(long pos, NodeBlob blob) {
         if (filterKinds(blob) > 1) {
-            if (blob.filterItems != null && !blob.filterItems.isEmpty()) {
-                for (ItemStack t : blob.filterItems) {
-                    if (t != null && !t.getType().isAir()) {
-                        preds.add(NetworkManager.filterEntry(t));
+            PushEntries cached = pushEntries.get(blob);
+            List<PushFilter> entries;
+            if (cached != null && cached.matches(blob)) {
+                entries = cached.filters();
+            } else {
+                entries = new ArrayList<>();
+                if (blob.filterItems != null && !blob.filterItems.isEmpty()) {
+                    for (ItemStack t : blob.filterItems) {
+                        if (t != null && !t.getType().isAir()) {
+                            Material only = NetworkManager.filterEntryMaterial(t);
+                            entries.add(new PushFilter(NetworkManager.filterEntry(t),
+                                    only == null ? null : NetworkStorage.only(only)));
+                        }
+                    }
+                } else {
+                    for (String entry : blob.filterMaterials) {
+                        entries.add(new PushFilter(NetworkManager.materialEntry(entry),
+                                NetworkManager.materialEntryMaterials(entry)));
                     }
                 }
-            } else {
-                for (String entry : blob.filterMaterials) {
-                    preds.add(NetworkManager.materialEntry(entry));
-                }
+                pushEntries.put(blob, new PushEntries(blob.filterItems, PushEntries.sizeOf(blob.filterItems),
+                        blob.filterMaterials, PushEntries.sizeOf(blob.filterMaterials), entries));
             }
+            List<PushFilter> preds = new ArrayList<>(entries);
             int start = Math.floorMod(pushRotation.merge(pos, 1, Integer::sum), preds.size());
             java.util.Collections.rotate(preds, -start);
             return preds;
         }
-        preds.add(NetworkManager.filterPredicate(blob));
-        return preds;
+        return List.of(new PushFilter(NetworkManager.filterPredicate(blob), NetworkManager.filterMaterials(blob)));
     }
 
     private record PushTarget(Block block, BlockFace face, boolean isSlimefun, Inventory inventory) {
@@ -855,9 +1004,7 @@ public class NetworkTicker {
             blob.setTransit(null);
             NodeStore.put(self, blob);
         }
-        int backoff = backoffCycles.getOrDefault(pos, 0);
-        if (backoff > 0 && (backoff % 3 != 0)) {
-            backoffCycles.put(pos, backoff + 1);
+        if (sitsOut(pos)) {
             return;
         }
         Predicate<ItemStack> rules = item -> com.chagui68.multiversenets.compat.ChickenGenetics.matches(blob, item);
@@ -866,7 +1013,7 @@ public class NetworkTicker {
             backoffCycles.remove(pos);
             net.throughput().recordFlow(pos, moved);
         } else {
-            backoffCycles.put(pos, Math.min(30, backoff + 1));
+            wasIdle(pos);
         }
     }
 
@@ -960,11 +1107,21 @@ public class NetworkTicker {
         if (!hasItems && !hasMats) {
             return;
         }
-        Predicate<ItemStack> pred = NetworkManager.filterPredicate(blob);
-        ItemStack purged = net.storage().withdraw(pred, rate, -1L, false);
-        if (purged == null) {
+        NetworkStorage storage = net.storage();
+        IdleStamp idle = idlePurgers.get(pos);
+        long change = storage.changeStamp();
+        long epoch = NodeStore.liveEpoch();
+        if (idle != null && idle.storage() == storage && idle.change() == change && idle.epoch() == epoch
+                && clock - idle.at() < (long) PURGE_RECHECK_CYCLES * 5) {
             return;
         }
+        Predicate<ItemStack> pred = NetworkManager.filterPredicate(blob);
+        ItemStack purged = storage.withdraw(pred, NetworkManager.filterMaterials(blob), rate, -1L, false);
+        if (purged == null) {
+            idlePurgers.put(pos, new IdleStamp(storage, change, epoch, clock));
+            return;
+        }
+        idlePurgers.remove(pos);
         if (Settings.debug()) {
             plugin.getLogger().info("[Purger] Discarded " + purged.getAmount() + "x "
                     + purged.getType() + " at " + PosUtil.unpackX(pos) + ","
@@ -998,7 +1155,7 @@ public class NetworkTicker {
                         .and(item -> !net.storage().releasedByPushers(item));
                 long space = cap - currentTotal;
                 int want = (int) Math.min(space, (long) Settings.itemsPerOp() * 4);
-                ItemStack got = net.storage().withdraw(pred, want, pos, false);
+                ItemStack got = net.storage().withdraw(pred, NetworkManager.filterMaterials(blob), want, pos, false);
                 if (got != null && got.getAmount() > 0) {
                     blob.addGreedyItem(got, got.getAmount());
                     changed = true;
@@ -1160,7 +1317,7 @@ public class NetworkTicker {
             return;
         }
         Predicate<ItemStack> pred = NetworkManager.filterPredicate(blob);
-        ItemStack stack = remote.storage().withdraw(pred, rate, -1L, false);
+        ItemStack stack = remote.storage().withdraw(pred, NetworkManager.filterMaterials(blob), rate, -1L, false);
         if (stack == null) {
             return;
         }
@@ -1229,7 +1386,7 @@ public class NetworkTicker {
         Predicate<ItemStack> pred = NetworkManager.filterPredicate(blob);
         // Mismas reglas que bridgeOnce en sentido contrario: sin vaciar Greedy Cells y sin perder
         // nada si ninguna de las dos redes acepta la vuelta.
-        ItemStack stack = net.storage().withdraw(pred, rate, -1L, false);
+        ItemStack stack = net.storage().withdraw(pred, NetworkManager.filterMaterials(blob), rate, -1L, false);
         if (stack == null) {
             return;
         }
@@ -1263,8 +1420,10 @@ public class NetworkTicker {
             }
             Predicate<ItemStack> pred = NetworkManager.filterPredicate(blob);
             Location center = net.block(pos).getLocation().add(0.5, 0.5, 0.5);
+            // Solo items: el servidor descarta el resto (mobs, jugadores, marcos...) al buscar, en vez
+            // de crear la lista con todas las entidades del radio en cada ciclo de cada vacuum.
             for (org.bukkit.entity.Entity entity : center.getWorld()
-                    .getNearbyEntities(center, radius, radius, radius)) {
+                    .getNearbyEntities(center, radius, radius, radius, e -> e instanceof Item)) {
                 if (!(entity instanceof Item item)) {
                     continue;
                 }

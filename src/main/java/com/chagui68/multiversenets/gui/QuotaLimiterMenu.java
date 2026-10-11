@@ -158,7 +158,7 @@ public class QuotaLimiterMenu extends MenuHolder {
 
         Network net = plugin.networks().networkAt(block);
         if (net != null) {
-            long currentCount = net.storage().count(i -> StackUtils.itemsMatch(i, blob.quotaSample));
+            long currentCount = net.storage().countOf(blob.quotaSample, true);
             long remaining = Math.max(0, blob.quotaLimit - currentCount);
             lore.add(Component.text("Current Network Stock: " + Items.formatAmount(currentCount), NamedTextColor.AQUA)
                     .decoration(TextDecoration.ITALIC, false));

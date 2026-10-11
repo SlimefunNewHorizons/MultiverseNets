@@ -306,7 +306,7 @@ public class CraftingGridMenu extends MenuHolder {
             }
             boolean missing = false;
             for (Need need : needs) {
-                if (network.storage().count(item -> StackUtils.itemsMatch(item, need.sample())) < need.amount()) {
+                if (network.storage().countOf(need.sample(), true) < need.amount()) {
                     missing = true;
                     break;
                 }

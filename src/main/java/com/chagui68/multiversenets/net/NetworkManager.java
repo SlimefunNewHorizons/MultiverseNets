@@ -312,18 +312,100 @@ public class NetworkManager {
         // plantilla con nombre) cada vez. Los menus escriben una copia nueva (otra instancia), asi
         // que un filtro editado nunca reutiliza el predicado viejo; las listas y el modo se
         // comparan igualmente por si alguien muta el filtro en el sitio.
+        return cachedFilter(blob).predicate();
+    }
+
+    /**
+     * EN: Every Material an item must have to pass {@link #filterPredicate}, or null when the filter
+     * can let any Material through (blacklist, empty filter, device or Slimefun entries). Storage
+     * uses it to look only at the cells of those Materials instead of every cell of the network.
+     *
+     * ES: Los Material que puede tener un ítem que pasa {@link #filterPredicate}, o null si el filtro
+     * deja pasar cualquiera (blacklist, filtro vacío, entradas de dispositivo o de Slimefun). El
+     * almacenamiento lo usa para mirar solo las celdas de esos Material y no todas las de la red.
+     */
+    public static java.util.Set<Material> filterMaterials(NodeBlob blob) {
+        return blob == null ? null : cachedFilter(blob).materialsHint();
+    }
+
+    private static CachedFilter cachedFilter(NodeBlob blob) {
         CachedFilter cached = FILTERS.get(blob);
         if (cached != null && cached.matches(blob)) {
-            return cached.predicate();
+            return cached;
         }
-        Predicate<ItemStack> built = buildFilterPredicate(blob);
-        FILTERS.put(blob, new CachedFilter(blob.filterItems, sizeOf(blob.filterItems),
-                blob.filterMaterials, sizeOf(blob.filterMaterials), blob.filterBlacklist, built));
-        return built;
+        cached = new CachedFilter(blob.filterItems, sizeOf(blob.filterItems),
+                blob.filterMaterials, sizeOf(blob.filterMaterials), blob.filterBlacklist,
+                buildFilterPredicate(blob), buildFilterMaterials(blob));
+        FILTERS.put(blob, cached);
+        return cached;
+    }
+
+    /** Same branches as {@link #buildFilterPredicate}; null means any Material / null: cualquiera. */
+    private static java.util.Set<Material> buildFilterMaterials(NodeBlob blob) {
+        boolean hasItems = blob.filterItems != null && !blob.filterItems.isEmpty();
+        boolean hasMats = blob.filterMaterials != null && !blob.filterMaterials.isEmpty();
+        if ((!hasItems && !hasMats) || blob.filterBlacklist) {
+            return null;
+        }
+        java.util.EnumSet<Material> out = java.util.EnumSet.noneOf(Material.class);
+        if (hasItems) {
+            for (ItemStack filterTemplate : blob.filterItems) {
+                if (filterTemplate == null || filterTemplate.getType().isAir()) {
+                    continue;
+                }
+                Material only = filterEntryMaterial(filterTemplate);
+                if (only == null) {
+                    return null;
+                }
+                out.add(only);
+            }
+        } else {
+            for (String entry : blob.filterMaterials) {
+                if (entry == null) {
+                    continue;
+                }
+                if (entry.startsWith("MULTIVERSENETS:") || entry.startsWith("SLIMEFUN:")) {
+                    return null;
+                }
+                Material mat = Material.matchMaterial(entry);
+                if (mat != null) {
+                    out.add(mat);
+                }
+            }
+        }
+        return java.util.Collections.unmodifiableSet(out);
+    }
+
+    /**
+     * EN: The only Material {@link #filterEntry} accepts, or null when it can accept several: a device
+     * (a coloured cable is stained glass) or a Slimefun id.
+     *
+     * ES: El único Material que acepta {@link #filterEntry}, o null si puede aceptar varios: un
+     * dispositivo (un cable de color es cristal tintado) o un id de Slimefun.
+     */
+    public static Material filterEntryMaterial(ItemStack filterTemplate) {
+        if (filterTemplate == null || Items.typeOf(filterTemplate) != null
+                || SlimefunBridge.getId(filterTemplate) != null) {
+            return null;
+        }
+        return filterTemplate.getType();
+    }
+
+    /** {@link #filterEntryMaterial} for a {@link #materialEntry}; null for any / null: cualquiera. */
+    public static java.util.Set<Material> materialEntryMaterials(String entry) {
+        if (entry == null) {
+            return java.util.Set.of();
+        }
+        if (entry.startsWith("MULTIVERSENETS:") || entry.startsWith("SLIMEFUN:")) {
+            return null;
+        }
+        Material mat = Material.matchMaterial(entry);
+        return mat == null ? java.util.Set.of() : java.util.EnumSet.of(mat);
     }
 
     private record CachedFilter(List<ItemStack> items, int itemCount, List<String> materials, int materialCount,
-                                boolean blacklist, Predicate<ItemStack> predicate) {
+                                boolean blacklist, Predicate<ItemStack> predicate,
+                                java.util.Set<Material> materialsHint) {
         boolean matches(NodeBlob blob) {
             return blob.filterItems == items && sizeOf(items) == itemCount
                     && blob.filterMaterials == materials && sizeOf(materials) == materialCount

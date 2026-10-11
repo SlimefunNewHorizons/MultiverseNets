@@ -242,8 +242,56 @@ public class RequestTerminalMenu extends MenuHolder {
     public record CraftingJobStep(CraftableOption option, int batches) {
     }
 
+    /**
+     * EN: The network's stock grouped by Material, read once per tick and storage change and shared
+     * by every simulation of a redraw. Each option of the page used to copy (and clone) every stored
+     * item type about twenty times, once per step of {@link #calculateMaxBatches}.
+     *
+     * ES: El stock de la red agrupado por Material, leído una vez por tick y cambio del almacén y
+     * compartido por todas las simulaciones de un redibujado. Cada opción de la página copiaba (y
+     * clonaba) cada tipo de ítem guardado unas veinte veces, una por paso de la búsqueda.
+     */
+    private static final class StockBase {
+        private final Map<Material, List<SimulatedStock.StockEntry>> byMaterial = new java.util.EnumMap<>(Material.class);
+
+        StockBase(List<NetworkStorage.View> views) {
+            for (NetworkStorage.View v : views) {
+                if (v.sample() != null && v.amount() > 0) {
+                    byMaterial.computeIfAbsent(v.sample().getType(), m -> new ArrayList<>())
+                            .add(new SimulatedStock.StockEntry(v.sample(), v.amount()));
+                }
+            }
+        }
+    }
+
+    private StockBase stockBase;
+    private long stockBaseStamp;
+    private int stockBaseTick;
+
+    private StockBase stockBase() {
+        long stamp = network.storage().changeStamp();
+        int tick;
+        try {
+            tick = org.bukkit.Bukkit.getCurrentTick();
+        } catch (RuntimeException | LinkageError noServer) {
+            tick = Integer.MIN_VALUE;
+        }
+        if (stockBase == null || tick == Integer.MIN_VALUE || stamp != stockBaseStamp || tick != stockBaseTick) {
+            stockBase = new StockBase(network.storage().view());
+            stockBaseStamp = stamp;
+            stockBaseTick = tick;
+        }
+        return stockBase;
+    }
+
+    /**
+     * A plan's view of the stock: a Material's entries are copied from the shared base the first time
+     * the plan touches that Material, so a simulation costs what it uses. Items of different Materials
+     * never match, so grouping keeps every result of the old flat list.
+     */
     private static final class SimulatedStock {
-        private final List<StockEntry> entries = new ArrayList<>();
+        private final StockBase base;
+        private final Map<Material, List<StockEntry>> buckets = new java.util.EnumMap<>(Material.class);
 
         static final class StockEntry {
             ItemStack sample;
@@ -254,19 +302,31 @@ public class RequestTerminalMenu extends MenuHolder {
             }
         }
 
-        SimulatedStock(List<NetworkStorage.View> initialViews) {
-            if (initialViews != null) {
-                for (NetworkStorage.View v : initialViews) {
-                    if (v.sample() != null && v.amount() > 0) {
-                        entries.add(new StockEntry(v.sample().clone(), v.amount()));
+        SimulatedStock(StockBase base) {
+            this.base = base;
+        }
+
+        private List<StockEntry> bucket(Material material) {
+            List<StockEntry> bucket = buckets.get(material);
+            if (bucket == null) {
+                bucket = new ArrayList<>();
+                List<StockEntry> shared = base.byMaterial.get(material);
+                if (shared != null) {
+                    for (StockEntry e : shared) {
+                        bucket.add(new StockEntry(e.sample, e.amount));
                     }
                 }
+                buckets.put(material, bucket);
             }
+            return bucket;
         }
 
         long available(ItemStack item) {
+            if (item == null) {
+                return 0;
+            }
             long total = 0;
-            for (StockEntry e : entries) {
+            for (StockEntry e : bucket(item.getType())) {
                 if (StackUtils.itemsMatch(e.sample, item, false)) {
                     total += e.amount;
                 }
@@ -275,8 +335,11 @@ public class RequestTerminalMenu extends MenuHolder {
         }
 
         long take(ItemStack item, long needed) {
+            if (item == null) {
+                return 0;
+            }
             long taken = 0;
-            for (StockEntry e : entries) {
+            for (StockEntry e : bucket(item.getType())) {
                 if (StackUtils.itemsMatch(e.sample, item, false)) {
                     long toTake = Math.min(e.amount, needed - taken);
                     e.amount -= toTake;
@@ -291,13 +354,14 @@ public class RequestTerminalMenu extends MenuHolder {
 
         void add(ItemStack item, long count) {
             if (item == null || count <= 0) return;
-            for (StockEntry e : entries) {
+            List<StockEntry> bucket = bucket(item.getType());
+            for (StockEntry e : bucket) {
                 if (StackUtils.itemsMatch(e.sample, item, false)) {
                     e.amount += count;
                     return;
                 }
             }
-            entries.add(new StockEntry(StackUtils.getAsQuantity(item, 1), count));
+            bucket.add(new StockEntry(StackUtils.getAsQuantity(item, 1), count));
         }
     }
 
@@ -371,7 +435,7 @@ public class RequestTerminalMenu extends MenuHolder {
     }
 
     private int calculateMaxBatches(CraftableOption opt) {
-        SimulatedStock s1 = new SimulatedStock(network.storage().view());
+        SimulatedStock s1 = new SimulatedStock(stockBase());
         if (planCraft(opt, 1, s1, new HashSet<>(), 0) == null) {
             return 0;
         }
@@ -379,7 +443,7 @@ public class RequestTerminalMenu extends MenuHolder {
         int low = 1;
         int high = 64;
         while (high <= 10_000) {
-            SimulatedStock s = new SimulatedStock(network.storage().view());
+            SimulatedStock s = new SimulatedStock(stockBase());
             if (planCraft(opt, high, s, new HashSet<>(), 0) != null) {
                 low = high;
                 high *= 2;
@@ -393,7 +457,7 @@ public class RequestTerminalMenu extends MenuHolder {
         int r = Math.min(high, 10_000);
         while (l <= r) {
             int mid = (l + r) >>> 1;
-            SimulatedStock s = new SimulatedStock(network.storage().view());
+            SimulatedStock s = new SimulatedStock(stockBase());
             if (planCraft(opt, mid, s, new HashSet<>(), 0) != null) {
                 best = mid;
                 l = mid + 1;
@@ -421,7 +485,7 @@ public class RequestTerminalMenu extends MenuHolder {
         lore.add(Component.text("Required Ingredients:", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
 
         for (IngredientNeed need : opt.ingredients) {
-            long count = network.storage().count(item -> StackUtils.itemsMatch(item, need.sample(), false));
+            long count = network.storage().countOf(need.sample(), false);
             String ingName = Blueprints.readableName(need.sample());
             if (count >= need.amount()) {
                 lore.add(Component.text(" • " + ingName + ": " + count + " / " + need.amount(), NamedTextColor.GREEN)
@@ -553,7 +617,7 @@ public class RequestTerminalMenu extends MenuHolder {
     }
 
     private void executeOrder(CraftableOption opt, int requestedBatches) {
-        SimulatedStock checkStock = new SimulatedStock(network.storage().view());
+        SimulatedStock checkStock = new SimulatedStock(stockBase());
         List<CraftingJobStep> plan = planCraft(opt, requestedBatches, checkStock, new HashSet<>(), 0);
         if (plan == null || plan.isEmpty()) {
             player.sendMessage(Text.msg("Crafting Job Failed: Insufficient raw materials in network.", NamedTextColor.RED));
@@ -633,7 +697,7 @@ public class RequestTerminalMenu extends MenuHolder {
         // Check availability
         for (IngredientNeed need : needs) {
             long inBuf = countInBuffer(intermediateBuffer, need.sample());
-            long inStore = network.storage().count(item -> StackUtils.itemsMatch(item, need.sample(), false));
+            long inStore = network.storage().countOf(need.sample(), false);
             if (inBuf + inStore < need.amount()) {
                 lastStepFailure = "not enough " + Blueprints.readableName(need.sample()) + " for " + stepOpt.name
                         + " (need " + need.amount() + ", have " + (inBuf + inStore) + ").";
@@ -647,7 +711,8 @@ public class RequestTerminalMenu extends MenuHolder {
             int remaining = need.amount();
             remaining -= takeFromBuffer(intermediateBuffer, need.sample(), remaining, extracted);
             if (remaining > 0) {
-                ItemStack pulled = network.storage().withdraw(item -> StackUtils.itemsMatch(item, need.sample(), false), remaining);
+                ItemStack pulled = network.storage().withdraw(item -> StackUtils.itemsMatch(item, need.sample(), false),
+                        NetworkStorage.only(need.sample().getType()), remaining, -1L, true);
                 if (pulled != null && pulled.getAmount() > 0) {
                     extracted.add(pulled);
                     remaining -= pulled.getAmount();
