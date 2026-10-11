@@ -50,6 +50,11 @@ class FluidAndRequesterTest {
     void setUp() {
         server = MockBukkit.mock();
         plugin = MockBukkit.load(MultiverseNets.class);
+        // El buscador de recetas de MockBukkit no cuenta cantidades en las recetas sin forma: la
+        // receta vanilla de ladrillos de prismarina (9 fragmentos) casa con 8 cristales + un Network
+        // Circuit (PRISMARINE_SHARD) y, como va antes que las del plugin, tapa la receta del cable
+        // que usan los tests del Request Terminal. En un servidor real esto no pasa.
+        server.removeRecipe(org.bukkit.NamespacedKey.minecraft("prismarine_bricks"));
         world = server.addSimpleWorld("world");
         player = server.addPlayer();
     }
