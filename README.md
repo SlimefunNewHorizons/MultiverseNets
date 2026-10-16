@@ -64,7 +64,7 @@ Rates are the defaults from `config.yml`; every one of them is configurable (see
 | **Network Router** | `mvn_router` · Lightning Rod | Lifts the Wireless Terminal limits for its network: any distance and any world. | Connect it anywhere in the network. |
 | **Network Monitor** | `mvn_monitor` · Respawn Anchor | Live diagnostic panel: node counts by type, storage usage, errors. | Right-click; it refreshes while open. |
 | **Network Probe** | `mvn_probe` · item (Spyglass) | Answers "is this connected?": network size, controller position, scan errors and protection cuts for the block you click. | Right-click any block. |
-| **Network Status Light** | `mvn_status_light` · Lime/Red Stained Glass | Placed on top of a network block, it shows from afar whether that block reaches a Controller: **green** when connected, **red** when not. It is not part of the network and never links two networks. | Place it on any network block; it checks once a second. |
+| **Network Status Light** | `mvn_status_light` · Lime/Red Stained Glass | Placed on any side of a network block, it shows from afar whether that block reaches a Controller: **green** when connected, **red** when not. It is not part of the network and never links two networks. | Place it on any network block; it checks once a second. |
 
 ### 🧠 Memory: DRAM Bay and modules
 

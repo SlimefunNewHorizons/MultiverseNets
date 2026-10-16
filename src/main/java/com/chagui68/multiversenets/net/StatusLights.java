@@ -16,19 +16,17 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 /**
- * EN: Network Status Lights. A light sits on top of a network block and shows, from afar, whether
+ * EN: Network Status Lights. A light sits against a network block (any side) and shows, from afar, whether
  * that block reaches a Controller: green when it does, red when it does not. It never joins a
  * network itself (see {@link Network#scan}), so it can not bridge two of them. Every light is kept
  * in {@code status-lights.yml} and checked once a second while its chunk is loaded.
  *
- * ES: Luces de estado de red. Una luz va encima de un bloque de red y muestra desde lejos si ese
+ * ES: Luces de estado de red. Una luz va pegada a un bloque de red (cualquier lado) y muestra desde lejos si ese
  * bloque llega a un Controlador: verde si llega, roja si no. Nunca forma parte de una red (ver
  * {@link Network#scan}), así que no puede unir dos. Cada luz se guarda en {@code status-lights.yml}
  * y se revisa una vez por segundo mientras su chunk está cargado.
@@ -41,7 +39,8 @@ public final class StatusLights {
 
     private final MultiverseNets plugin;
     private final File file;
-    private final Map<UUID, Set<Long>> lights = new HashMap<>();
+    /** Light position to the face of the block it watches / Posición de la luz a la cara del bloque que vigila. */
+    private final Map<UUID, Map<Long, BlockFace>> lights = new HashMap<>();
     private BukkitTask task;
 
     public StatusLights(MultiverseNets plugin) {
@@ -66,24 +65,25 @@ public final class StatusLights {
         return material == ON || material == OFF;
     }
 
-    public void add(Block block) {
-        if (lights.computeIfAbsent(block.getWorld().getUID(), id -> new HashSet<>()).add(pack(block))) {
+    public void add(Block block, BlockFace watched) {
+        if (lights.computeIfAbsent(block.getWorld().getUID(), id -> new HashMap<>()).put(pack(block), watched) != watched) {
             save();
         }
         update(block);
     }
 
     public void remove(Block block) {
-        Set<Long> set = lights.get(block.getWorld().getUID());
-        if (set != null && set.remove(pack(block))) {
+        Map<Long, BlockFace> set = lights.get(block.getWorld().getUID());
+        if (set != null && set.remove(pack(block)) != null) {
             save();
         }
     }
 
-    /** True when the block under the light belongs to a network / True si el bloque de abajo está en una red. */
+    /** True when the watched block belongs to a network / True si el bloque vigilado está en una red. */
     public boolean connected(Block light) {
-        Block below = light.getRelative(BlockFace.DOWN);
-        return plugin.networks().networkAt(below) != null;
+        Map<Long, BlockFace> set = lights.get(light.getWorld().getUID());
+        BlockFace face = set == null ? null : set.get(pack(light));
+        return plugin.networks().networkAt(light.getRelative(face == null ? BlockFace.DOWN : face)) != null;
     }
 
     /** Recolours one light; returns false when the block is no longer a light. */
@@ -101,12 +101,12 @@ public final class StatusLights {
 
     private void tick() {
         boolean changed = false;
-        for (Map.Entry<UUID, Set<Long>> entry : lights.entrySet()) {
+        for (Map.Entry<UUID, Map<Long, BlockFace>> entry : lights.entrySet()) {
             World world = plugin.getServer().getWorld(entry.getKey());
             if (world == null) {
                 continue;
             }
-            var it = entry.getValue().iterator();
+            var it = entry.getValue().keySet().iterator();
             while (it.hasNext()) {
                 long pos = it.next();
                 int x = PosUtil.unpackX(pos);
@@ -141,15 +141,17 @@ public final class StatusLights {
             return;
         }
         for (String worldId : root.getKeys(false)) {
-            Set<Long> set = new HashSet<>();
+            Map<Long, BlockFace> set = new HashMap<>();
             for (String coords : root.getStringList(worldId)) {
                 String[] parts = coords.split(",");
-                if (parts.length != 3) {
+                if (parts.length != 3 && parts.length != 4) {
                     continue;
                 }
                 try {
-                    set.add(PosUtil.pack(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2])));
-                } catch (NumberFormatException ignored) {
+                    // Las luces antiguas no guardan cara: siempre miraban abajo.
+                    BlockFace face = parts.length == 4 ? BlockFace.valueOf(parts[3]) : BlockFace.DOWN;
+                    set.put(PosUtil.pack(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2])), face);
+                } catch (IllegalArgumentException ignored) {
                 }
             }
             try {
@@ -161,13 +163,14 @@ public final class StatusLights {
 
     private void save() {
         YamlConfiguration yaml = new YamlConfiguration();
-        for (Map.Entry<UUID, Set<Long>> entry : lights.entrySet()) {
+        for (Map.Entry<UUID, Map<Long, BlockFace>> entry : lights.entrySet()) {
             if (entry.getValue().isEmpty()) {
                 continue;
             }
             List<String> coords = new ArrayList<>();
-            for (long pos : entry.getValue()) {
-                coords.add(PosUtil.unpackX(pos) + "," + PosUtil.unpackY(pos) + "," + PosUtil.unpackZ(pos));
+            for (Map.Entry<Long, BlockFace> light : entry.getValue().entrySet()) {
+                long pos = light.getKey();
+                coords.add(PosUtil.unpackX(pos) + "," + PosUtil.unpackY(pos) + "," + PosUtil.unpackZ(pos) + "," + light.getValue().name());
             }
             yaml.set("lights." + entry.getKey(), coords);
         }

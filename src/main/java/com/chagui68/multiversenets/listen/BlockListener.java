@@ -108,9 +108,14 @@ public class BlockListener implements Listener {
 
         if (type == DeviceType.MVN_STATUS_LIGHT) {
             // No forma parte de la red: no hace falta reescanear nada.
-            plugin.statusLights().add(event.getBlockPlaced());
-            if (!NodeStore.hasNode(event.getBlockPlaced().getRelative(org.bukkit.block.BlockFace.DOWN))) {
-                event.getPlayer().sendMessage(Text.msg("Place the Status Light on top of a network block.", NamedTextColor.YELLOW));
+            // Vigila el bloque contra el que se coloco, por cualquier lado.
+            org.bukkit.block.BlockFace face = event.getBlockPlaced().getFace(event.getBlockAgainst());
+            if (face == null || face == org.bukkit.block.BlockFace.SELF) {
+                face = org.bukkit.block.BlockFace.DOWN;
+            }
+            plugin.statusLights().add(event.getBlockPlaced(), face);
+            if (!NodeStore.hasNode(event.getBlockPlaced().getRelative(face))) {
+                event.getPlayer().sendMessage(Text.msg("Place the Status Light against a network block.", NamedTextColor.YELLOW));
             }
             return;
         }

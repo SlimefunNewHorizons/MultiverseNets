@@ -301,12 +301,12 @@ public final class GuideContent {
                 "Right-click any block with it.",
                 "Clic derecho en cualquier bloque.");
         add(DeviceType.MVN_STATUS_LIGHT, Category.CORE, "Luz de Estado de Red",
-                "Shows from afar whether the block under it reaches a Controller: green when connected, red "
+                "Shows from afar whether the block it is placed against reaches a Controller: green when connected, red "
                         + "when not. It is not part of the network and never links two networks.",
-                "Muestra desde lejos si el bloque de debajo llega a un Controlador: verde si está conectado, "
+                "Muestra desde lejos si el bloque contra el que se coloca llega a un Controlador: verde si está conectado, "
                         + "roja si no. No forma parte de la red y nunca une dos redes.",
-                "Place it on top of any network block. It checks once a second.",
-                "Colócala encima de cualquier bloque de red. Se comprueba una vez por segundo.");
+                "Place it on any side of a network block. It checks once a second.",
+                "Colócala en cualquier lado de un bloque de red. Se comprueba una vez por segundo.");
 
         // ------------------------------------------------------------------ storage
         String cellWhatEn = "Stores ONE item type in large amounts. An empty cell adopts the first item type that "

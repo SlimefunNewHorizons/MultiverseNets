@@ -55,7 +55,7 @@ Las cantidades son los valores por defecto de `config.yml`; todas se pueden conf
 | **Network Router** | `mvn_router` · Pararrayos | Quita los límites del Terminal Inalámbrico para su red: cualquier distancia y cualquier mundo. | Conéctalo en cualquier punto de la red. |
 | **Network Monitor** | `mvn_monitor` · Nexo de reaparición | Panel de diagnóstico en vivo: nodos por tipo, uso de almacenamiento, errores. | Clic derecho; se actualiza mientras está abierto. |
 | **Network Probe** | `mvn_probe` · ítem (Catalejo) | Responde "¿esto está conectado?": tamaño de la red, posición del controlador, errores del escaneo y cortes por protección del bloque que pulses. | Clic derecho en cualquier bloque. |
-| **Network Status Light** | `mvn_status_light` · Cristal tintado lima/rojo | Colocada encima de un bloque de red, muestra desde lejos si ese bloque llega a un Controlador: **verde** si está conectado, **roja** si no. No forma parte de la red y nunca une dos redes. | Colócala sobre cualquier bloque de red; se comprueba una vez por segundo. |
+| **Network Status Light** | `mvn_status_light` · Cristal tintado lima/rojo | Colocada en cualquier lado de un bloque de red, muestra desde lejos si ese bloque llega a un Controlador: **verde** si está conectado, **roja** si no. No forma parte de la red y nunca une dos redes. | Colócala sobre cualquier bloque de red; se comprueba una vez por segundo. |
 
 ### 🧠 Memoria: DRAM Bay y módulos
 

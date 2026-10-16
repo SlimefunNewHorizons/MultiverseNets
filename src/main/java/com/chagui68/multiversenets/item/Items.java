@@ -207,7 +207,7 @@ public final class Items {
                 lore.add(Component.text("Choose the item and the amount, press Start.", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
             }
             case MVN_STATUS_LIGHT -> {
-                lore.add(Component.text("Place it on top of a network block.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("Place it on any side of a network block.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
                 lore.add(Component.text("Green: connected to a Controller. Red: no connection.", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
             }
             default -> {
