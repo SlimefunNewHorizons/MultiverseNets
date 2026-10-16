@@ -1091,6 +1091,11 @@ public final class Items {
     /** Which grid character of a recipe is a device, for the in-game guide. */
     private static final java.util.Map<NamespacedKey, java.util.Map<Character, DeviceType>> DEVICE_CHARS =
             new java.util.HashMap<>();
+    /**
+     * The recipes as this plugin built them. Paper's {@code Bukkit.getRecipe} rebuilds them with new grid
+     * characters and a trimmed shape, so {@link #DEVICE_CHARS} only matches these originals.
+     */
+    private static final java.util.Map<NamespacedKey, ShapedRecipe> ORIGINAL_RECIPES = new java.util.HashMap<>();
     /** Recipes that upgrade a cell or a memory module: the ingredient's stored cargo moves to the result. */
     private static final java.util.Set<String> UPGRADE_RECIPES = java.util.Set.of(
             "cell_t2", "cell_t3", "cell_t4", "cell_t5", "cell_t6",
@@ -1105,6 +1110,13 @@ public final class Items {
     public static java.util.Map<DeviceType, Integer> deviceIngredients(NamespacedKey key) {
         synchronized (RECIPE_KEYS) {
             return DEVICE_INGREDIENTS.getOrDefault(key, java.util.Map.of());
+        }
+    }
+
+    /** The recipe as this plugin built it (grid characters match {@link #deviceIngredientAt}), or null. */
+    public static ShapedRecipe originalRecipe(NamespacedKey key) {
+        synchronized (RECIPE_KEYS) {
+            return ORIGINAL_RECIPES.get(key);
         }
     }
 
@@ -1188,6 +1200,7 @@ public final class Items {
                 DEVICE_CHARS.put(nk, new java.util.HashMap<>(PENDING_DEVICES));
             }
             PENDING_DEVICES.clear();
+            ORIGINAL_RECIPES.put(nk, recipe);
         }
         try {
             boolean ok = Bukkit.addRecipe(recipe);

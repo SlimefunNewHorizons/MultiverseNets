@@ -112,8 +112,11 @@ class GuideMenuTest {
 
         click(GuideMenu.LIST_SLOTS[0]);
         assertEquals(DeviceType.MVN_CONTROLLER, menu().currentDevice());
-        // Controller: I I I / I N I / I I I
+        // Controller: I P I / C N C / I P I
         assertEquals(Material.IRON_BLOCK, top().getItem(GuideMenu.GRID_SLOTS[0]).getType());
+        assertEquals(DeviceType.MVN_LOGIC_PROCESSOR, Items.typeOf(top().getItem(GuideMenu.GRID_SLOTS[1])),
+                "components are shown as the custom item, not the base material");
+        assertEquals(DeviceType.MVN_NETWORK_CIRCUIT, Items.typeOf(top().getItem(GuideMenu.GRID_SLOTS[3])));
         assertEquals(Material.NETHER_STAR, top().getItem(GuideMenu.GRID_SLOTS[4]).getType());
         assertEquals(DeviceType.MVN_CONTROLLER, Items.typeOf(top().getItem(GuideMenu.RESULT_SLOT)));
         assertEquals("What it does", name(top().getItem(GuideMenu.WHAT_SLOT)));

@@ -230,8 +230,9 @@ public class GuideMenu extends MenuHolder {
 
     private void drawRecipe() {
         NamespacedKey key = recipeKey(device);
-        Recipe recipe = key == null ? null : Bukkit.getRecipe(key);
-        if (!(recipe instanceof ShapedRecipe shaped)) {
+        // Registered check via Bukkit; drawn from the original, whose grid characters match the device map.
+        ShapedRecipe shaped = key == null || Bukkit.getRecipe(key) == null ? null : Items.originalRecipe(key);
+        if (shaped == null) {
             ItemStack none = icon(Material.BARRIER, spanish ? "Sin receta" : "No recipe", NamedTextColor.RED, wrap(spanish
                     ? "Esta máquina está desactivada en config.yml (sección slimefun-machines) o el ítem no se "
                     + "craftea."
