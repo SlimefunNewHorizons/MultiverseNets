@@ -297,11 +297,13 @@ public class NetworkManager {
     /**
      * EN: Creates an item filter predicate from a node's configuration blob.
      * Recognizes vanilla items, MultiverseNets DeviceTypes, and Slimefun IDs.
-     * Supports Whitelist (default) and Blacklist modes.
+     * Supports Whitelist (default) and Blacklist modes. An empty whitelist matches nothing; an empty
+     * blacklist matches everything.
  *
      * ES: Crea un predicado de filtrado de ítems a partir de la configuración del blob.
      * Reconoce ítems vanilla, DeviceTypes de MultiverseNets e IDs de Slimefun.
-     * Soporta modos Whitelist (por defecto) y Blacklist.
+     * Soporta modos Whitelist (por defecto) y Blacklist. Una whitelist vacía no acepta nada; una
+     * blacklist vacía lo acepta todo.
      */
     public static Predicate<ItemStack> filterPredicate(NodeBlob blob) {
         if (blob == null) {
@@ -426,7 +428,9 @@ public class NetworkManager {
         boolean hasMats = blob.filterMaterials != null && !blob.filterMaterials.isEmpty();
 
         if (!hasItems && !hasMats) {
-            return item -> true;
+            // Whitelist vacia = nada; blacklist vacia = todo.
+            boolean all = blob.filterBlacklist;
+            return item -> all;
         }
 
         // Cada entrada del filtro se analiza una vez aqui (tipo de dispositivo, id de Slimefun,

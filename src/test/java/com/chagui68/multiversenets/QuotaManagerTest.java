@@ -138,7 +138,10 @@ class QuotaManagerTest {
     void aGrabberEmptiesABarrelThatIsNotPartOfTheNetwork() {
         Block controller = place(0, 64, 0, DeviceType.MVN_CONTROLLER);
         Block bay = place(1, 64, 0, DeviceType.MVN_DRAM_BAY);
-        place(-1, 64, 0, DeviceType.MVN_GRABBER);
+        Block grabber = place(-1, 64, 0, DeviceType.MVN_GRABBER);
+        NodeBlob grabberBlob = NodeStore.get(grabber);
+        grabberBlob.filterBlacklist = true; // blacklist vacia = importa todo
+        NodeStore.put(grabber, grabberBlob);
         Block barrel = place(-2, 64, 0, DeviceType.MVN_INFINITY_BARREL);
         NodeBlob barrelBlob = NodeStore.get(barrel);
         barrelBlob.cellSample = new ItemStack(Material.COBBLESTONE);
@@ -158,7 +161,10 @@ class QuotaManagerTest {
     @Test
     void aBarrelWiredByCableStaysNetworkStorage() {
         Block controller = place(0, 64, 0, DeviceType.MVN_CONTROLLER);
-        place(-1, 64, 0, DeviceType.MVN_GRABBER);
+        Block grabber = place(-1, 64, 0, DeviceType.MVN_GRABBER);
+        NodeBlob grabberBlob = NodeStore.get(grabber);
+        grabberBlob.filterBlacklist = true; // blacklist vacia = importa todo
+        NodeStore.put(grabber, grabberBlob);
         Block barrel = place(-2, 64, 0, DeviceType.MVN_INFINITY_BARREL);
         place(0, 64, 1, DeviceType.MVN_CABLE);
         place(-1, 64, 1, DeviceType.MVN_CABLE);

@@ -566,7 +566,7 @@ I T I
 
 - **Result**: 1× Simple Grabber (Observer)
 - **Function**: Imports from adjacent containers into the network: up to 128 items of one type per
-  cycle, from all six faces. Whitelist/blacklist filter; an empty filter imports everything. If the
+  cycle, from all six faces. Whitelist/blacklist filter; **an empty whitelist imports nothing**, an empty blacklist imports everything. If the
   network refuses part of it, the overflow goes first to Pushers that accept it, then back to the
   slots it came from, and the grabber moves on to the **next item**: one item the network does not
   accept never blocks the rest of the chest. A Quantum Cell or Infinity Barrel it touches
@@ -637,7 +637,9 @@ S C S
 
 - **Result**: 1× Network Vacuum (Sponge)
 - **Function**: Every 10 ticks picks up dropped items within `vacuum.radius` (4 blocks) into the
-  network. Optional filter. Items that do not fit stay on the ground.
+  network. Whitelist/blacklist filter: **an empty whitelist picks up nothing** (a freshly placed
+  vacuum does not swallow the whole floor); an empty blacklist picks up everything. Items that do not
+  fit stay on the ground.
 
 ---
 

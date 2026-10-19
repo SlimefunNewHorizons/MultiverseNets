@@ -575,7 +575,7 @@ I T I
 
 - **Resultado**: 1× Simple Grabber (Observador)
 - **Función**: Importa de los contenedores vecinos a la red: hasta 128 ítems de un tipo por ciclo, por
-  las seis caras. Filtro whitelist/blacklist; un filtro vacío lo importa todo. Si la red rechaza
+  las seis caras. Filtro whitelist/blacklist; **una whitelist vacía no importa nada**, una blacklist vacía lo importa todo. Si la red rechaza
   parte, el sobrante va primero a los Pushers que lo acepten, luego vuelve a las ranuras de donde
   salió y el grabber sigue con el **siguiente ítem**: un ítem que la red no admite nunca bloquea el
   resto del cofre. Una Celda Cuántica o un Infinity Barrel que toque y no esté conectado a
@@ -645,7 +645,8 @@ S C S
 
 - **Resultado**: 1× Network Vacuum (Esponja)
 - **Función**: Cada 10 ticks recoge los ítems del suelo dentro de `vacuum.radius` (4 bloques) hacia la
-  red. Filtro opcional. Lo que no cabe se queda en el suelo.
+  red. Filtro whitelist/blacklist: **una whitelist vacía no recoge nada** (un vacuum recién puesto no
+  se traga todo el suelo); una blacklist vacía lo recoge todo. Lo que no cabe se queda en el suelo.
 
 ---
 

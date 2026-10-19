@@ -208,7 +208,7 @@ las redes a partir de él al arrancar.
   todas las redes), `networkByController(Location)`. `filterPredicate(blob)` se construye una vez por
   instancia de blob y se reutiliza mientras sus listas de filtro y su modo no cambien.
 - `invalidateNear(Block)` — reescanea la red del bloque y las de sus 6 vecinos (colocar/romper/rake).
-- Filtros: `filterPredicate(blob)` (filtro vacío → acepta todo; si no, whitelist o blacklist),
+- Filtros: `filterPredicate(blob)` (whitelist vacía → nada, blacklist vacía → todo; si no, whitelist o blacklist),
   `matchesFilter(template, item)` (orden: DeviceType → id de Slimefun → nombre visible → material),
   `extractMatching(Inventory, …)` (un tipo de ítem, juntando todas las ranuras hasta la cuota),
   `insertInto(Inventory, …)` (por trozos de un stack, así una ranura nunca recibe más de lo que el
@@ -286,7 +286,7 @@ terminal, ranura de entrada — solo consume un cubo, botella o bloque fuente en
 - Cada dispositivo lee su blob con `NodeStore.canonical` (la instancia viva compartida), nunca con
   `NodeStore.get`, que codifica y decodifica una copia entera.
 - **`doTransfers`** (`items-per-op` = 128, HT = ×`ht-multiplier`):
-  - **Grabber** (`grabOnce`): reintenta primero su búfer de tránsito; luego la primera cara que dé
+  - **Grabber** (`grabOnce`): reintenta primero su búfer de tránsito; whitelist vacía = inactivo; luego la primera cara que dé
     algo — primero las ranuras de salida de máquinas de Slimefun, después contenedores vanilla.
     Sobrante → Pushers que lo acepten (`streamToPushers`) → búfer de tránsito. Nunca vuelve al
     origen: `SlimefunBridge.insert` usa las ranuras de ENTRADA y el producto se volvía a procesar.
@@ -311,7 +311,7 @@ terminal, ranura de entrada — solo consume un cubo, botella o bloque fuente en
     extremos pasan la protección con el dueño de su propia red; los sobrantes vuelven al origen y, si
     no, caen junto al dispositivo.
   - **Liquid Pump** (`pumpTick`): un bloque fuente debajo, solo si `deposit` devuelve 0.
-- **`doVacuum`**: entidades `Item` sin retardo de recogida dentro de `vacuum.radius`.
+- **`doVacuum`**: entidades `Item` sin retardo de recogida dentro de `vacuum.radius`; whitelist vacía = inactivo.
 - **`doCrafting`**: cada Auto-Crafter (y Slimefun Auto-Crafter si `Settings.sfCrafterEnabled()`) intenta una
   vez cada Blueprint instalado.
 - Cada bloque que se toca pasa `denied(net, block)` → `ProtectionBridge.mayActorUse(block, owner)`.

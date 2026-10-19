@@ -88,7 +88,10 @@ class PerformanceGuardsTest {
     void longIdleGrabberKeepsBackingOff() {
         place(0, 64, 0, DeviceType.MVN_CONTROLLER);
         place(1, 64, 0, DeviceType.MVN_CELL_T1);
-        place(0, 64, 1, DeviceType.MVN_GRABBER);
+        Block grabber = place(0, 64, 1, DeviceType.MVN_GRABBER);
+        NodeBlob grabberBlob = NodeStore.get(grabber);
+        grabberBlob.filterBlacklist = true; // blacklist vacia = importa todo
+        NodeStore.put(grabber, grabberBlob);
         Block chest = world.getBlockAt(0, 64, 2);
         chest.setType(Material.CHEST);
         Network net = network();

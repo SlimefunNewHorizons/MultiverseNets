@@ -504,7 +504,8 @@ public class NetworkTicker {
                 return; // Wait until buffer clears before grabbing more
             }
         }
-        if (sitsOut(pos)) {
+        // Whitelist vacia = no importa nada; para importarlo todo esta la blacklist vacia.
+        if (!(blob.filterBlacklist || hasFilter(blob)) || sitsOut(pos)) {
             return;
         }
 
@@ -1415,7 +1416,8 @@ public class NetworkTicker {
         double radius = Settings.vacuumRadius();
         forEachWorked(net, DeviceType.MVN_VACUUM, pos -> {
             NodeBlob blob = blobOf(net, pos);
-            if (blob == null) {
+            // Whitelist vacia = no recoge nada, igual que Pusher, Transmisor y Receptor.
+            if (blob == null || !(blob.filterBlacklist || hasFilter(blob))) {
                 return;
             }
             Predicate<ItemStack> pred = NetworkManager.filterPredicate(blob);

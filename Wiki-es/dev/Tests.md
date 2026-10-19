@@ -57,11 +57,11 @@ A tener en cuenta:
 - `src/test/java/dev/espi/protectionstones/PSRegion.java` es un stub de la API de ProtectionStones que
   los tests del provider cargan por reflexión.
 
-## 3. Resumen: 52 clases, 357 tests
+## 3. Resumen: 52 clases, 359 tests
 
 | Clase (paquete `com.chagui68.multiversenets` salvo que se indique) | Tests | Cubre |
 | --- | --- | --- |
-| `BlockFlowsTest` | 24 | Romper/colocar con estado embebido, pistones, explosiones, vínculo inalámbrico, rake, llave, corte por agachado, dimensiones, enlace del puente desde el ítem Transmisor, estado del cable. |
+| `BlockFlowsTest` | 26 | Romper/colocar con estado embebido, pistones, explosiones, vínculo inalámbrico, rake, llave, corte por agachado, dimensiones, enlace del puente desde el ítem Transmisor, estado del cable. |
 | `BlueprintDupeTest` | 3 | Los Blueprints del Encoder nunca se duplican (dos jugadores, romperlo con el menú abierto); instalar un Blueprint lo consume y *Clear All* lo devuelve. |
 | `CableCamouflageTest` | 5 | Clic derecho en un cable abre su menú; un bloque en el hueco de camuflaje se guarda (una unidad), el cable toma su aspecto y sigue conectando, recuperarlo devuelve el cristal; shift+clic cambia el bloque y devuelve el anterior; se rechazan bloques inestables, interactivos o no completos y dispositivos; romper suelta el cable y el bloque. |
 | `CellGuiTest` | 9 | Menú de la Celda Cuántica: plantilla, depósito rápido, retirada, capacidad, sin duplicación al correr el ticker. |

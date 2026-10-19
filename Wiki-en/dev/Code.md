@@ -205,7 +205,7 @@ networks from it at startup.
   `networkByController(Location)`. `filterPredicate(blob)` is built once per blob instance and
   reused while its filter lists and mode stay the same.
 - `invalidateNear(Block)` — rescans the block's network and its 6 neighbours' (place/break/rake).
-- Filter helpers: `filterPredicate(blob)` (empty filter → accepts everything; otherwise whitelist or
+- Filter helpers: `filterPredicate(blob)` (empty whitelist → nothing, empty blacklist → everything; otherwise whitelist or
   blacklist), `matchesFilter(template, item)` (order: DeviceType → Slimefun id → display name →
   material), `extractMatching(Inventory, …)` (one item type, merging every slot up to the quota;
   only the result slot of a furnace), `insertInto(Inventory, …)` (in chunks of one stack, so a slot
@@ -281,7 +281,7 @@ whole bucket, bottle or source block only on `0`. `withdraw`, `count`, `getFluid
 - Every device reads its blob through `NodeStore.canonical` (the shared live instance), never
   `NodeStore.get`, which encodes and decodes a full copy.
 - **`doTransfers`** (`items-per-op` = 128, HT = ×`ht-multiplier`):
-  - **Grabber** (`grabOnce`): retries its transit buffer first; then the first face that yields a
+  - **Grabber** (`grabOnce`): retries its transit buffer first; empty whitelist = idle; then the first face that yields a
     match — Slimefun machine output slots first, then vanilla containers. Overflow → Pushers that
     accept it (`streamToPushers`) → transit buffer. It is never handed back to the source:
     `SlimefunBridge.insert` uses the INPUT slots and the product was processed again. Idle grabbers,
@@ -306,7 +306,7 @@ whole bucket, bottle or source block only on `0`. `withdraw`, `count`, `getFluid
     ends pass the protection check with their own network's owner; leftovers go back to the source
     and, failing that, drop next to the device.
   - **Liquid Pump** (`pumpTick`): one source block below, only if `deposit` returns 0.
-- **`doVacuum`**: dropped `Item` entities without pickup delay within `vacuum.radius`.
+- **`doVacuum`**: dropped `Item` entities without pickup delay within `vacuum.radius`; empty whitelist = idle.
 - **`doCrafting`**: every Auto-Crafter (and Slimefun Auto-Crafter if `Settings.sfCrafterEnabled()`) tries each
   installed Blueprint once.
 - Every block touched passes `denied(net, block)` → `ProtectionBridge.mayActorUse(block, owner)`.

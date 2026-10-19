@@ -457,10 +457,12 @@ public final class GuideContent {
                         + "waits in its buffer.",
                 "Importa de los contenedores y máquinas de al lado a la red por LAS SEIS caras, un tipo de ítem "
                         + "por ciclo. De un horno solo saca el resultado. Lo que la red no admite espera en su búfer.",
-                "Right-click for the filter (whitelist / blacklist). An empty filter takes everything. It does not "
+                "Right-click for the filter (whitelist / blacklist). An empty whitelist takes nothing; an empty "
+                        + "blacklist takes everything. It does not "
                         + "carry the network into a Quantum Cell or Infinity Barrel next to it: it empties it like a "
                         + "chest. An item the network refuses goes back to its slot and the next one is tried.",
-                "Clic derecho para el filtro (whitelist / blacklist). Un filtro vacío lo toma todo. No lleva la red "
+                "Clic derecho para el filtro (whitelist / blacklist). Una whitelist vacía no toma nada; una blacklist "
+                        + "vacía lo toma todo. No lleva la red "
                         + "a una Celda Cuántica o Infinity Barrel de al lado: la vacía como a un cofre. Un ítem que la "
                         + "red rechaza vuelve a su ranura y se prueba el siguiente.");
         add(DeviceType.MVN_GRABBER_HT, Category.TRANSPORT, "Grabber Avanzado",
@@ -492,8 +494,10 @@ public final class GuideContent {
         add(DeviceType.MVN_VACUUM, Category.TRANSPORT, "Aspiradora de Red",
                 "Picks up dropped items around it into the network.",
                 "Recoge al almacenamiento los ítems tirados a su alrededor.",
-                "Optional filter. Items that do not fit stay on the ground.",
-                "Filtro opcional. Lo que no cabe se queda en el suelo.");
+                "Right-click for the filter: an empty whitelist picks up nothing, an empty blacklist picks up "
+                        + "everything. Items that do not fit stay on the ground.",
+                "Clic derecho para el filtro: una whitelist vacía no recoge nada, una blacklist vacía lo recoge "
+                        + "todo. Lo que no cabe se queda en el suelo.");
         add(DeviceType.MVN_PURGER, Category.TRANSPORT, "Purgador de Red",
                 "Deletes items that match its filter from the network every cycle.",
                 "Borra de la red cada ciclo los ítems que pasan su filtro.",

@@ -56,11 +56,11 @@ Things to know:
 - `src/test/java/dev/espi/protectionstones/PSRegion.java` is a stub of the ProtectionStones API that
   the provider tests load by reflection.
 
-## 3. Overview: 52 classes, 357 tests
+## 3. Overview: 52 classes, 359 tests
 
 | Class (package `com.chagui68.multiversenets` unless stated) | Tests | Covers |
 | --- | --- | --- |
-| `BlockFlowsTest` | 24 | Break/place with embedded state, pistons, explosions, wireless binding, rake, wrench, sneaking guard, dimensions, bridge linking from the Transmitter item, cable status. |
+| `BlockFlowsTest` | 26 | Break/place with embedded state, pistons, explosions, wireless binding, rake, wrench, sneaking guard, dimensions, bridge linking from the Transmitter item, cable status. |
 | `BlueprintDupeTest` | 3 | Encoder Blueprints are never duplicated (two viewers, breaking with the menu open); installing a Blueprint consumes it and *Clear All* returns it. |
 | `CableCamouflageTest` | 5 | Right-clicking a cable opens its menu; a block in the camouflage slot is kept (one unit), the cable looks like it and still connects, taking it back restores glass; shift-click swaps and returns the old block; unstable, interactive or non-full blocks and devices are refused; breaking drops the cable and the block. |
 | `CellGuiTest` | 9 | Quantum Cell menu: template, quick deposit, withdrawal, capacity, no duplication when the ticker runs. |

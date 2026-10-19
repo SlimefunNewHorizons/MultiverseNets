@@ -380,6 +380,7 @@ class BlockFlowsTest {
 
         NodeBlob blob = NodeStore.get(grabber);
         blob.targetFace = "WEST";
+        blob.filterBlacklist = true; // blacklist vacia = importa todo
         NodeStore.put(grabber, blob);
 
         server.getScheduler().performOneTick();
@@ -427,6 +428,59 @@ class BlockFlowsTest {
         assertEquals(0, net.storage().count(i -> i.getType() == Material.GOLD_INGOT),
                 "vacuum does not collect unallowed items");
         assertFalse(goldDrop.isDead(), "unfiltered gold remains on the ground");
+    }
+
+    /**
+     * [EN] A Vacuum in whitelist mode with an empty filter collects nothing.
+     * [ES] Un Vacuum en whitelist con el filtro vacío no recoge nada.
+     */
+    @Test
+    void vacuumWithEmptyWhitelistCollectsNothing() {
+        Block ctrl = place(0, 64, 0, DeviceType.MVN_CONTROLLER);
+        plugin.networks().registerController(ctrl);
+        place(1, 64, 0, DeviceType.MVN_CELL_T1);
+        Block vacuum = place(0, 64, 1, DeviceType.MVN_VACUUM);
+        Network net = plugin.networks().networkByController(ctrl.getLocation());
+        net.scan();
+
+        Item drop = world.dropItem(vacuum.getLocation().clone().add(0.5, 1.0, 0.5),
+                new ItemStack(Material.IRON_INGOT, 16));
+        drop.setPickupDelay(0);
+
+        server.getScheduler().performTicks(50);
+
+        assertEquals(0, net.storage().count(i -> i.getType() == Material.IRON_INGOT),
+                "empty whitelist must not collect anything");
+        assertFalse(drop.isDead(), "item stays on the ground");
+    }
+
+    /**
+     * [EN] A Grabber in whitelist mode with an empty filter imports nothing; an empty blacklist imports everything.
+     * [ES] Un Grabber en whitelist con el filtro vacío no importa nada; con blacklist vacía lo importa todo.
+     */
+    @Test
+    void grabberWithEmptyWhitelistImportsNothing() {
+        Block ctrl = place(0, 64, 0, DeviceType.MVN_CONTROLLER);
+        plugin.networks().registerController(ctrl);
+        place(1, 64, 0, DeviceType.MVN_CELL_T1);
+        Block grabber = place(0, 64, 1, DeviceType.MVN_GRABBER);
+        Network net = plugin.networks().networkByController(ctrl.getLocation());
+        net.scan();
+
+        Block chest = world.getBlockAt(0, 64, 2);
+        chest.setType(Material.CHEST);
+        ((org.bukkit.block.Chest) chest.getState()).getInventory().addItem(new ItemStack(Material.DIAMOND, 10));
+
+        server.getScheduler().performTicks(50);
+        assertEquals(0, net.storage().count(i -> i.getType() == Material.DIAMOND),
+                "empty whitelist must not import anything");
+
+        NodeBlob blob = NodeStore.get(grabber);
+        blob.filterBlacklist = true;
+        NodeStore.put(grabber, blob);
+        server.getScheduler().performTicks(50);
+        assertEquals(10, net.storage().count(i -> i.getType() == Material.DIAMOND),
+                "empty blacklist imports everything");
     }
 
     /**
@@ -607,7 +661,9 @@ class BlockFlowsTest {
         plugin.networks().invalidateNear(cell);
         Block grabber = dimension.getBlockAt(0, 64, 1);
         grabber.setType(DeviceType.MVN_GRABBER_HT.material());
-        NodeStore.put(grabber, NodeBlob.create(DeviceType.MVN_GRABBER_HT.name()));
+        NodeBlob grabberBlob = NodeBlob.create(DeviceType.MVN_GRABBER_HT.name());
+        grabberBlob.filterBlacklist = true; // blacklist vacia = importa todo
+        NodeStore.put(grabber, grabberBlob);
         plugin.networks().invalidateNear(grabber);
 
         Block chest = dimension.getBlockAt(0, 64, 2);
