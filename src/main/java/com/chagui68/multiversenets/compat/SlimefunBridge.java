@@ -906,7 +906,7 @@ public final class SlimefunBridge {
 
                     Method mGetRecipe = itemClass.getMethod("getRecipe");
                     ItemStack[] recipe = (ItemStack[]) mGetRecipe.invoke(item);
-                    if (recipe == null || recipe.length != 9) {
+                    if (recipe == null || recipe.length != 9 || hasPackInput(recipe)) {
                         continue;
                     }
 
@@ -945,6 +945,22 @@ public final class SlimefunBridge {
         } catch (Throwable t) {
             Logger.getLogger("MultiverseNets").log(Level.WARNING, "Failed to load Slimefun recipes", t);
         }
+    }
+
+    /**
+     * Mejoras de mochila (DankTech2: DK2_PACK_n / DK2_TRASH_n sobre el pack anterior). El crafter
+     * de la red entrega la plantilla limpia, así que el contenido del pack consumido se perdería.
+     */
+    static boolean hasPackInput(ItemStack[] recipe) {
+        for (ItemStack input : recipe) {
+            String id = getId(input);
+            if (id == null) continue;
+            String upper = id.toUpperCase(Locale.ROOT);
+            if (upper.contains("BACKPACK") || upper.matches("DK2_(PACK|TRASH)_\\d+")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

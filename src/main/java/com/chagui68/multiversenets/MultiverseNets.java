@@ -95,7 +95,12 @@ public class MultiverseNets extends JavaPlugin {
         new com.chagui68.multiversenets.listen.CraftingListener(this);
 
         // Safety net: in case datapack/server reload wipes dynamic recipes during startup
-        getServer().getScheduler().runTask(this, () -> Items.registerRecipes(this));
+        getServer().getScheduler().runTask(this, () -> {
+            Items.registerRecipes(this);
+            // Addons de Slimefun que cargan despues de MultiverseNets (p. ej. DankTech2) registran
+            // sus items en su onEnable: en el primer tick ya estan todos.
+            com.chagui68.multiversenets.compat.SlimefunBridge.loadSlimefunRecipes();
+        });
         getServer().getScheduler().runTaskLater(this, () -> {
             Items.registerRecipes(this);
             for (org.bukkit.entity.Player p : getServer().getOnlinePlayers()) {
