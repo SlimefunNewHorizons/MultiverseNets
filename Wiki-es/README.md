@@ -74,6 +74,7 @@ Las cantidades son los valores por defecto de `config.yml`; todas se pueden conf
 | **Celda Cuántica T1–T6** | `mvn_cell_t1` … `mvn_cell_t6` · Terracota (normal, naranja, amarilla, lima, cian, morada) | Guarda **un tipo de ítem** cada una: 65.536 / 262.144 / 1.048.576 / 16.777.216 / 268.435.456 / 2.000.000.000 ítems. Una celda vacía adopta el primer tipo que no tenga otro sitio. | Conéctala. Clic derecho para ver o gestionar su contenido. Al romperla la carga queda en el ítem. Se mejora un nivel en la Quantum Workbench o en la mesa de crafteo (celda rodeada de 8 diamantes) conservando la carga. |
 | **Infinity Barrel** | `mvn_infinity_barrel` · Barril | Igual que una celda — un tipo de ítem — con `barrel.capacity` (2.000.000.000), pero **sigue registrado** a su ítem cuando se vacía. Los ítems con id propio (Slimefun y otros plugins) se reconocen por su id y su texto visible, así un ítem que sacas siempre vuelve a entrar aunque su nombre o lore se hayan guardado de otra forma. | Clic derecho: clic en *Set Item* con un ítem en el cursor para registrarlo; clic derecho en *Set Item* con el cursor vacío borra el registro (solo si está vacío). Las tolvas **no** interactúan con él (ver abajo). |
 | **Greedy Cell** | `mvn_greedy_cell` · Bloque de slime | Con filtro: un **sumidero prioritario**. Los ítems que entran y pasan su filtro van a ella antes que a cualquier otro almacenamiento; cada ciclo extrae hasta 512 más de la red y empuja hasta 256 a los contenedores vecinos **que no son de la red** (cofres, máquinas de Slimefun). Guarda varios tipos, hasta `greedy.capacity` (262.144) en total. Sin filtro: almacenamiento de desbordamiento, solo cuando todo lo demás está lleno. | Clic derecho para poner el filtro y ver su búfer. Funciona como **filtro interno**: un ítem definido en su filtro siempre conserva **1 unidad** dentro, lo saque quien lo saque (Pushers, terminal, crafteo, su propio reparto a contenedores). Si un Pusher de la red tiene ese ítem en su **whitelist**, la Greedy Cell suelta **todo** (también la última unidad) a las celdas y deja de tomarlo mientras ese Pusher exista. El puente inalámbrico nunca saca de ella. |
+| **Container Connector** (Conector de Contenedores) | `mvn_container_connector` · Luz de rana ocre | Enlaza a su red los **contenedores vanilla que toca** (cofres, cofres trampa y de cobre, barriles, shulkers): el Terminal muestra sus ítems, los depósitos los llenan y las retiradas los vacían. Son el **último** almacenamiento en los dos sentidos (ver el orden abajo). Los ítems se mueven tal cual; un shulker nunca entra en otro. Un cofre doble cuenta una vez. | Conéctalo a la red y pon contenedores en cualquier lado. Los Grabbers, Pushers y Greedy Cells de la **misma** red no tocan los contenedores enlazados (ya son su almacenamiento). En terreno protegido el contenedor debe estar en terreno que la red puede usar. |
 | **Quantum Workbench** | `mvn_quantum_workbench` · Bloque de coral cerebro | Sube una Celda Cuántica T1–T5 al siguiente nivel conservando la carga. | Celda en el centro, 8 diamantes alrededor, pulsa *Entangle & Upgrade* y recoge el resultado. |
 
 ### 💧 Fluidos
@@ -157,10 +158,10 @@ codificarlos. Sus recetas están en [Recetas y funciones](Recipes.md).
 | Componente | id · ítem | Sirve para fabricar |
 |---|---|---|
 | **Silicon Wafer** (Oblea de Silicio, ×2) | `mvn_silicon_wafer` · Cristales de prismarina | Network Circuit, Storage Matrix, Blueprint en blanco |
-| **Network Circuit** (Circuito de Red, ×2) | `mvn_network_circuit` · Fragmento de prismarina | Controlador, Cable, Terminal, Simple Grabber, Simple Pusher, Vacuum, Purger, Quota Limiter, Monitor, Probe, los dos Recipe Encoders, Configuration Wrench; Logic Processor, Storage Matrix |
+| **Network Circuit** (Circuito de Red, ×2) | `mvn_network_circuit` · Fragmento de prismarina | Controlador, Cable, Terminal, Simple Grabber, Simple Pusher, Vacuum, Purger, Quota Limiter, Monitor, Probe, los dos Recipe Encoders, Configuration Wrench, Container Connector; Logic Processor, Storage Matrix |
 | **Logic Processor** (Procesador Lógico) | `mvn_logic_processor` · Caparazón de shulker | Controlador, Auto-Crafter y Slimefun Auto-Crafter, los dos Request Crafters, Request Terminal, Crafting Grid; Quantum Core (×2) |
 | **Storage Matrix** (Matriz de Almacenamiento) | `mvn_storage_matrix` · Fragmento de disco | Celda Cuántica T1, Infinity Barrel, Greedy Cell, Quantum Fluid Cell, DRAM Bay, L1 CPU Cache Module |
-| **Transfer Coil** (Bobina de Transferencia, ×2) | `mvn_transfer_coil` · Gancho de cuerda | Grabber simple y avanzado, Pusher simple y avanzado, Vacuum, Liquid Pump |
+| **Transfer Coil** (Bobina de Transferencia, ×2) | `mvn_transfer_coil` · Gancho de cuerda | Grabber simple y avanzado, Pusher simple y avanzado, Vacuum, Liquid Pump, Container Connector |
 | **Quantum Core** (Núcleo Cuántico) | `mvn_quantum_core` · Fragmento de eco | Terminal Inalámbrico, Wireless Transmitter, Wireless Receiver, Network Router, Quantum Workbench |
 
 ### 🐔 GeneticChickengineering
@@ -217,11 +218,12 @@ consulta los **Quota Limiters** y luego llena en este orden:
 | 6 | **Barriles de Slimefun** | vacíos |
 | 7 | **Celdas Cuánticas / Infinity Barrels** | vacías (la celda adopta el tipo) |
 | 8 | **Greedy Cells sin filtro** | desbordamiento general |
+| 9 | **Contenedores enlazados por un Container Connector** | primero sobre stacks del mismo ítem, luego ranuras vacías |
 
 Lo que no cabe vuelve a quien lo depositó (nunca se borra).
 
 Las retiradas leen en este orden: módulos de memoria → Celdas Cuánticas / Infinity Barrels →
-barriles de Slimefun → Greedy Cells. Pushers, terminales, crafteo y la API pueden sacar de las Greedy
+barriles de Slimefun → Greedy Cells → contenedores enlazados. Pushers, terminales, crafteo y la API pueden sacar de las Greedy
 Cells, pero una Greedy Cell siempre conserva **1 unidad** de cada ítem definido en su filtro (su
 filtro interno). Un Pusher que tiene el ítem en su **whitelist** lo libera: la Greedy Cell pasa todo
 al resto del almacenamiento y deja de tomarlo mientras ese Pusher exista. La succión de la propia
@@ -416,6 +418,7 @@ receta mientras la sección `slimefun-machines` de `config.yml` las tenga activa
 | Network Probe | <pre>· A ·<br/>A S A<br/>· C ·</pre> | A = Fragmento de amatista · S = Catalejo · C = Network Circuit |
 | Quantum Workbench | <pre>D Q D<br/>D C D<br/>D D D</pre> | D = Diamante · Q = Quantum Core · C = Mesa de crafteo |
 | Infinity Barrel | <pre>N M N<br/>D B D<br/>N D N</pre> | N = Lingote de netherita · M = Storage Matrix · D = Bloque de diamante · B = Barril |
+| Container Connector | <pre>I N I<br/>C T C<br/>I N I</pre> | I = Lingote de hierro · N = Network Circuit · C = Cofre · T = Transfer Coil |
 | Network Router | <pre>· L ·<br/>· C ·<br/>· Q ·</pre> | L = Pararrayos · C = Cable de Red · Q = Quantum Core |
 | L1 CPU Cache | <pre>C R C<br/>R M R<br/>C R C</pre> | C = Lingote de cobre · R = Redstone · M = Storage Matrix |
 | L2 CPU Cache | <pre>G L G<br/>L P L<br/>G L G</pre> | G = Lingote de oro · L = Lapislázuli · P = L1 CPU Cache Module (conserva sus ítems) |

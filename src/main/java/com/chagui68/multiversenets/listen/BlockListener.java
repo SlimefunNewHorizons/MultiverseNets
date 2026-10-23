@@ -749,19 +749,21 @@ public class BlockListener implements Listener {
      *
      * ES: Bloques que no son nodos pueden formar parte de una red (cables y barriles de Slimefun).
      * Las redes ya no se reescanean cada segundo, así que colocar o romper uno junto a una red la
-     * marca para reescanear pronto.
+     * marca para reescanear pronto. Un cofre, barril o shulker también, con o sin Slimefun: junto a
+     * un Container Connector entra o sale del almacenamiento de la red.
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onForeignPlace(BlockPlaceEvent event) {
-        if (Settings.compatSlimefun() && SlimefunBridge.isAvailable()
-                && Items.typeOf(event.getItemInHand()) == null) {
+        if (Items.typeOf(event.getItemInHand()) == null && (Settings.compatSlimefun() && SlimefunBridge.isAvailable()
+                || com.chagui68.multiversenets.net.VanillaStorage.isStorageMaterial(event.getBlockPlaced().getType()))) {
             manager.foreignBlockChanged(event.getBlockPlaced());
         }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onForeignBreak(BlockBreakEvent event) {
-        if (Settings.compatSlimefun() && SlimefunBridge.isAvailable() && !NodeStore.hasNode(event.getBlock())) {
+        if (!NodeStore.hasNode(event.getBlock()) && (Settings.compatSlimefun() && SlimefunBridge.isAvailable()
+                || com.chagui68.multiversenets.net.VanillaStorage.isStorageMaterial(event.getBlock().getType()))) {
             manager.foreignBlockChanged(event.getBlock());
         }
     }

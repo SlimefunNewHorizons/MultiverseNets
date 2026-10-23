@@ -156,14 +156,14 @@ public final class GuideContent {
         topic(Material.CHEST, "Where items are stored", "Dónde se guardan los ítems",
                 "Every deposit fills in this order: Greedy Cells whose filter matches, memory modules that "
                         + "already hold the item, Slimefun barrels, cells and barrels that hold it, free memory, "
-                        + "empty Slimefun barrels, empty cells (they adopt the item) and finally Greedy Cells without "
-                        + "a filter. A Greedy Cell keeps 1 of each item defined in its filter, unless a Pusher whitelists "
+                        + "empty Slimefun barrels, empty cells (they adopt the item), Greedy Cells without a filter "
+                        + "and finally containers linked by a Container Connector. A Greedy Cell keeps 1 of each item defined in its filter, unless a Pusher whitelists "
                         + "that item: then it goes to the cells. Quota Limiters cap everything. What does not fit goes "
                         + "back; nothing is deleted.",
                 "Cada depósito llena en este orden: Greedy Cells cuyo filtro coincide, módulos de memoria que ya "
                         + "tienen el ítem, barriles de Slimefun, celdas y barriles que lo tienen, memoria libre, "
-                        + "barriles de Slimefun vacíos, celdas vacías (adoptan el ítem) y por último Greedy Cells sin "
-                        + "filtro. Una Greedy Cell conserva 1 de cada ítem definido en su filtro, salvo que un Pusher "
+                        + "barriles de Slimefun vacíos, celdas vacías (adoptan el ítem), Greedy Cells sin filtro y "
+                        + "por último los contenedores enlazados por un Container Connector. Una Greedy Cell conserva 1 de cada ítem definido en su filtro, salvo que un Pusher "
                         + "tenga ese ítem en su whitelist: entonces va a las celdas. Los Quota Limiters ponen tope a "
                         + "todo. Lo que no cabe vuelve; nada se borra.");
         topic(Material.HOPPER, "Filters", "Filtros",
@@ -355,6 +355,24 @@ public final class GuideContent {
                 "Clic derecho para poner el filtro y ver su búfer. Es un filtro interno: un ítem definido en él "
                         + "siempre deja 1 unidad dentro, aunque los Pushers saquen el resto. Un Pusher con ese ítem en "
                         + "su whitelist lo libera: la Greedy Cell pasa todo a las celdas y deja de tomarlo.");
+        add(DeviceType.MVN_CONTAINER_CONNECTOR, Category.STORAGE, "Conector de Contenedores",
+                "Links the vanilla containers touching it (chests, trapped and copper chests, barrels, shulker "
+                        + "boxes) to its network: the Terminal shows their items, deposits fill them and "
+                        + "withdrawals empty them. They are the last storage: the network fills its own storage "
+                        + "first and takes from it first. Items move exactly as they are; a shulker box never "
+                        + "goes into another one.",
+                "Enlaza a su red los contenedores vanilla que toca (cofres, cofres trampa y de cobre, barriles, "
+                        + "shulkers): el Terminal muestra sus ítems, los depósitos los llenan y las retiradas los "
+                        + "vacían. Son el último almacenamiento: la red llena antes el suyo y saca antes de él. "
+                        + "Los ítems se mueven tal cual; un shulker nunca entra en otro.",
+                "Connect it to the network and put containers on any of its sides; a double chest counts once. "
+                        + "Grabbers, Pushers and Greedy Cells of the same network leave linked containers alone "
+                        + "(they already are its storage). On claimed land the container must be in land the "
+                        + "network may use.",
+                "Conéctalo a la red y pon contenedores en cualquiera de sus lados; un cofre doble cuenta una vez. "
+                        + "Los Grabbers, Pushers y Greedy Cells de la misma red no tocan los contenedores "
+                        + "enlazados (ya son su almacenamiento). En terreno protegido el contenedor debe estar en "
+                        + "terreno que la red puede usar.");
         add(DeviceType.MVN_QUANTUM_WORKBENCH, Category.STORAGE, "Mesa Cuántica",
                 "Upgrades a Quantum Cell T1-T5 to the next tier keeping its cargo.",
                 "Sube una Celda Cuántica T1-T5 al siguiente nivel conservando su carga.",

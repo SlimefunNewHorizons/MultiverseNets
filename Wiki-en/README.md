@@ -75,6 +75,7 @@ Rates are the defaults from `config.yml`; every one of them is configurable (see
 | **Quantum Cell T1–T6** | `mvn_cell_t1` … `mvn_cell_t6` · Terracotta (plain, orange, yellow, lime, cyan, purple) | Stores **one item type** each: 65,536 / 262,144 / 1,048,576 / 16,777,216 / 268,435,456 / 2,000,000,000 items. An empty cell takes the first item type that has nowhere else to go. | Connect it. Right-click to see or manage its contents. Breaking it keeps the cargo in the item. Upgrade one tier with the Quantum Workbench or in a crafting table (cell surrounded by 8 diamonds); the cargo is kept. |
 | **Infinity Barrel** | `mvn_infinity_barrel` · Barrel | Same as a cell — one item type — with `barrel.capacity` (2,000,000,000), but it **stays registered** to its item when it empties. Items with their own id (Slimefun and other plugins) are recognised by that id and their visible text, so an item you take out always goes back in, even if its name or lore was stored differently. | Right-click: click *Set Item* with an item on the cursor to register it; right-click *Set Item* with an empty cursor clears the registration (only when empty). Hoppers do **not** interact with it (see below). |
 | **Greedy Cell** | `mvn_greedy_cell` · Slime Block | With a filter: a **priority sink**. Incoming items matching its filter go to it before any other storage, every cycle it pulls up to 512 more of them from the network, and it pushes up to 256 per cycle into adjacent **non-network** containers (chests, Slimefun machines). Holds several types, up to `greedy.capacity` (262,144) in total. Without a filter: general overflow storage, used only when everything else is full. | Right-click to set the filter and see its buffer. It works as an **internal filter**: an item defined in its filter always keeps **1 unit** inside, whatever takes it out (Pushers, terminal, crafting, its own push to containers). If a Pusher of the network has that item in its **whitelist**, the Greedy Cell releases **all** of it (the last unit too) to the cells and stops taking it while that Pusher exists. The wireless bridge never takes from it. |
+| **Container Connector** | `mvn_container_connector` · Ochre Froglight | Links the **vanilla containers touching it** (chests, trapped and copper chests, barrels, shulker boxes) to its network: the Terminal shows their items, deposits fill them and withdrawals empty them. They are the **last** storage in both directions (see the order below). Items move exactly as they are; a shulker box never goes into another one. A double chest counts once. | Connect it to the network and put containers on any side. Grabbers, Pushers and Greedy Cells of the **same** network leave linked containers alone (they already are its storage). On claimed land the container must be in land the network may use. |
 | **Quantum Workbench** | `mvn_quantum_workbench` · Brain Coral Block | Upgrades a Quantum Cell T1–T5 to the next tier, keeping its cargo. | Cell in the centre, 8 diamonds around it, press *Entangle & Upgrade*, take the result. |
 
 ### 💧 Fluids
@@ -158,10 +159,10 @@ Blueprints encoded with the old device recipes no longer work: encode them again
 | Component | id · item | Used to craft |
 |---|---|---|
 | **Silicon Wafer** (×2) | `mvn_silicon_wafer` · Prismarine Crystals | Network Circuit, Storage Matrix, Blank Blueprint |
-| **Network Circuit** (×2) | `mvn_network_circuit` · Prismarine Shard | Controller, Cable, Terminal, Simple Grabber, Simple Pusher, Vacuum, Purger, Quota Limiter, Monitor, Probe, both Recipe Encoders, Configuration Wrench; Logic Processor, Storage Matrix |
+| **Network Circuit** (×2) | `mvn_network_circuit` · Prismarine Shard | Controller, Cable, Terminal, Simple Grabber, Simple Pusher, Vacuum, Purger, Quota Limiter, Monitor, Probe, both Recipe Encoders, Configuration Wrench, Container Connector; Logic Processor, Storage Matrix |
 | **Logic Processor** | `mvn_logic_processor` · Shulker Shell | Controller, Auto-Crafter and Slimefun Auto-Crafter, both Request Crafters, Request Terminal, Crafting Grid; Quantum Core (×2) |
 | **Storage Matrix** | `mvn_storage_matrix` · Disc Fragment | Quantum Cell T1, Infinity Barrel, Greedy Cell, Quantum Fluid Cell, DRAM Bay, L1 CPU Cache Module |
-| **Transfer Coil** (×2) | `mvn_transfer_coil` · Tripwire Hook | Simple and Advanced Grabber, Simple and Advanced Pusher, Vacuum, Liquid Pump |
+| **Transfer Coil** (×2) | `mvn_transfer_coil` · Tripwire Hook | Simple and Advanced Grabber, Simple and Advanced Pusher, Vacuum, Liquid Pump, Container Connector |
 | **Quantum Core** | `mvn_quantum_core` · Echo Shard | Wireless Terminal, Wireless Transmitter, Wireless Receiver, Network Router, Quantum Workbench |
 
 ### 🐔 GeneticChickengineering
@@ -219,11 +220,12 @@ the vacuum, the terminal, a crafting result or the wireless bridge — first che
 | 6 | **Slimefun barrels** | empty |
 | 7 | **Quantum Cells / Infinity Barrels** | empty (the cell adopts the item type) |
 | 8 | **Greedy Cells without a filter** | general overflow |
+| 9 | **Containers linked by a Container Connector** | stacks of the same item first, then empty slots |
 
 Whatever does not fit is returned to whoever deposited it (it is never deleted).
 
 Withdrawals read in this order: memory modules → Quantum Cells / Infinity Barrels → Slimefun
-barrels → Greedy Cells. Pushers, terminals, crafting and the API can take from Greedy Cells, but a
+barrels → Greedy Cells → linked containers. Pushers, terminals, crafting and the API can take from Greedy Cells, but a
 Greedy Cell always keeps **1 unit** of every item defined in its filter (its internal filter). A
 Pusher that has the item in its **whitelist** releases it instead: the Greedy Cell moves all of it
 to the other storages and stops taking it while that Pusher exists. A Greedy Cell's own suction and
@@ -415,6 +417,7 @@ vanilla recipe (a Wireless Terminal is no longer spent as a Nether Star).
 | Network Probe | <pre>· A ·<br/>A S A<br/>· C ·</pre> | A = Amethyst Shard · S = Spyglass · C = Network Circuit |
 | Quantum Workbench | <pre>D Q D<br/>D C D<br/>D D D</pre> | D = Diamond · Q = Quantum Core · C = Crafting Table |
 | Infinity Barrel | <pre>N M N<br/>D B D<br/>N D N</pre> | N = Netherite Ingot · M = Storage Matrix · D = Diamond Block · B = Barrel |
+| Container Connector | <pre>I N I<br/>C T C<br/>I N I</pre> | I = Iron Ingot · N = Network Circuit · C = Chest · T = Transfer Coil |
 | Network Router | <pre>· L ·<br/>· C ·<br/>· Q ·</pre> | L = Lightning Rod · C = Network Cable · Q = Quantum Core |
 | L1 CPU Cache | <pre>C R C<br/>R M R<br/>C R C</pre> | C = Copper Ingot · R = Redstone · M = Storage Matrix |
 | L2 CPU Cache | <pre>G L G<br/>L P L<br/>G L G</pre> | G = Gold Ingot · L = Lapis Lazuli · P = L1 CPU Cache Module (keeps its items) |

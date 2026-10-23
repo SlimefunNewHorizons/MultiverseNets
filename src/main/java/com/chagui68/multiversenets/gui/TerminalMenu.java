@@ -590,6 +590,7 @@ public class TerminalMenu extends MenuHolder {
             addPart(lore, "▤ Infinity Barrels", parts.barrels(), NamedTextColor.LIGHT_PURPLE);
             addPart(lore, "⚡ Greedy Buffer (reserved)", parts.greedy(), NamedTextColor.GREEN);
             addPart(lore, "◆ Slimefun Barrels", parts.slimefunBarrels(), NamedTextColor.GOLD);
+            addPart(lore, "▥ Linked Containers", parts.containers(), NamedTextColor.WHITE);
         } else {
             lore.add(line("Out of stock", NamedTextColor.DARK_GRAY));
         }

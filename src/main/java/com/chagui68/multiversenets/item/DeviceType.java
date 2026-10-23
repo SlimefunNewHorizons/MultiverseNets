@@ -114,6 +114,8 @@ public enum DeviceType {
     MVN_MODULE_LOADER(Material.WAXED_OXIDIZED_COPPER_BULB, "DRAM Loader", true, -1),
     /** Lists and edits every Quota Limiter of its network / Lista y edita los Quota Limiters de su red */
     MVN_QUOTA_MANAGER(Material.VERDANT_FROGLIGHT, "Quota Manager", true, -1),
+    /** Links the vanilla containers touching it (chests, barrels, shulkers) as network storage / Enlaza cofres, barriles y shulkers como almacenamiento */
+    MVN_CONTAINER_CONNECTOR(Material.OCHRE_FROGLIGHT, "Container Connector", true, -1),
 
     /*
      * Crafting components: only ingredients of MultiverseNets recipes, so the device recipes never

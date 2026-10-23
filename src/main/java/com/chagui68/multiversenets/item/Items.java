@@ -198,6 +198,10 @@ public final class Items {
                 lore.add(Component.text("Shows and edits every Quota Limiter of its network.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
                 lore.add(Component.text("Add, set or remove limited items; each uses a free limiter.", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
             }
+            case MVN_CONTAINER_CONNECTOR -> {
+                lore.add(Component.text("Chests, barrels and shulker boxes touching it become network storage.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("Used last: the network fills its own storage first.", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+            }
             case MVN_MODULE_UNLOADER -> {
                 lore.add(Component.text("Empties memory modules (cards) into the network.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
                 lore.add(Component.text("Holds 9 cards; what does not fit stays on the card.", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
@@ -1018,6 +1022,14 @@ public final class Items {
             r.setIngredient('P', Material.PAPER);
             device(r, 'M', DeviceType.MVN_MONITOR);
             device(r, 'L', DeviceType.MVN_LIMITER);
+        });
+        // El conector de contenedores: dos cofres, la bobina que mueve los items y el circuito de red.
+        shaped(plugin, "container_connector", create(DeviceType.MVN_CONTAINER_CONNECTOR), r -> {
+            r.shape("INI", "CTC", "INI");
+            r.setIngredient('I', Material.IRON_INGOT);
+            device(r, 'N', DeviceType.MVN_NETWORK_CIRCUIT);
+            r.setIngredient('C', Material.CHEST);
+            device(r, 'T', DeviceType.MVN_TRANSFER_COIL);
         });
         // Descargador y cargador: un DRAM Bay mas lo que mueve los items (tolva para sacar, soltador y
         // comparador para la cantidad al cargar).

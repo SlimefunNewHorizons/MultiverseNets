@@ -50,7 +50,8 @@ R G R
 
 - **Result**: 2× Network Circuit (hand item, Prismarine Shard)
 - **Function**: Basic network logic. The Controller, cables, Terminal, Simple Grabber and Pusher,
-  Vacuum, Purger, Quota Limiter, Monitor, Probe, both Encoders and the Configuration Wrench use it,
+  Vacuum, Purger, Quota Limiter, Monitor, Probe, both Encoders, the Configuration Wrench and the
+  Container Connector use it,
   and it is the base of the Logic Processor and the Storage Matrix. Only an ingredient.
 
 ---
@@ -98,7 +99,8 @@ K R K
 > K = **Copper Ingot** · R = **Redstone** · I = **Iron Ingot**
 
 - **Result**: 2× Transfer Coil (hand item, Tripwire Hook)
-- **Function**: Moves things: Grabbers and Pushers (simple and advanced), Vacuum and Liquid Pump.
+- **Function**: Moves things: Grabbers and Pushers (simple and advanced), Vacuum, Liquid Pump and
+  Container Connector.
   Only an ingredient.
 
 ---
@@ -494,6 +496,25 @@ G M G
     its filter always keeps 1 unit inside. A Pusher with that item in its whitelist releases it: the
     Greedy Cell moves all of it to the cells and stops taking it. The wireless bridge never takes
     from it.
+
+---
+
+### Container Connector · `mvn_container_connector`
+
+```
+I N I
+C T C
+I N I
+```
+
+> I = **Iron Ingot** · N = **Network Circuit** · C = **Chest** · T = **Transfer Coil**
+
+- **Result**: 1× Container Connector (Ochre Froglight)
+- **Function**: Links the vanilla containers touching it (chests, trapped and copper chests,
+  barrels, shulker boxes) to its network as storage. The Terminal shows their items, deposits fill
+  them and withdrawals empty them. They are the last storage: the network fills its own storage first
+  and takes from it first. Items move exactly as they are; a shulker box never goes into another one.
+  Grabbers, Pushers and Greedy Cells of the same network leave linked containers alone.
 
 ---
 

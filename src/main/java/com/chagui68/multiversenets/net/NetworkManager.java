@@ -249,7 +249,7 @@ public class NetworkManager {
                 continue;
             }
             for (long pos : around) {
-                if (net.contains(pos) || net.slimefunBarrels().contains(pos)) {
+                if (net.contains(pos) || net.slimefunBarrels().contains(pos) || net.vanillaContainers().contains(pos)) {
                     net.markStale();
                     break;
                 }

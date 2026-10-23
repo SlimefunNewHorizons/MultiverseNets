@@ -53,7 +53,7 @@ R G R
 - **Resultado**: 2× Network Circuit (ítem de mano, Fragmento de prismarina)
 - **Función**: Lógica básica de red. La usan el Controlador, los cables, el Terminal, el Grabber y
   el Pusher simples, el Vacuum, el Purger, el Quota Limiter, el Monitor, la Probe, los dos Encoders
-  y la Configuration Wrench, y es la base del Logic Processor y la Storage Matrix. Solo es un
+  la Configuration Wrench y el Container Connector, y es la base del Logic Processor y la Storage Matrix. Solo es un
   ingrediente.
 
 ---
@@ -101,8 +101,8 @@ K R K
 > K = **Lingote de cobre** · R = **Redstone** · I = **Lingote de hierro**
 
 - **Resultado**: 2× Transfer Coil (ítem de mano, Gancho de cuerda)
-- **Función**: Mueve cosas: Grabbers y Pushers (simples y avanzados), Vacuum y Liquid Pump. Solo es
-  un ingrediente.
+- **Función**: Mueve cosas: Grabbers y Pushers (simples y avanzados), Vacuum, Liquid Pump y
+  Container Connector. Solo es un ingrediente.
 
 ---
 
@@ -503,6 +503,25 @@ G M G
   - **Filtro interno**: Pushers, terminales y crafteo pueden sacar de ella, pero un ítem definido en
     su filtro siempre deja 1 unidad dentro. Un Pusher con ese ítem en su whitelist lo libera: la
     Greedy Cell pasa todo a las celdas y deja de tomarlo. El puente inalámbrico nunca saca de ella.
+
+---
+
+### Container Connector · `mvn_container_connector`
+
+```
+I N I
+C T C
+I N I
+```
+
+> I = **Lingote de hierro** · N = **Network Circuit** · C = **Cofre** · T = **Transfer Coil**
+
+- **Resultado**: 1× Container Connector (Luz de rana ocre)
+- **Función**: Enlaza a su red como almacenamiento los contenedores vanilla que toca (cofres, cofres
+  trampa y de cobre, barriles, shulkers). El Terminal muestra sus ítems, los depósitos los llenan y
+  las retiradas los vacían. Son el último almacenamiento: la red llena antes el suyo y saca antes de
+  él. Los ítems se mueven tal cual; un shulker nunca entra en otro. Los Grabbers, Pushers y Greedy
+  Cells de la misma red no tocan los contenedores enlazados.
 
 ---
 

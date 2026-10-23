@@ -115,6 +115,9 @@ public class NetworkStorage {
     private final List<CellState> greedyCells = new ArrayList<>();
     private List<VirtualCacheState> cachedCaches;
     private List<Block> cachedBarrels;
+    private List<VanillaStorage.Linked> cachedContainers = List.of();
+    private int fingerprintTick = NO_TICK;
+    private long fingerprint;
     private long cachedVersion = -1;
     private long cachedEpoch = -1;
     private int cachedTick = NO_TICK;
@@ -134,7 +137,16 @@ public class NetworkStorage {
 
     /** Changes whenever the stored items may have changed / Cambia cuando pudo cambiar lo guardado. */
     public synchronized long changeStamp() {
-        return changeStamp;
+        if (network.vanillaContainers().isEmpty()) {
+            return changeStamp;
+        }
+        // Un cofre enlazado tambien cambia a mano o con una tolva, sin pasar por la red.
+        int tick = currentTick();
+        if (tick == NO_TICK || tick != fingerprintTick) {
+            fingerprint = VanillaStorage.fingerprint(loadContainers());
+            fingerprintTick = tick;
+        }
+        return changeStamp * 31 + fingerprint;
     }
 
     private static int currentTick() {
@@ -158,6 +170,7 @@ public class NetworkStorage {
         indexCells(cachedStates);
         cachedCaches = loadVirtualCachesUncached();
         cachedBarrels = loadSfBarrelsUncached();
+        cachedContainers = VanillaStorage.load(network);
         cachedTick = tick;
         cachedEpoch = epoch;
         cachedVersion = boundVersion;
@@ -266,6 +279,11 @@ public class NetworkStorage {
     private List<CellState> load() {
         ensureLoaded();
         return cachedStates;
+    }
+
+    private List<VanillaStorage.Linked> loadContainers() {
+        ensureLoaded();
+        return cachedContainers;
     }
 
     private void sync() {
@@ -625,6 +643,12 @@ public class NetworkStorage {
             }
         }
 
+        // 9. Vanilla containers linked by a Container Connector: last, only what the network's own
+        // storage could not take. Sobre stacks del mismo item primero, luego ranuras vacias.
+        if (remaining > 0) {
+            remaining = VanillaStorage.deposit(loadContainers(), item, remaining);
+        }
+
         flush(states, vCaches);
         int left = (int) (remaining + rejectedByQuota);
         if (left < item.getAmount()) {
@@ -839,7 +863,9 @@ public class NetworkStorage {
                 }
             }
         }
-        return null;
+
+        // Pass 4: Linked vanilla containers
+        return VanillaStorage.peek(loadContainers(), matcher, materials);
     }
 
     public synchronized ItemStack withdraw(Predicate<ItemStack> matcher, int want, long excludePos, boolean includeGreedy) {
@@ -965,6 +991,18 @@ public class NetworkStorage {
             }
         }
 
+        // Pass 4: Linked vanilla containers. Only stacks similar to what the other passes took: a
+        // shulker box or a tool comes out exactly as it was stored.
+        if (got < want) {
+            ItemStack taken = VanillaStorage.withdraw(loadContainers(), matcher, materials, result, (int) (want - got));
+            if (taken != null) {
+                if (result == null) {
+                    result = taken;
+                }
+                got += taken.getAmount();
+            }
+        }
+
         flush(states, vCaches);
         if (result == null || got <= 0) {
             return null;
@@ -1020,7 +1058,7 @@ public class NetworkStorage {
                 total += SlimefunBridge.getBarrelStoredAmount(barrel);
             }
         }
-        return total;
+        return total + VanillaStorage.count(loadContainers(), matcher, materials);
     }
 
     public synchronized List<View> view() {
@@ -1075,6 +1113,18 @@ public class NetworkStorage {
             }
         }
 
+        // Linked vanilla containers
+        for (VanillaStorage.Linked container : loadContainers()) {
+            if (!container.valid()) {
+                continue;
+            }
+            for (ItemStack it : container.inventory.getStorageContents()) {
+                if (it != null && !it.getType().isAir()) {
+                    addToBuckets(buckets, it, it.getAmount());
+                }
+            }
+        }
+
         List<View> merged = new ArrayList<>();
         for (List<View> bucket : buckets.values()) {
             merged.addAll(bucket);
@@ -1111,16 +1161,17 @@ public class NetworkStorage {
      * ES: Dónde están las unidades de un ítem, por tipo de almacenamiento. Las partes suman el total
      * del Terminal: nada se cuenta dos veces.
      */
-    public record Breakdown(long memory, long cells, long barrels, long greedy, long slimefunBarrels) {
+    public record Breakdown(long memory, long cells, long barrels, long greedy, long slimefunBarrels,
+                            long containers) {
         public long total() {
-            return memory + cells + barrels + greedy + slimefunBarrels;
+            return memory + cells + barrels + greedy + slimefunBarrels + containers;
         }
     }
 
     /** One pass over every storage of the network for {@code item}. */
     public synchronized Breakdown breakdown(ItemStack item) {
         if (item == null) {
-            return new Breakdown(0, 0, 0, 0, 0);
+            return new Breakdown(0, 0, 0, 0, 0, 0);
         }
         List<CellState> states = load();
         long memory = 0;
@@ -1167,7 +1218,8 @@ public class NetworkStorage {
                 sf += SlimefunBridge.getBarrelStoredAmount(barrel);
             }
         }
-        return new Breakdown(memory, cellTotal, barrelTotal, greedyTotal, sf);
+        long containers = VanillaStorage.count(loadContainers(), i -> StackUtils.itemsMatch(i, item), only(item.getType()));
+        return new Breakdown(memory, cellTotal, barrelTotal, greedyTotal, sf, containers);
     }
 
     /** Units of {@code item} held by memory modules (DRAM Bays), for the Terminal's lore. */

@@ -41,6 +41,8 @@ public class Network {
     private final Long2ObjectOpenHashMap<DeviceType> nodes = new Long2ObjectOpenHashMap<>();
     private final Map<DeviceType, LongOpenHashSet> byType = new EnumMap<>(DeviceType.class);
     private final LongOpenHashSet sfBarrels = new LongOpenHashSet();
+    /** Vanilla containers touching a Container Connector, both halves of a double chest / Contenedores enlazados. */
+    private final LongOpenHashSet containers = new LongOpenHashSet();
     private final NetworkStorage storage = new NetworkStorage(this);
     private final NetworkFluidStorage fluidStorage = new NetworkFluidStorage(this);
     private final NetworkThroughputTracker throughput = new NetworkThroughputTracker();
@@ -83,6 +85,21 @@ public class Network {
 
     public Set<Long> slimefunBarrels() {
         return sfBarrels;
+    }
+
+    /** Positions of the vanilla containers linked by Container Connectors / Contenedores enlazados. */
+    public LongOpenHashSet vanillaContainers() {
+        return containers;
+    }
+
+    /**
+     * EN: True when {@code block} is a vanilla container linked to this network: it is network storage,
+     * so this network's Grabbers, Pushers and Greedy Cells leave it alone, as they do with a cell.
+     * ES: True si {@code block} es un contenedor enlazado a esta red: es almacenamiento de la red, así
+     * que sus Grabbers, Pushers y Greedy Cells no lo tocan, igual que a una celda.
+     */
+    public boolean linksContainer(Block block) {
+        return !containers.isEmpty() && containers.contains(PosUtil.pack(block.getX(), block.getY(), block.getZ()));
     }
 
     public NetworkStorage storage() {
@@ -259,6 +276,7 @@ public class Network {
             synchronized (nodes) {
                 nodes.clear();
                 byType.clear();
+                containers.clear();
             }
             error = "controller missing";
             version++;
@@ -356,6 +374,39 @@ public class Network {
             }
         }
 
+        // Contenedores vanilla junto a un Container Connector. Despues del BFS y no dentro: un cofre
+        // que el BFS ya visito desde un cable no volveria a mirarse al llegar al Connector. Las dos
+        // mitades de un cofre doble pasan la proteccion; blockedByProtection ya lo conto el BFS.
+        LongOpenHashSet linked = new LongOpenHashSet();
+        for (var entry : found.long2ObjectEntrySet()) {
+            if (entry.getValue() != DeviceType.MVN_CONTAINER_CONNECTOR) {
+                continue;
+            }
+            fillNeighbors(entry.getLongKey(), neighborBuffer);
+            for (long next : neighborBuffer) {
+                if (found.containsKey(next) || linked.contains(next)
+                        || !world.isChunkLoaded(PosUtil.unpackX(next) >> 4, PosUtil.unpackZ(next) >> 4)) {
+                    continue;
+                }
+                if (checkProtection && !ProtectionBridge.mayActorUse(world, PosUtil.unpackX(next),
+                        PosUtil.unpackY(next), PosUtil.unpackZ(next), owner)) {
+                    continue;
+                }
+                VanillaStorage.Linked container = VanillaStorage.at(block(next));
+                if (container == null) {
+                    continue;
+                }
+                Block partner = container.partner;
+                if (partner != null && checkProtection && !ProtectionBridge.mayActorUse(partner, owner)) {
+                    continue;
+                }
+                linked.add(next);
+                if (partner != null) {
+                    linked.add(PosUtil.pack(partner.getX(), partner.getY(), partner.getZ()));
+                }
+            }
+        }
+
         int loCx = Integer.MAX_VALUE;
         int hiCx = Integer.MIN_VALUE;
         int loCz = Integer.MAX_VALUE;
@@ -363,6 +414,8 @@ public class Network {
         synchronized (nodes) {
             nodes.clear();
             nodes.putAll(found);
+            containers.clear();
+            containers.addAll(linked);
             byType.clear();
             for (var entry : found.long2ObjectEntrySet()) {
                 long pos = entry.getLongKey();

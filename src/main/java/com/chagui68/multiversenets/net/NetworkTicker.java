@@ -540,6 +540,11 @@ public class NetworkTicker {
                 }
                 continue;
             }
+            // Un cofre enlazado por un Container Connector ya es almacenamiento de esta red: sacar de
+            // el solo lo devolveria a la red, como con una celda.
+            if (net.linksContainer(target)) {
+                continue;
+            }
 
             // 1. Slimefun machine compatibility FIRST (machines like Dispensers must not be hijacked by raw container logic)
             boolean machine = Settings.compatSlimefun() && SlimefunBridge.isAvailable() && SlimefunBridge.isMachine(target);
@@ -930,7 +935,7 @@ public class NetworkTicker {
 
     private static PushTarget resolvePushTarget(Network net, Block self, BlockFace face) {
         Block target = self.getRelative(face);
-        if (NodeStore.hasNode(target) || denied(net, target)) {
+        if (NodeStore.hasNode(target) || denied(net, target) || net.linksContainer(target)) {
             return null;
         }
         if (Settings.compatSlimefun() && SlimefunBridge.isAvailable() && SlimefunBridge.isMachine(target)) {
@@ -947,7 +952,7 @@ public class NetworkTicker {
 
     /** Un bloque al que un pusher puede entregar: contenedor o maquina, no un nodo, no ajeno. */
     private static boolean isPushTarget(Network net, Block target) {
-        if (NodeStore.hasNode(target) || denied(net, target)) {
+        if (NodeStore.hasNode(target) || denied(net, target) || net.linksContainer(target)) {
             return false;
         }
         if (Settings.compatSlimefun() && SlimefunBridge.isAvailable() && SlimefunBridge.isMachine(target)) {
@@ -1056,10 +1061,10 @@ public class NetworkTicker {
         int moved = 0;
         for (BlockFace face : facesFor(blob)) {
             Block target = self.getRelative(face);
-            if (NodeStore.hasNode(target) || denied(net, target)) {
+            if (NodeStore.hasNode(target) || denied(net, target) || net.linksContainer(target)) {
                 continue;
             }
-            boolean slimefun = Settings.compatSlimefun() && SlimefunBridge.isAvailable() && SlimefunBridge.isMachine(target);
+            boolean slimefun =Settings.compatSlimefun() && SlimefunBridge.isAvailable() && SlimefunBridge.isMachine(target);
             Inventory inv = null;
             if (!slimefun) {
                 if (!isPotentialContainer(target.getType()) || !(target.getState(false) instanceof InventoryHolder holder)) {
@@ -1182,7 +1187,8 @@ public class NetworkTicker {
                 for (BlockFace face : facesFor(blob)) {
                     Block target = block.getRelative(face);
                     // Critical: Do NOT dump into other network nodes (e.g. Infinity Barrel, Crafter, etc.)
-                    if (NodeStore.hasNode(target)) {
+                    // nor into a container this network already links (it is network storage).
+                    if (NodeStore.hasNode(target) || net.linksContainer(target)) {
                         continue;
                     }
                     if (denied(net, target)) {
