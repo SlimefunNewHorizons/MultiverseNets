@@ -57,7 +57,7 @@ A tener en cuenta:
 - `src/test/java/dev/espi/protectionstones/PSRegion.java` es un stub de la API de ProtectionStones que
   los tests del provider cargan por reflexión.
 
-## 3. Resumen: 52 clases, 359 tests
+## 3. Resumen: 54 clases, 374 tests
 
 | Clase (paquete `com.chagui68.multiversenets` salvo que se indique) | Tests | Cubre |
 | --- | --- | --- |
@@ -96,7 +96,7 @@ A tener en cuenta:
 | `StackUtilsFastPathTest` | 4 | La comparación rápida de ítems: ítems idénticos casan sea cual sea la cantidad, ids de Slimefun distintos nunca casan, un ítem con meta nunca casa con uno sin ella, el lore se ignora cuando se pide. |
 | `StatusLightTest` | 4 | La luz de estado es verde sobre un bloque conectado y roja al cortar el enlace; roja sin red; nunca une dos redes; romperla la olvida. |
 | `ToolsTest` | 3 | Llave y Rake son herramientas de mano; el Receptor tiene filtro; los filtros empiezan en whitelist. |
-| `TransmissionFixesTest` | 13 | Transmisión de ítems y fluidos: depósitos de fluido todo o nada, la bomba nunca duplica fluido, puente con filtro solo de plantillas, el puente nunca vacía Greedy Cells, un dispositivo compartido por dos controladores trabaja una vez por ciclo, los resultados de crafteo parciales se deshacen, la llave pega plantillas exactas, el rake devuelve el dispositivo, filtros/cara/búfer de tránsito sobreviven a romper y colocar, los búferes de tránsito de más de 99 unidades se guardan sin fallar. |
+| `TransmissionFixesTest` | 15 | Transmisión de ítems y fluidos: depósitos de fluido todo o nada, la bomba nunca duplica fluido, puente con filtro solo de plantillas, el puente nunca vacía Greedy Cells, ningún extremo del puente anula el filtro del otro (los dos sentidos), un dispositivo compartido por dos controladores trabaja una vez por ciclo, los resultados de crafteo parciales se deshacen, la llave pega plantillas exactas, el rake devuelve el dispositivo, filtros/cara/búfer de tránsito sobreviven a romper y colocar, los búferes de tránsito de más de 99 unidades se guardan sin fallar. |
 | `UpgradedFeaturesTest` | 6 | Módulo de memoria en un DRAM Bay, Router, conteo de nodos por chunk, búfer de tránsito del grabber, caché conservada al romper, romper en creativo no suelta nada. |
 | `compat.NetworkOwnershipTest` | 9 | Una red funciona dentro del reclamo de su dueño; otras redes y un dueño null son extraños; el terreno público sigue abierto; providers rotos o sin conectar no dan acceso; las respuestas de dueño no se filtran entre redes. |
 | `compat.ProtectionCacheTest` | 4 | Las respuestas de protección se cachean: el terreno libre se pregunta una vez, dueño y extraño conservan sus propias respuestas, el barrido conserva las vigentes, vaciar la caché vuelve a preguntar. |
@@ -104,6 +104,7 @@ A tener en cuenta:
 | `compat.ProtectionWhitelistTest` | 15 | Valores por defecto de la protección y parseo y geometría de `exempt-locations`; el puente queda inerte sin providers. |
 | `compat.SlimefunInsertRuleTest` | 4 | Insertar en máquinas de Slimefun: una Electric Smeltery falsa (misma respuesta de transporte que la de Slimefun) deja cada ingrediente en un stack y las demás ranuras libres; un stack se rellena sin abrir otra ranura; una máquina normal llena todas sus ranuras, una por ciclo; un menú que falla a mitad nunca devuelve lo que ya entró. |
 | `listen.SneakingRightClickTest` | 3 | Agachado + clic derecho nunca abre el menú de un dispositivo y sigue permitiendo colocar bloques. |
+| `net.ContainerConnectorTest` | 11 | Container Connector: un cofre que lo toca es almacenamiento (conteo, vista, retirada, desglose) y uno suelto nunca se toca; los contenedores son el último almacenamiento y devuelven lo que no cabe; primero se rellenan stacks del mismo ítem; un shulker nunca entra en otro; dos espadas que la comparación laxa ve iguales nunca se juntan; un cofre roto sale del almacenamiento en el mismo tick; el Grabber y el Pusher de la red no tocan los contenedores enlazados; un cofre colocado marca la red y entra al reescanear; los cambios a mano cambian el sello; materiales de almacén y lados del cofre doble; un dispositivo nunca se enlaza. |
 | `net.PerformanceGuardsTest` | 4 | Un Grabber inactivo mucho tiempo sigue saltándose ciclos y despierta en seis como mucho; un Purger ocioso purga en el siguiente ciclo un ítem nuevo y un filtro escrito por un menú; celdas vaciadas y rellenadas en el mismo tick siguen de acuerdo con el índice por Material; las pistas de Material de un filtro cubren todo lo que el filtro deja pasar. |
 | `net.ScanCostTest` | 2 | El recorrido de vecinos del BFS no reserva memoria por nodo y un escaneo grande sigue siendo lineal. |
 | `net.ScanSchedulingTest` | 5 | Reescaneos: una red intacta no se reescanea en cada intervalo pero el reescaneo completo periódico detecta cambios silenciosos; una red sucia se reescanea al momento; una "stale" espera el intervalo; cargar un chunk solo marca las redes cercanas. |

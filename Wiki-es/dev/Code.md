@@ -221,17 +221,20 @@ las redes a partir de él al arrancar.
 
 Una sola "bóveda" sobre todo el almacenamiento de la red: los **módulos de memoria** (cada módulo de ítems de cada DRAM
 Bay, hasta 18 por bay, más un módulo antiguo dentro del Controlador; cada uno se guarda a través del
-bay que lo contiene), las **Celdas Cuánticas**, los **Infinity Barrels**, las **Greedy Cells** y los
-**barriles de Slimefun**. Todos los métodos son `synchronized`; los blobs se leen con
+bay que lo contiene), las **Celdas Cuánticas**, los **Infinity Barrels**, las **Greedy Cells**, los
+**barriles de Slimefun** y los contenedores vanilla enlazados por un **Container Connector**
+(`VanillaStorage`). Todos los métodos son `synchronized`; los blobs se leen con
 `NodeStore.canonical` y solo se reescriben los modificados.
 
 - **`deposit(ItemStack)` → sobrante**. Primero los **Quota Limiters** recortan la cantidad (gana el
-  límite más bajo), luego 8 pasadas: (1) Greedy Cells cuyo filtro coincide o que ya tienen el ítem →
+  límite más bajo), luego 9 pasadas: (1) Greedy Cells cuyo filtro coincide o que ya tienen el ítem →
   (2) módulos de memoria con ese tipo → (3) barriles de Slimefun con ese tipo → (4) celdas/barriles con ese
   tipo → (5) espacio libre de los módulos de memoria → (6) barriles de Slimefun vacíos → (7) celdas/barriles
-  vacíos (adoptan el tipo) → (8) Greedy Cells sin filtro. Nunca modifica el argumento.
+  vacíos (adoptan el tipo) → (8) Greedy Cells sin filtro → (9) contenedores vanilla enlazados (primero
+  stacks del ítem, luego ranuras vacías; nunca un shulker en otro). Nunca modifica el argumento.
 - **`withdraw(matcher, want, excludePos, includeGreedy)`** — módulos de memoria → celdas y barriles →
-  barriles de Slimefun → Greedy Cells (solo si `includeGreedy`). Devuelve un único tipo de ítem. La
+  barriles de Slimefun → Greedy Cells (solo si `includeGreedy`) → contenedores enlazados (solo stacks
+  `isSimilar` a lo ya sacado). Devuelve un único tipo de ítem. La
   succión de la Greedy y las dos direcciones del puente pasan `includeGreedy = false`; Pushers,
   terminales, crafteo y la API incluyen las Greedy Cells. Una Greedy Cell nunca da su última unidad de
   un ítem definido en su filtro (`greedyReserve`). `releasedByPushers(item)` es true si un Pusher tiene
@@ -239,7 +242,14 @@ bay que lo contiene), las **Celdas Cuánticas**, los **Infinity Barrels**, las *
   `NetworkTicker.releaseToPushers` pasa todo el stock de la Greedy Cell (reserva incluida) al resto. Un Infinity Barrel
   conserva su `cellSample` al llegar a 0; una celda lo olvida.
 - `breakdown(item)` — una pasada que devuelve dónde está un ítem (memoria, celdas, barriles, Greedy,
-  barriles de Slimefun); el Terminal lo lista bajo el total.
+  barriles de Slimefun, contenedores enlazados); el Terminal lo lista bajo el total.
+- **Contenedores enlazados** (`VanillaStorage`): `Network.scan` apunta, tras el BFS, los cofres,
+  barriles y shulkers que tocan un `MVN_CONTAINER_CONNECTOR` (las dos mitades de un cofre doble, cada
+  una con la comprobación de protección). Se cargan una vez por tick; cada uso comprueba que el bloque
+  sigue siendo el mismo contenedor, así un cofre roto a mitad de tick se salta, no se llena.
+  `changeStamp()` incluye una huella de su contenido (cambios a mano o con tolva).
+  `Network.linksContainer` hace que los Grabbers, Pushers, Greedy Cells y Chicken Sorter de la propia
+  red no los toquen (sin bucles).
 - `count`, `remainingQuota`, `view()` (caché de 500 ms, agrupado con `StackUtils.itemsMatch`),
   `getPurgedItemsView`, `isItemPurged`, contadores.
 - Celdas, módulos de memoria y barriles de Slimefun se leen una vez por tick y se reutilizan mientras
@@ -307,7 +317,9 @@ terminal, ranura de entrada — solo consume un cubo, botella o bloque fuente en
     del almacén y `NodeStore.liveEpoch()`, y no recorre nada mientras sigan iguales (vuelve a mirar
     cada 20 ciclos por los barriles de Slimefun, que cambian por fuera de la red).
   - **Receptor** (`bridgeOnce`) / **Transmisor** (`transmitOnce`): mueve ítems el extremo que guarda
-    el enlace. Regla de filtro `bridgeFilterSet`: whitelist no vacía o cualquier blacklist. Ambos
+    el enlace. Regla de filtro `bridgeFilterSet`: whitelist no vacía o cualquier blacklist.
+    `bridgePredicate`: un ítem debe pasar el filtro del extremo que mueve y, si el otro extremo tiene
+    filtro, también ese (un otro extremo sin tocar no restringe). Ambos
     extremos pasan la protección con el dueño de su propia red; los sobrantes vuelven al origen y, si
     no, caen junto al dispositivo.
   - **Liquid Pump** (`pumpTick`): un bloque fuente debajo, solo si `deposit` devuelve 0.

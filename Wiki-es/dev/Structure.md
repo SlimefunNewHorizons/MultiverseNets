@@ -27,7 +27,7 @@ MultiverseNets/
 │   │   │   │                #   CraftingListener (libro de recetas, mejora de celdas en la mesa),
 │   │   │   │                #   StorageListener (carga de chunks / guardado del mundo para los nodos)
 │   │   │   ├─ net/          # Network, NetworkManager, NetworkTicker, NetworkStorage,
-│   │   │   │                #   NetworkFluidStorage, holograma, NetworkThroughputTracker
+│   │   │   │                #   NetworkFluidStorage, VanillaStorage, holograma, NetworkThroughputTracker
 │   │   │   ├─ persist/      # Almacenamiento de nodos: fachada NodeStore + regiones en la carpeta del mundo
 │   │   │   └─ util/         # Keys, PosUtil, Settings, StackUtils, Text
 │   │   └─ resources/        # config.yml y plugin.yml
@@ -57,10 +57,11 @@ MultiverseNets/
   `ControllerMenu`, `QuantumWorkbenchMenu`, `DramBayMenu`, `ModuleUnloaderMenu`, `ModuleLoaderMenu`, `CableCamouflageMenu`, `QuotaManagerMenu`, `ChickenSorterMenu`, `GuideMenu`), la base `MenuHolder` (y `ModuleHolderMenu` para los menús de tarjetas, con `MenuIcons` para sus iconos), `TerminalPages` (las páginas personalizadas de un jugador), la protección anti-dupe
   `GuiListener` y `ChatPrompts`.
 - **`item/`** – `DeviceType` (enumeración de los 50 dispositivos, módulos y herramientas), `Items`
-  (creación de ítems, lore, ayudantes de PDC y las 72 recetas (6 componentes, 16 cables de color)) y `GuideContent` (el texto de la guía, EN/ES).
+  (creación de ítems, lore, ayudantes de PDC y las 73 recetas (6 componentes, 16 cables de color)) y `GuideContent` (el texto de la guía, EN/ES).
 - **`net/`** – Núcleo de red: topología (`Network`), registro (`NetworkManager`), el latido
   (`NetworkTicker`), almacenamiento de ítems y fluidos, `MemoryModules` (instalar/expulsar módulos del
-  DRAM Bay con su stock), `ModuleIO` (ciclos del DRAM Unloader/Loader), `StatusLights` (luces de estado), holograma del controlador y medición de flujo.
+  DRAM Bay con su stock), `ModuleIO` (ciclos del DRAM Unloader/Loader), `StatusLights` (luces de estado), `VanillaStorage` (contenedores enlazados por un Container
+  Connector), holograma del controlador y medición de flujo.
 - **`persist/`** – `NodeBlob` (estado serializable de un nodo) y `NodeStore` (la fachada que usa todo
   el plugin, más el registro de controladores). Detrás: `WorldNodes` (las regiones de un mundo),
   `NodeRegion` (una región de 32×32 chunks en memoria, con contadores por chunk), `NodeRecord` (un

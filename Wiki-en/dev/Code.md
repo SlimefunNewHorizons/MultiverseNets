@@ -218,16 +218,19 @@ networks from it at startup.
 One "vault" over every storage of the network: the **memory modules** (every item module in every DRAM
 Bay, up to 18 per bay, plus a legacy module inside the Controller; each one is saved through the bay
 that contains it), **Quantum Cells**, **Infinity Barrels**,
-**Greedy Cells** and **Slimefun barrels**. All methods are
+**Greedy Cells**, **Slimefun barrels** and the vanilla containers linked by a **Container Connector**
+(`VanillaStorage`). All methods are
 `synchronized`; blobs are read with `NodeStore.canonical` and only dirty ones are written back.
 
 - **`deposit(ItemStack)` → leftover**. First the **Quota Limiters** cap the amount (lowest limit wins),
-  then 8 passes: (1) Greedy Cells whose filter matches or that already hold the item → (2) memory
+  then 9 passes: (1) Greedy Cells whose filter matches or that already hold the item → (2) memory
   modules holding that type → (3) Slimefun barrels holding it → (4) cells/barrels holding it → (5)
   memory module free space → (6) empty Slimefun barrels → (7) empty cells/barrels (they adopt the
-  type) → (8) Greedy Cells without a filter. Never mutates the argument.
+  type) → (8) Greedy Cells without a filter → (9) linked vanilla containers (stacks of the item first,
+  then empty slots; never a shulker box into a shulker box). Never mutates the argument.
 - **`withdraw(matcher, want, excludePos, includeGreedy)`** — memory modules → cells and barrels →
-  Slimefun barrels → Greedy Cells (only if `includeGreedy`). Returns a single item type. Greedy
+  Slimefun barrels → Greedy Cells (only if `includeGreedy`) → linked containers (only stacks
+  `isSimilar` to what was already taken). Returns a single item type. Greedy
   suction and both bridge directions pass `includeGreedy = false`; Pushers, terminals, crafting and the
   API include Greedy Cells. A Greedy Cell never gives its last unit of an item defined in its filter
   (`greedyReserve`). `releasedByPushers(item)` is true when a Pusher whitelists the item: deposits then
@@ -235,7 +238,13 @@ that contains it), **Quantum Cells**, **Infinity Barrels**,
   Cell's whole stock of it (reserve included) to the other storages. An Infinity Barrel keeps its `cellSample` when it
   reaches 0; a cell forgets it.
 - `breakdown(item)` — one pass returning where an item is kept (memory, cells, barrels, Greedy,
-  Slimefun barrels); the Terminal lists it under the total.
+  Slimefun barrels, linked containers); the Terminal lists it under the total.
+- **Linked containers** (`VanillaStorage`): `Network.scan` records, after the BFS, the chests,
+  barrels and shulker boxes touching a `MVN_CONTAINER_CONNECTOR` (both halves of a double chest, each
+  through the protection check). They are loaded once per tick; each use checks the block is still
+  the same container, so a chest broken mid-tick is skipped, not filled. `changeStamp()` folds in a
+  fingerprint of their contents (edits by hand or hopper). `Network.linksContainer` makes the
+  network's own Grabbers, Pushers, Greedy Cells and Chicken Sorter leave them alone (no loops).
 - `count`, `remainingQuota`, `view()` (500 ms cache, merged with `StackUtils.itemsMatch`),
   `getPurgedItemsView`, `isItemPurged`, counters.
 - Cells, memory modules and Slimefun barrels are read once per tick and reused while neither the
@@ -302,7 +311,9 @@ whole bucket, bottle or source block only on `0`. `withdraw`, `count`, `getFluid
     storage `changeStamp` and `NodeStore.liveEpoch()`, and skips its walk while both stay the same
     (re-checking every 20 cycles for Slimefun barrels, which change outside the network).
   - **Receiver** (`bridgeOnce`) / **Transmitter** (`transmitOnce`): the end that holds the link
-    moves items across. Filter rule `bridgeFilterSet`: non-empty whitelist or any blacklist. Both
+    moves items across. Filter rule `bridgeFilterSet`: non-empty whitelist or any blacklist.
+    `bridgePredicate`: an item must pass the moving end's filter and, if the other end has a filter
+    set, that one too (an untouched other end does not restrict). Both
     ends pass the protection check with their own network's owner; leftovers go back to the source
     and, failing that, drop next to the device.
   - **Liquid Pump** (`pumpTick`): one source block below, only if `deposit` returns 0.

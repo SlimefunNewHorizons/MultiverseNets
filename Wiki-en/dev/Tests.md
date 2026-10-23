@@ -56,7 +56,7 @@ Things to know:
 - `src/test/java/dev/espi/protectionstones/PSRegion.java` is a stub of the ProtectionStones API that
   the provider tests load by reflection.
 
-## 3. Overview: 52 classes, 359 tests
+## 3. Overview: 54 classes, 374 tests
 
 | Class (package `com.chagui68.multiversenets` unless stated) | Tests | Covers |
 | --- | --- | --- |
@@ -95,7 +95,7 @@ Things to know:
 | `StackUtilsFastPathTest` | 4 | The fast item comparison: identical items match whatever their amount, different Slimefun ids never match, meta never matches plain, lore is ignored when asked. |
 | `StatusLightTest` | 4 | The Status Light is green on a connected block and red once the link is cut; red without a network; it never bridges two networks; breaking it forgets it. |
 | `ToolsTest` | 3 | Wrench and Rake are hand tools; the Receiver is filterable; filters default to whitelist. |
-| `TransmissionFixesTest` | 13 | Item and fluid transmission: all-or-nothing fluid deposits, the pump never duplicates fluid, bridge with template-only filter, bridge never drains Greedy Cells, a device shared by two controllers works once per cycle, partial crafting results are undone, wrench pastes exact templates, rake returns the device, filters/face/transit buffer survive break and place, transit buffers above 99 units are saved without crashing. |
+| `TransmissionFixesTest` | 15 | Item and fluid transmission: all-or-nothing fluid deposits, the pump never duplicates fluid, bridge with template-only filter, bridge never drains Greedy Cells, neither bridge end overrides the other's filter (both directions), a device shared by two controllers works once per cycle, partial crafting results are undone, wrench pastes exact templates, rake returns the device, filters/face/transit buffer survive break and place, transit buffers above 99 units are saved without crashing. |
 | `UpgradedFeaturesTest` | 6 | Memory module in a DRAM Bay, Router, per-chunk node counting, grabber transit buffer, cache kept on break, creative breaking drops nothing. |
 | `compat.NetworkOwnershipTest` | 9 | A network runs inside its owner's claim; other networks and a null owner are strangers; public land stays open; broken or unwired providers grant nothing; owner answers never leak between networks. |
 | `compat.ProtectionCacheTest` | 4 | Protection answers are cached: unclaimed land is asked once, owner and stranger keep their own answers, the sweep keeps live answers, dropping the cache asks again. |
@@ -103,6 +103,7 @@ Things to know:
 | `compat.ProtectionWhitelistTest` | 15 | Protection defaults and `exempt-locations` parsing and geometry; the bridge is inert without providers. |
 | `compat.SlimefunInsertRuleTest` | 4 | Inserting into Slimefun machines: a fake Electric Smeltery (same transport answer as Slimefun's) keeps each ingredient in one stack and leaves the other slots free; a stack is topped up without opening another slot; an ordinary machine fills every slot, one per cycle; a menu failing half-way never returns what already went in. |
 | `listen.SneakingRightClickTest` | 3 | Sneaking + right-click never opens a device menu and still allows vanilla placement. |
+| `net.ContainerConnectorTest` | 11 | Container Connector: a touching chest is network storage (count, view, withdraw, breakdown), a loose chest is never touched; containers are the last storage and return what does not fit; same-item stacks are topped up first; a shulker box never goes into a shulker box; two swords the loose match sees as one are never merged; a broken chest leaves storage in the same tick; the network's Grabber and Pusher leave linked containers alone; a placed chest marks the network stale and joins on rescan; hand edits change the stamp; storage materials and double-chest sides; a device is never linked. |
 | `net.PerformanceGuardsTest` | 4 | A long-idle Grabber keeps sitting cycles out and still wakes up within six; an idle Purger purges a new item, and a filter written by a menu, on the next cycle; cells emptied and refilled within one tick stay consistent with the Material index; filter Material hints cover everything the filter lets through. |
 | `net.ScanCostTest` | 2 | The BFS neighbour walk allocates nothing per node and a large scan stays linear. |
 | `net.ScanSchedulingTest` | 5 | Rescans: an untouched network is not rescanned every interval but the periodic full rescan still catches silent changes; a dirty network rescans at once; a stale one waits for the interval; a chunk load marks only nearby networks. |
