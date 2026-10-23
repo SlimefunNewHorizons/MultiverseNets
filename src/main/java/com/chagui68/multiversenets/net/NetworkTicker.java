@@ -1279,14 +1279,16 @@ public class NetworkTicker {
 
     /**
      * EN: Wireless Bridge: pulls matching filtered items from the linked Transmitter network into
-     * this Receiver's network. Only what passes the RECEIVER's filter crosses. An empty whitelist
+     * this Receiver's network. Only what passes the RECEIVER's filter crosses, and the Transmitter's
+     * too when it has one ({@link #bridgePredicate}). An empty whitelist
      * moves nothing (opening a bridge without deciding what crosses would merge two whole networks
      * by accident); an empty blacklist is the explicit "everything". Greedy Cells of the remote
      * network are not drained, the same rule Pushers follow, because their stock is reserved for
      * the machines next to them.
      *
      * ES: Puente inalámbrico: el Receptor extrae ítems filtrados de la red del Transmisor vinculado
-     * hacia la suya. Solo cruza lo que pase el filtro DEL RECEPTOR. Una whitelist vacía no mueve
+     * hacia la suya. Solo cruza lo que pase el filtro DEL RECEPTOR, y el del Transmisor si tiene
+     * uno. Una whitelist vacía no mueve
      * nada; una blacklist vacía es el "todo" explícito. Las Greedy Cells de la red remota no se
      * vacían, igual que con los Pushers, porque su stock está reservado.
      */
@@ -1323,7 +1325,7 @@ public class NetworkTicker {
         if (denied(remote, txBlock)) {
             return;
         }
-        Predicate<ItemStack> pred = NetworkManager.filterPredicate(blob);
+        Predicate<ItemStack> pred = bridgePredicate(blob, txBlob);
         ItemStack stack = remote.storage().withdraw(pred, NetworkManager.filterMaterials(blob), rate, -1L, false);
         if (stack == null) {
             return;
@@ -1353,6 +1355,18 @@ public class NetworkTicker {
     /** Whitelist con algo dentro, o blacklist (vacia = todo). Whitelist vacia = puente cerrado. */
     private static boolean bridgeFilterSet(NodeBlob blob) {
         return blob.filterBlacklist || hasFilter(blob);
+    }
+
+    /**
+     * EN: What crosses the bridge: what passes the filter of the end that moves and, when the other
+     * end has a filter of its own, that one too. Neither end overrides the other; an untouched end
+     * (empty whitelist) does not restrict, so a bridge configured on one side keeps working.
+     * ES: Lo que cruza el puente: lo que pasa el filtro del extremo que mueve y, si el otro extremo
+     * tiene filtro propio, también ese. Ningún extremo anula al otro; uno sin tocar no restringe.
+     */
+    private static Predicate<ItemStack> bridgePredicate(NodeBlob mover, NodeBlob other) {
+        Predicate<ItemStack> own = NetworkManager.filterPredicate(mover);
+        return bridgeFilterSet(other) ? own.and(NetworkManager.filterPredicate(other)) : own;
     }
 
     /**
@@ -1390,9 +1404,9 @@ public class NetworkTicker {
         if (denied(remote, rxBlock)) {
             return;
         }
-        Predicate<ItemStack> pred = NetworkManager.filterPredicate(blob);
-        // Mismas reglas que bridgeOnce en sentido contrario: sin vaciar Greedy Cells y sin perder
-        // nada si ninguna de las dos redes acepta la vuelta.
+        Predicate<ItemStack> pred = bridgePredicate(blob, rxBlob);
+        // Mismas reglas que bridgeOnce en sentido contrario: el filtro del receptor tambien cuenta,
+        // sin vaciar Greedy Cells y sin perder nada si ninguna de las dos redes acepta la vuelta.
         ItemStack stack = net.storage().withdraw(pred, NetworkManager.filterMaterials(blob), rate, -1L, false);
         if (stack == null) {
             return;

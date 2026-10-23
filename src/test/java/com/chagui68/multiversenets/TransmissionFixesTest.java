@@ -209,6 +209,68 @@ class TransmissionFixesTest {
         assertEquals(30, NodeStore.get(greedy).totalGreedyAmount());
     }
 
+    /** Red A (hierro y oro) con el Transmisor y red B con el Receptor, cada extremo con su filtro. */
+    private Network[] bridge(boolean transmitterHoldsTheLink, String txFilter, String rxFilter) {
+        Block controllerA = place(0, 64, 0, DeviceType.MVN_CONTROLLER);
+        place(1, 64, 0, DeviceType.MVN_CELL_T1);
+        place(0, 64, 1, DeviceType.MVN_CELL_T1);
+        Block transmitter = place(2, 64, 0, DeviceType.MVN_TRANSMITTER);
+        Block controllerB = place(20, 64, 0, DeviceType.MVN_CONTROLLER);
+        place(21, 64, 0, DeviceType.MVN_CELL_T1);
+        place(20, 64, 1, DeviceType.MVN_CELL_T1);
+        Block receiver = place(22, 64, 0, DeviceType.MVN_RECEIVER);
+
+        NodeBlob tx = NodeStore.get(transmitter);
+        NodeBlob rx = NodeStore.get(receiver);
+        NodeBlob mover = transmitterHoldsTheLink ? tx : rx;
+        Block other = transmitterHoldsTheLink ? receiver : transmitter;
+        mover.txWorld = world.getUID().toString();
+        mover.txX = other.getX();
+        mover.txY = other.getY();
+        mover.txZ = other.getZ();
+        // null = blacklist vacia (todo); si no, whitelist de ese material.
+        for (Object[] end : new Object[][]{{tx, txFilter}, {rx, rxFilter}}) {
+            NodeBlob blob = (NodeBlob) end[0];
+            if (end[1] == null) {
+                blob.filterBlacklist = true;
+            } else {
+                blob.filterMaterials.add((String) end[1]);
+            }
+        }
+        NodeStore.put(transmitter, tx);
+        NodeStore.put(receiver, rx);
+
+        Network a = network(controllerA);
+        Network b = network(controllerB);
+        a.storage().deposit(new ItemStack(Material.IRON_INGOT, 50));
+        a.storage().deposit(new ItemStack(Material.GOLD_INGOT, 20));
+        return new Network[]{a, b};
+    }
+
+    @Test
+    void transmitterPushesOnlyWhatTheReceiversFilterAllows() {
+        Network[] nets = bridge(true, null, "IRON_INGOT");
+        tick();
+        tick();
+
+        assertEquals(50, nets[1].storage().count(i -> i.getType() == Material.IRON_INGOT));
+        assertEquals(0, nets[1].storage().count(i -> i.getType() == Material.GOLD_INGOT),
+                "the transmitter's 'everything' must not override the receiver's whitelist");
+        assertEquals(20, nets[0].storage().count(i -> i.getType() == Material.GOLD_INGOT));
+    }
+
+    @Test
+    void receiverPullsOnlyWhatTheTransmittersFilterAllows() {
+        Network[] nets = bridge(false, "GOLD_INGOT", null);
+        tick();
+        tick();
+
+        assertEquals(20, nets[1].storage().count(i -> i.getType() == Material.GOLD_INGOT));
+        assertEquals(0, nets[1].storage().count(i -> i.getType() == Material.IRON_INGOT),
+                "the receiver's 'everything' must not override the transmitter's whitelist");
+        assertEquals(50, nets[0].storage().count(i -> i.getType() == Material.IRON_INGOT));
+    }
+
     // ---------------------------------------------------------------- shared buses
 
     @Test

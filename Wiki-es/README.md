@@ -274,6 +274,9 @@ Dos redes nunca se fusionan por el aire. La única forma de que los ítems cruce
   para un intercambio en los dos sentidos.
 * **El filtro está en el extremo que mueve**: whitelist o blacklist, plantillas exactas o materiales.
   **Una whitelist vacía no mueve nada**; una blacklist vacía lo mueve todo.
+* **El filtro del otro extremo también cuenta**: si el extremo pasivo tiene filtro (entradas, o modo
+  blacklist), un ítem solo cruza si pasa **los dos**. Ningún extremo anula al otro; un extremo pasivo
+  sin tocar (whitelist vacía) no restringe.
 * Hasta 128 ítems de un tipo por ciclo y por dispositivo enlazado. **Nunca se vacían Greedy Cells.**
 * Funciona a cualquier distancia y entre mundos, pero solo mientras el chunk del otro extremo esté
   cargado.

@@ -548,18 +548,22 @@ public final class GuideContent {
                         + "queda libre).");
         add(DeviceType.MVN_TRANSMITTER, Category.TRANSPORT, "Transmisor Inalámbrico",
                 "One end of the wireless bridge. If it holds the link to a Receiver it PUSHES the items that pass "
-                        + "its filter into the receiver's network, at any distance and across worlds.",
+                        + "its filter into the receiver's network, at any distance and across worlds. A filter set "
+                        + "on the Receiver is respected too: only what passes both crosses.",
                 "Un extremo del puente inalámbrico. Si guarda el enlace a un Receptor, EMPUJA los ítems que pasan "
-                        + "su filtro a la red del receptor, a cualquier distancia y entre mundos.",
+                        + "su filtro a la red del receptor, a cualquier distancia y entre mundos. Si el Receptor tiene "
+                        + "filtro también se respeta: solo cruza lo que pasa los dos.",
                 "Shift+right-click a placed Receiver holding the Transmitter item to link it. Right-click: filter "
                         + "and a button that opens its own network's terminal.",
                 "Shift+clic derecho a un Receptor colocado con el Transmisor en la mano para enlazarlo. Clic "
                         + "derecho: filtro y un botón que abre el terminal de su propia red.");
         add(DeviceType.MVN_RECEIVER, Category.TRANSPORT, "Receptor Inalámbrico",
                 "The other end. If it holds the link to a Transmitter it PULLS the items that pass its filter "
-                        + "from the transmitter's network into its own. An empty whitelist moves nothing.",
+                        + "from the transmitter's network into its own. An empty whitelist moves nothing. A filter set on "
+                        + "the Transmitter is respected too.",
                 "El otro extremo. Si guarda el enlace a un Transmisor, TRAE los ítems que pasan su filtro desde la "
-                        + "red del transmisor a la suya. Una whitelist vacía no mueve nada.",
+                        + "red del transmisor a la suya. Una whitelist vacía no mueve nada. Si el Transmisor tiene filtro "
+                        + "también se respeta.",
                 "Shift+right-click a placed Transmitter holding the Receiver item to link it. Its menu can open the "
                         + "REMOTE network's terminal.",
                 "Shift+clic derecho a un Transmisor colocado con el Receptor en la mano para enlazarlo. Su menú "

@@ -275,6 +275,9 @@ link, and the end that holds the link is the one that moves items:
   two-way exchange.
 * **Filter on the end that moves**: whitelist or blacklist, exact templates or materials. **An
   empty whitelist moves nothing**; an empty blacklist moves everything.
+* **The other end's filter counts too**: if the passive end has a filter (entries, or blacklist
+  mode), an item only crosses when it passes **both**. Neither end overrides the other; a passive
+  end left untouched (empty whitelist) does not restrict.
 * Up to 128 items of one type per cycle and per linked device. **Greedy Cells are never drained.**
 * Works across any distance and across worlds, but only while the other end's chunk is loaded.
 * Both ends pass the protection check, each with the owner of its own network.
