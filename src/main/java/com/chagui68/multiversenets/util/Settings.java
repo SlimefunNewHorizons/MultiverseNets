@@ -296,7 +296,7 @@ public final class Settings {
     public static boolean deviceEnabled(com.chagui68.multiversenets.item.DeviceType type) {
         return switch (type) {
             case MVN_SF_ENCODER -> sfEncoderEnabled();
-            case MVN_SF_CRAFTER, MVN_SF_REQUEST_CRAFTER -> sfCrafterEnabled();
+            case MVN_SF_CRAFTER, MVN_SF_REQUEST_CRAFTER, MVN_SF_STOCK_CRAFTER -> sfCrafterEnabled();
             default -> true;
         };
     }

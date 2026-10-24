@@ -84,13 +84,17 @@ public final class CraftingSupport {
      *
      * @param net Target network / Red objetivo
      * @param blob Node configuration blob / Blob de configuración del nodo
+     * @param limit Skip recipes whose result already reaches this stock (below 0: no cap) / Tope de stock
      * @return true if crafted / true si se crafteó
      */
-    public static boolean tryCraftAll(Network net, NodeBlob blob) {
+    public static boolean tryCraftAll(Network net, NodeBlob blob, long limit) {
         boolean crafted = false;
         for (String key : new ArrayList<>(blob.recipes)) {
             Recipe recipe = find(key);
             if (recipe == null || recipe instanceof ComplexRecipe) {
+                continue;
+            }
+            if (limit >= 0 && net.storage().countOf(recipe.getResult(), true) >= limit) {
                 continue;
             }
             if (tryCraftOnce(net, recipe)) {

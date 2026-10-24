@@ -1478,30 +1478,39 @@ public class NetworkTicker {
      * ES: Ejecuta intentos de autocrafteo para los blueprints y recetas instaladas.
      */
     public void doCrafting(Network net) {
-        java.util.function.Consumer<Long> ticker = pos -> {
-            NodeBlob blob = blobOf(net, pos);
-            if (blob == null) {
-                return;
-            }
-            for (String b64 : new ArrayList<>(blob.blueprintData)) {
-                // Decodificado una vez y reutilizado: deserializar cada plano en cada ciclo de cada
-                // crafter era trabajo repetido sobre los mismos bytes.
-                RecipeData data = Blueprints.decodeCached(b64);
-                if (data == null) {
-                    continue;
-                }
-                CraftingSupport.tryCraftBlueprint(net, data);
-            }
-            if (!blob.recipes.isEmpty()) {
-                CraftingSupport.tryCraftAll(net, blob);
-            }
-        };
-
-        forEachWorked(net, DeviceType.MVN_CRAFTER, ticker::accept);
+        forEachWorked(net, DeviceType.MVN_CRAFTER, pos -> craftAt(net, pos, -1L));
+        forEachWorked(net, DeviceType.MVN_STOCK_CRAFTER, pos -> craftAt(net, pos, STOCK_CRAFTER_LIMIT));
         // slimefun-machines (crafters/enabled) en false ya impedia abrir el menu; ahora tambien detiene el autocrafteo
         // de los que quedaron colocados, que era lo que el ajuste prometia.
         if (Settings.sfCrafterEnabled()) {
-            forEachWorked(net, DeviceType.MVN_SF_CRAFTER, ticker::accept);
+            forEachWorked(net, DeviceType.MVN_SF_CRAFTER, pos -> craftAt(net, pos, -1L));
+            forEachWorked(net, DeviceType.MVN_SF_STOCK_CRAFTER, pos -> craftAt(net, pos, STOCK_CRAFTER_LIMIT));
+        }
+    }
+
+    /** Stock Crafters stop crafting an output once the network holds this many / Tope de los Stock Crafters. */
+    public static final long STOCK_CRAFTER_LIMIT = 64L;
+
+    /** Crafts every Blueprint of one crafter; {@code limit} below 0 means no stock cap / Sin tope si limit es negativo. */
+    private void craftAt(Network net, long pos, long limit) {
+        NodeBlob blob = blobOf(net, pos);
+        if (blob == null) {
+            return;
+        }
+        for (String b64 : new ArrayList<>(blob.blueprintData)) {
+            // Decodificado una vez y reutilizado: deserializar cada plano en cada ciclo de cada
+            // crafter era trabajo repetido sobre los mismos bytes.
+            RecipeData data = Blueprints.decodeCached(b64);
+            if (data == null) {
+                continue;
+            }
+            if (limit >= 0 && data.output != null && net.storage().countOf(data.output, true) >= limit) {
+                continue;
+            }
+            CraftingSupport.tryCraftBlueprint(net, data);
+        }
+        if (!blob.recipes.isEmpty()) {
+            CraftingSupport.tryCraftAll(net, blob, limit);
         }
     }
 

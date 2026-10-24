@@ -351,6 +351,7 @@ transmitter), `isImporter()`/`isExporter()`, `isDirectional()`, `isRouter()`, `i
 | `MVN_LIMITER` | TARGET | Network Quota Limiter | ✔ |
 | `MVN_PROBE` | SPYGLASS | Network Probe | ✘ (hand) |
 | `MVN_CRAFTER` / `MVN_SF_CRAFTER` | CRAFTING_TABLE / CRYING_OBSIDIAN | Auto-Crafter / Slimefun Auto-Crafter | ✔ |
+| `MVN_STOCK_CRAFTER` / `MVN_SF_STOCK_CRAFTER` | LOOM / AMETHYST_BLOCK | Stock Crafter / Slimefun Stock Crafter (stop at `NetworkTicker.STOCK_CRAFTER_LIMIT` = 64) | ✔ |
 | `MVN_REQUEST_CRAFTER` / `MVN_SF_REQUEST_CRAFTER` | FLETCHING_TABLE / PURPUR_PILLAR | Request Crafter / Slimefun Request Crafter | ✔ |
 | `MVN_REQUEST_TERMINAL` | LECTERN | Request Terminal | ✔ |
 | `MVN_ENCODER` / `MVN_SF_ENCODER` | SMITHING_TABLE / ENCHANTING_TABLE | Recipe Encoder / Slimefun Recipe Encoder | ✔ |

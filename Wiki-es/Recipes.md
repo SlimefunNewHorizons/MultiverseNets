@@ -854,6 +854,41 @@ E C E
 
 ---
 
+### Stock Crafter · `mvn_stock_crafter`
+
+```
+R K R
+K A K
+R L R
+```
+
+> R = **Redstone** · K = **Comparador** · A = **Auto-Crafter** · L = **Telar**
+
+- **Resultado**: 1× Stock Crafter (Telar)
+- **Función**: Igual que el Auto-Crafter, pero salta un Blueprint mientras la red ya tiene **64** de
+  su salida. Cuando el stock baja de 64 vuelve a craftear. Un crafteo que da varios ítems puede
+  dejar algo más de 64.
+
+---
+
+### Slimefun Stock Crafter · `mvn_sf_stock_crafter`
+
+```
+E K E
+K A K
+E B E
+```
+
+> E = **Perla de ender** · K = **Comparador** · A = **Slimefun Auto-Crafter** ·
+> B = **Bloque de amatista**
+
+- **Resultado**: 1× Slimefun Stock Crafter (Bloque de amatista)
+- **Función**: Igual que el Stock Crafter y acepta **Blueprints de Slimefun y vanilla**. Se desactiva
+  igual que el Slimefun Auto-Crafter con `slimefun-machines.crafters: false` (o
+  `slimefun-machines.enabled: false`).
+
+---
+
 ### Request Crafter · `mvn_request_crafter`
 
 ```

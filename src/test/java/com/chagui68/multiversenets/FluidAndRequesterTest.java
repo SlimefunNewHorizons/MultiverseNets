@@ -11,6 +11,7 @@ import com.chagui68.multiversenets.net.Network;
 import com.chagui68.multiversenets.net.NetworkHologramManager;
 import com.chagui68.multiversenets.persist.NodeBlob;
 import com.chagui68.multiversenets.persist.NodeStore;
+import com.chagui68.multiversenets.util.StackUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Material;
@@ -676,6 +677,41 @@ class FluidAndRequesterTest {
         assertEquals(4, net.storage().count(item -> item.getType() == Material.RAW_GOLD));
         // Gold dust was crafted and deposited!
         assertEquals(1, net.storage().count(item -> "GOLD_DUST".equalsIgnoreCase(com.chagui68.multiversenets.compat.SlimefunBridge.getId(item))));
+    }
+
+    @Test
+    void stockCrafterStopsAtSixtyFourOfTheBlueprintOutput() {
+        Block ctrl = place(0, 64, 0, DeviceType.MVN_CONTROLLER);
+        plugin.networks().registerController(ctrl);
+        place(1, 64, 0, DeviceType.MVN_CELL_T1);
+        place(2, 64, 0, DeviceType.MVN_CELL_T1);
+        Block crafter = place(0, 64, 1, DeviceType.MVN_SF_STOCK_CRAFTER);
+
+        Network net = plugin.networks().networkByController(ctrl.getLocation());
+        net.scan();
+
+        ItemStack sfOutput = new ItemStack(Material.GOLD_NUGGET);
+        var meta = sfOutput.getItemMeta();
+        meta.getPersistentDataContainer().set(new org.bukkit.NamespacedKey("slimefun", "slimefun_item"),
+                org.bukkit.persistence.PersistentDataType.STRING, "GOLD_DUST");
+        sfOutput.setItemMeta(meta);
+        ItemStack[] inputs = new ItemStack[9];
+        inputs[0] = new ItemStack(Material.RAW_GOLD);
+
+        NodeBlob blob = NodeStore.get(crafter);
+        blob.blueprintData.add(Blueprints.encode(new RecipeData(inputs, sfOutput)));
+        NodeStore.put(crafter, blob);
+
+        net.storage().deposit(new ItemStack(Material.RAW_GOLD, 5));
+        net.storage().deposit(StackUtils.getAsQuantity(sfOutput, 63));
+
+        plugin.ticker().doCrafting(net);
+        assertEquals(64, net.storage().countOf(sfOutput, true), "crafts up to 64");
+        assertEquals(4, net.storage().count(item -> item.getType() == Material.RAW_GOLD));
+
+        plugin.ticker().doCrafting(net);
+        assertEquals(64, net.storage().countOf(sfOutput, true), "stops at 64");
+        assertEquals(4, net.storage().count(item -> item.getType() == Material.RAW_GOLD), "no ingredient used at the cap");
     }
 
     /** The cable recipe's centre ingredient / El ingrediente central de la receta del cable. */

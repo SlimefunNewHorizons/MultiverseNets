@@ -6,6 +6,7 @@ import com.chagui68.multiversenets.item.GuideContent;
 import com.chagui68.multiversenets.item.GuideContent.Category;
 import com.chagui68.multiversenets.item.GuideContent.Entry;
 import com.chagui68.multiversenets.item.Items;
+import com.chagui68.multiversenets.net.NetworkTicker;
 import com.chagui68.multiversenets.util.Settings;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -338,6 +339,10 @@ public class GuideMenu extends MenuHolder {
             case MVN_VACUUM -> out.add((spanish ? "Radio: " : "Radius: ") + Settings.vacuumRadius());
             case MVN_CRAFTER, MVN_SF_CRAFTER, MVN_REQUEST_CRAFTER, MVN_SF_REQUEST_CRAFTER ->
                     out.add((spanish ? "Blueprints máx.: " : "Max Blueprints: ") + Settings.maxBlueprints());
+            case MVN_STOCK_CRAFTER, MVN_SF_STOCK_CRAFTER -> {
+                out.add((spanish ? "Blueprints máx.: " : "Max Blueprints: ") + Settings.maxBlueprints());
+                out.add((spanish ? "Tope por salida: " : "Cap per output: ") + NetworkTicker.STOCK_CRAFTER_LIMIT);
+            }
             case MVN_RAKE -> out.add((spanish ? "Usos: " : "Uses: ") + Settings.rakeUses());
             case MVN_WIRELESS_TERMINAL -> out.add((spanish ? "Alcance sin Router: " : "Range without Router: ")
                     + Settings.wirelessLocalRange());

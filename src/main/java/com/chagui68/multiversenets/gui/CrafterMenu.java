@@ -7,6 +7,7 @@ import com.chagui68.multiversenets.craft.CraftingSupport;
 import com.chagui68.multiversenets.craft.RecipeData;
 import com.chagui68.multiversenets.item.DeviceType;
 import com.chagui68.multiversenets.item.Items;
+import com.chagui68.multiversenets.net.NetworkTicker;
 import com.chagui68.multiversenets.persist.NodeBlob;
 import com.chagui68.multiversenets.persist.NodeStore;
 import com.chagui68.multiversenets.util.Text;
@@ -51,19 +52,9 @@ public class CrafterMenu extends MenuHolder {
 
     public void openMenu() {
         DeviceType type = NodeStore.getType(block);
-        String title;
-        NamedTextColor titleColor = NamedTextColor.DARK_AQUA;
-        if (type == DeviceType.MVN_SF_REQUEST_CRAFTER) {
-            title = "Slimefun Request Crafter";
-            titleColor = NamedTextColor.DARK_PURPLE;
-        } else if (type == DeviceType.MVN_SF_CRAFTER) {
-            title = "Slimefun Auto-Crafter";
-            titleColor = NamedTextColor.DARK_PURPLE;
-        } else if (type != null && type.isRequestCrafter()) {
-            title = "Request Crafter";
-        } else {
-            title = "Auto-Crafter";
-        }
+        String title = type != null ? type.display() : "Auto-Crafter";
+        NamedTextColor titleColor = type != null && type.isSlimefunCrafter()
+                ? NamedTextColor.DARK_PURPLE : NamedTextColor.DARK_AQUA;
         open(27, Component.text(title, titleColor)
                 .decoration(TextDecoration.ITALIC, false));
     }
@@ -164,7 +155,7 @@ public class CrafterMenu extends MenuHolder {
         var metaStatus = status.getItemMeta();
         metaStatus.displayName(Component.text(machineName + " Status", sfMachine ? NamedTextColor.LIGHT_PURPLE : NamedTextColor.AQUA)
                 .decoration(TextDecoration.ITALIC, false));
-        metaStatus.lore(List.of(
+        List<Component> statusLore = new ArrayList<>(List.of(
                 Component.text("Installed Blueprints: " + totalInstalled + " / " + MAX_BLUEPRINT_SLOTS,
                         NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false),
                 Component.empty(),
@@ -172,6 +163,11 @@ public class CrafterMenu extends MenuHolder {
                         .decoration(TextDecoration.ITALIC, false),
                 Component.text("Crafting operations are atomic and safe.", NamedTextColor.GRAY)
                         .decoration(TextDecoration.ITALIC, false)));
+        if (devType != null && devType.isStockCrafter()) {
+            statusLore.add(Component.text("Stops each output at " + NetworkTicker.STOCK_CRAFTER_LIMIT
+                    + " in the network.", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
+        }
+        metaStatus.lore(statusLore);
         status.setItemMeta(metaStatus);
         inv.setItem(STATUS_SLOT, status);
 

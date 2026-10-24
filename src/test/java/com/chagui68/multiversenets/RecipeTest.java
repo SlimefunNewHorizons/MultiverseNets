@@ -44,7 +44,7 @@ class RecipeTest {
                 "encoder", "sf_encoder", "crafting_grid", "blueprint", "configurator", "rake",
                 "quantum_workbench", "infinity_barrel", "limiter",
                 "fluid_cell", "liquid_pump", "request_terminal", "request_crafter",
-                "sf_crafter", "sf_request_crafter", "dram_bay", "fluid_dram", "chicken_sorter",
+                "sf_crafter", "sf_request_crafter", "stock_crafter", "sf_stock_crafter", "dram_bay", "fluid_dram", "chicken_sorter",
                 "silicon_wafer", "network_circuit", "logic_processor", "storage_matrix", "transfer_coil",
                 "quantum_core"
         };

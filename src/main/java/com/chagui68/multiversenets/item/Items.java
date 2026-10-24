@@ -111,6 +111,13 @@ public final class Items {
                 lore.add(Component.text("Automated crafting machine driven by recipe Blueprints.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
                 lore.add(Component.text("Accepts Slimefun AND vanilla Blueprints.", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
             }
+            case MVN_STOCK_CRAFTER -> {
+                lore.add(Component.text("Auto-Crafter that stops each output at 64 in the network.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+            }
+            case MVN_SF_STOCK_CRAFTER -> {
+                lore.add(Component.text("Auto-Crafter that stops each output at 64 in the network.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("Accepts Slimefun AND vanilla Blueprints.", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+            }
             case MVN_ENCODER -> {
                 lore.add(Component.text("Encodes standard crafting recipes onto blank Blueprints.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
             }
@@ -820,6 +827,14 @@ public final class Items {
             r.setIngredient('I', Material.IRON_INGOT);
             device(r, 'P', DeviceType.MVN_LOGIC_PROCESSOR);
         });
+        // El Crafter de Stock: un Auto-Crafter con comparadores que leen el stock de la red.
+        shaped(plugin, "stock_crafter", create(DeviceType.MVN_STOCK_CRAFTER), r -> {
+            r.shape("RKR", "KAK", "RLR");
+            r.setIngredient('R', Material.REDSTONE);
+            r.setIngredient('K', Material.COMPARATOR);
+            device(r, 'A', DeviceType.MVN_CRAFTER);
+            r.setIngredient('L', Material.LOOM);
+        });
         shaped(plugin, "wireless_terminal", create(DeviceType.MVN_WIRELESS_TERMINAL), r -> {
             r.shape(" Q ", "PNP", " C ");
             device(r, 'Q', DeviceType.MVN_QUANTUM_CORE);
@@ -995,6 +1010,13 @@ public final class Items {
                 r.setIngredient('C', Material.CRYING_OBSIDIAN);
                 r.setIngredient('I', Material.IRON_INGOT);
                 device(r, 'P', DeviceType.MVN_LOGIC_PROCESSOR);
+            });
+            shaped(plugin, "sf_stock_crafter", create(DeviceType.MVN_SF_STOCK_CRAFTER), r -> {
+                r.shape("EKE", "KAK", "EBE");
+                r.setIngredient('E', Material.ENDER_PEARL);
+                r.setIngredient('K', Material.COMPARATOR);
+                device(r, 'A', DeviceType.MVN_SF_CRAFTER);
+                r.setIngredient('B', Material.AMETHYST_BLOCK);
             });
             shaped(plugin, "sf_request_crafter", create(DeviceType.MVN_SF_REQUEST_CRAFTER), r -> {
                 r.shape("ECE", "LPL", "ECE");

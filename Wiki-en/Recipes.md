@@ -846,6 +846,40 @@ E C E
 
 ---
 
+### Stock Crafter · `mvn_stock_crafter`
+
+```
+R K R
+K A K
+R L R
+```
+
+> R = **Redstone** · K = **Comparator** · A = **Auto-Crafter** · L = **Loom**
+
+- **Result**: 1× Stock Crafter (Loom)
+- **Function**: Same as the Auto-Crafter, but it skips a Blueprint while the network already holds
+  **64** of its output. When the stock drops below 64 it crafts again. A craft that gives several
+  items can end a little above 64.
+
+---
+
+### Slimefun Stock Crafter · `mvn_sf_stock_crafter`
+
+```
+E K E
+K A K
+E B E
+```
+
+> E = **Ender Pearl** · K = **Comparator** · A = **Slimefun Auto-Crafter** · B = **Block of Amethyst**
+
+- **Result**: 1× Slimefun Stock Crafter (Block of Amethyst)
+- **Function**: Same as the Stock Crafter and accepts **both Slimefun and vanilla Blueprints**.
+  Disabled like the Slimefun Auto-Crafter by `slimefun-machines.crafters: false` (or
+  `slimefun-machines.enabled: false`).
+
+---
+
 ### Request Crafter · `mvn_request_crafter`
 
 ```

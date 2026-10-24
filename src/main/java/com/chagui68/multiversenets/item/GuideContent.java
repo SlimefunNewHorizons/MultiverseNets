@@ -604,6 +604,18 @@ public final class GuideContent {
                 "Igual que el Autocrafter y acepta Blueprints de Slimefun Y vanilla en la misma máquina.",
                 "Install Blueprints like in the Auto-Crafter.",
                 "Instala Blueprints igual que en el Autocrafter.");
+        add(DeviceType.MVN_STOCK_CRAFTER, Category.CRAFTING, "Crafter de Stock",
+                "Same as the Auto-Crafter, but it skips a Blueprint while the network already holds 64 of its "
+                        + "output, and crafts again when the stock drops below 64.",
+                "Igual que el Autocrafter, pero salta un Blueprint mientras la red ya tiene 64 de su salida, y "
+                        + "vuelve a craftear cuando el stock baja de 64.",
+                "Install vanilla Blueprints like in the Auto-Crafter.",
+                "Instala Blueprints vanilla igual que en el Autocrafter.");
+        add(DeviceType.MVN_SF_STOCK_CRAFTER, Category.CRAFTING, "Crafter de Stock de Slimefun",
+                "Same as the Stock Crafter and it accepts BOTH Slimefun and vanilla Blueprints.",
+                "Igual que el Crafter de Stock y acepta Blueprints de Slimefun Y vanilla.",
+                "Install Blueprints like in the Auto-Crafter.",
+                "Instala Blueprints igual que en el Autocrafter.");
         add(DeviceType.MVN_REQUEST_CRAFTER, Category.CRAFTING, "Crafter bajo Pedido",
                 "Holds vanilla Blueprints that are ONLY crafted on demand from a Request Terminal.",
                 "Guarda Blueprints vanilla que SOLO se craftean bajo pedido desde un Request Terminal.",

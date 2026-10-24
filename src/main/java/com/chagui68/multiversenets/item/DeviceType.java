@@ -100,6 +100,10 @@ public enum DeviceType {
     MVN_SF_CRAFTER(Material.CRYING_OBSIDIAN, "Slimefun Auto-Crafter", true, -1),
     /** Slimefun on-demand crafting chamber / Cámara de crafteo bajo demanda de Slimefun */
     MVN_SF_REQUEST_CRAFTER(Material.PURPUR_PILLAR, "Slimefun Request Crafter", true, -1),
+    /** Auto-Crafter that stops at 64 of each Blueprint output in the network / Autocrafter que para en 64 de cada salida */
+    MVN_STOCK_CRAFTER(Material.LOOM, "Stock Crafter", true, -1),
+    /** Slimefun Auto-Crafter that stops at 64 of each output / Autocrafter de Slimefun que para en 64 de cada salida */
+    MVN_SF_STOCK_CRAFTER(Material.AMETHYST_BLOCK, "Slimefun Stock Crafter", true, -1),
     /** Network block that holds one memory module (items or fluids) / Bloque de red que aloja un modulo de memoria */
     MVN_DRAM_BAY(Material.WAXED_COPPER_BULB, "DRAM Bay", true, -1),
     /** Fluid-only memory module for the DRAM Bay / Modulo de memoria exclusivo para fluidos */
@@ -200,7 +204,14 @@ public enum DeviceType {
      * @return true if device is an automated crafter (vanilla or Slimefun)
      */
     public boolean isAutoCrafter() {
-        return this == MVN_CRAFTER || this == MVN_SF_CRAFTER;
+        return this == MVN_CRAFTER || this == MVN_SF_CRAFTER || isStockCrafter();
+    }
+
+    /**
+     * @return true if device is an auto-crafter capped at 64 per output / true si es autocrafter con tope de 64
+     */
+    public boolean isStockCrafter() {
+        return this == MVN_STOCK_CRAFTER || this == MVN_SF_STOCK_CRAFTER;
     }
 
     /**
@@ -214,7 +225,7 @@ public enum DeviceType {
      * @return true if device is a Slimefun crafting machine
      */
     public boolean isSlimefunCrafter() {
-        return this == MVN_SF_CRAFTER || this == MVN_SF_REQUEST_CRAFTER;
+        return this == MVN_SF_CRAFTER || this == MVN_SF_REQUEST_CRAFTER || this == MVN_SF_STOCK_CRAFTER;
     }
 
     /**
