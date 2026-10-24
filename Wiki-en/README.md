@@ -253,6 +253,7 @@ Every 5 ticks the ticker runs these per network (each on its own configurable in
 | transfer | Liquid Pump | Drains one source block (1,000 mB), only if it fits whole. |
 | vacuum (10 t) | Vacuum | Picks up dropped items within the radius. |
 | craft (20 t) | Auto-Crafter / Slimefun Auto-Crafter | Tries each installed Blueprint once. |
+| craft (20 t) | Stock Crafter / Slimefun Stock Crafter | Same, but skips a Blueprint while the network holds 64 of its output. |
 
 Idle grabbers and pushers back off: after finding nothing they only check every third cycle, and
 after 30 idle cycles every sixth (1.5 s with the default interval), until something moves again, so a
@@ -376,8 +377,8 @@ player access).
 ## 🍳 Recipes (crafting grid)
 
 Each device is crafted on a standard 3×3 crafting table. `·` marks an empty slot. The full list with
-each item's function is in [Recipes & functions](Recipes.md). The three Slimefun devices (Slimefun
-Recipe Encoder, Slimefun Auto-Crafter, Slimefun Request Crafter) only have a recipe while the
+each item's function is in [Recipes & functions](Recipes.md). The four Slimefun devices (Slimefun
+Recipe Encoder, Slimefun Auto-Crafter, Slimefun Stock Crafter, Slimefun Request Crafter) only have a recipe while the
 `slimefun-machines` section of `config.yml` keeps them enabled (the default).
 
 The base devices are crafted from six **components** (Silicon Wafer, Network Circuit, Logic
@@ -406,6 +407,7 @@ vanilla recipe (a Wireless Terminal is no longer spent as a Nether Star).
 | Exporter | <pre>I T I<br/>D C D<br/>I T I</pre> | I = Iron Ingot · T = Transfer Coil · D = Dropper · C = Network Circuit |
 | Vacuum | <pre>S T S<br/>T H T<br/>S C S</pre> | S = String · T = Transfer Coil · H = Hopper · C = Network Circuit |
 | Auto-Crafter | <pre>R C R<br/>I P I<br/>R C R</pre> | R = Redstone · C = Crafting Table · I = Iron Ingot · P = Logic Processor |
+| Stock Crafter | <pre>R K R<br/>K A K<br/>R L R</pre> | R = Redstone · K = Comparator · A = Auto-Crafter · L = Loom |
 | Wireless Terminal | <pre>· Q ·<br/>P N P<br/>· C ·</pre> | Q = Quantum Core · P = Ender Pearl · N = Nether Star · C = Compass |
 | Network Monitor | <pre>G G G<br/>K C K<br/>G G G</pre> | G = Glass Pane · K = Comparator · C = Network Circuit |
 | Transmitter | <pre>I R I<br/>R C R<br/>I Q I</pre> | I = Iron Ingot · R = Redstone Block · C = Conduit · Q = Quantum Core |
@@ -443,6 +445,7 @@ vanilla recipe (a Wireless Terminal is no longer spent as a Nether Star).
 | Quota Manager | <pre>R K R<br/>P M P<br/>R L R</pre> | R = Redstone · K = Comparator · P = Paper · M = Network Monitor · L = Network Quota Limiter |
 | Request Crafter | <pre>R C R<br/>L P L<br/>R C R</pre> | R = Redstone · C = Crafting Table · L = Lectern · P = Logic Processor |
 | Slimefun Auto-Crafter | <pre>E C E<br/>I P I<br/>E C E</pre> | E = Ender Pearl · C = Crying Obsidian · I = Iron Ingot · P = Logic Processor |
+| Slimefun Stock Crafter | <pre>E K E<br/>K A K<br/>E B E</pre> | E = Ender Pearl · K = Comparator · A = Slimefun Auto-Crafter · B = Block of Amethyst |
 | Slimefun Request Crafter | <pre>E C E<br/>L P L<br/>E C E</pre> | E = Ender Pearl · C = Purpur Pillar · L = Lectern · P = Logic Processor |
 
 ## ⌨️ Commands
@@ -487,7 +490,7 @@ Spanish):
 | `wireless.local-range-without-router` | 64 | Wireless Terminal range without a Router |
 | `wireless.combat-cooldown-seconds` | 10 | Wireless Terminal combat lock |
 | `compat.slimefun` | true | Slimefun machines, cables and barrels integration |
-| `slimefun-machines.enabled` | true | Master switch of the three Slimefun machines (encoder, Auto-Crafter, Request Crafter): off = no recipe, cannot be placed, no menu, no work |
+| `slimefun-machines.enabled` | true | Master switch of the Slimefun machines (encoder, Auto-Crafter, Stock Crafter, Request Crafter): off = no recipe, cannot be placed, no menu, no work |
 | `slimefun-machines.encoder` / `slimefun-machines.crafters` | true | Each Slimefun machine on its own (the old `sf-encoder.enabled` / `sf-crafter.enabled` keys still work) |
 | `blocked-worlds` | [] | Worlds where devices cannot be placed |
 | `protection.*` | — | See [Land protection](#land-protection) |

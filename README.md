@@ -261,6 +261,7 @@ Every 5 ticks the ticker runs these per network (each on its own configurable in
 | transfer | Liquid Pump | Drains one source block (1,000 mB), only if it fits whole. |
 | vacuum (10 t) | Vacuum | Picks up dropped items within the radius. |
 | craft (20 t) | Auto-Crafter / Slimefun Auto-Crafter | Tries each installed Blueprint once. |
+| craft (20 t) | Stock Crafter / Slimefun Stock Crafter | Same, but skips a Blueprint while the network holds 64 of its output. |
 
 Idle grabbers and pushers back off: after finding nothing they only check every third cycle, and
 after 30 idle cycles every sixth (1.5 s with the default interval), until something moves again, so a
@@ -423,7 +424,7 @@ Spanish):
 | `wireless.local-range-without-router` | 64 | Wireless Terminal range without a Router |
 | `wireless.combat-cooldown-seconds` | 10 | Wireless Terminal combat lock |
 | `compat.slimefun` | true | Slimefun machines, cables and barrels integration |
-| `slimefun-machines.enabled` | true | Master switch of the three Slimefun machines (encoder, Auto-Crafter, Request Crafter): off = no recipe, cannot be placed, no menu, no work |
+| `slimefun-machines.enabled` | true | Master switch of the Slimefun machines (encoder, Auto-Crafter, Stock Crafter, Request Crafter): off = no recipe, cannot be placed, no menu, no work |
 | `slimefun-machines.encoder` / `slimefun-machines.crafters` | true | Each Slimefun machine on its own (the old `sf-encoder.enabled` / `sf-crafter.enabled` keys still work) |
 | `blocked-worlds` | [] | Worlds where devices cannot be placed |
 | `protection.*` | — | See [Land protection](#land-protection) |

@@ -251,6 +251,7 @@ Cada 5 ticks el ticker ejecuta esto por red (cada familia con su intervalo confi
 | transfer | Liquid Pump | Drena un bloque fuente (1.000 mB), solo si cabe entero. |
 | vacuum (10 t) | Vacuum | Recoge los ítems del suelo dentro del radio. |
 | craft (20 t) | Auto-Crafter / Slimefun Auto-Crafter | Intenta una vez cada Blueprint instalado. |
+| craft (20 t) | Stock Crafter / Slimefun Stock Crafter | Igual, pero salta un Blueprint mientras la red tiene 64 de su salida. |
 
 Los grabbers y pushers inactivos se relajan: tras no encontrar nada solo comprueban uno de cada tres
 ciclos, y tras 30 ciclos inactivos uno de cada seis (1,5 s con el intervalo por defecto), hasta que algo
@@ -385,8 +386,8 @@ componente u otro dispositivo** (Network Circuit, celda anterior, módulo anteri
 fluidos, DRAM Bay, Advanced Pusher…), tiene que ser ese ítem: el material simple (fragmento de
 prismarina, terracota, lingote de cobre, vidrio…) no vale. Las mejoras de celdas y de módulos conservan su carga; cualquier otra receta rechaza
 un dispositivo que aún guarde algo, así nada se pierde crafteando. Y ningún dispositivo sirve como
-ingrediente de una receta vanilla (un Terminal Inalámbrico ya no se gasta como Estrella del Nether). Los tres dispositivos
-de Slimefun (Slimefun Recipe Encoder, Slimefun Auto-Crafter, Slimefun Request Crafter) solo tienen
+ingrediente de una receta vanilla (un Terminal Inalámbrico ya no se gasta como Estrella del Nether). Los cuatro dispositivos
+de Slimefun (Slimefun Recipe Encoder, Slimefun Auto-Crafter, Slimefun Stock Crafter, Slimefun Request Crafter) solo tienen
 receta mientras la sección `slimefun-machines` de `config.yml` las tenga activadas (por defecto).
 
 | Dispositivo | Cuadrícula (3×3) | Ingredientes |
@@ -407,6 +408,7 @@ receta mientras la sección `slimefun-machines` de `config.yml` las tenga activa
 | Simple Pusher | <pre>I T I<br/>D C D<br/>I T I</pre> | I = Lingote de hierro · T = Transfer Coil · D = Soltador · C = Network Circuit |
 | Network Vacuum | <pre>S T S<br/>T H T<br/>S C S</pre> | S = Hilo · T = Transfer Coil · H = Tolva · C = Network Circuit |
 | Auto-Crafter | <pre>R C R<br/>I P I<br/>R C R</pre> | R = Redstone · C = Mesa de crafteo · I = Lingote de hierro · P = Logic Processor |
+| Stock Crafter | <pre>R K R<br/>K A K<br/>R L R</pre> | R = Redstone · K = Comparador · A = Auto-Crafter · L = Telar |
 | Terminal Inalámbrico | <pre>· Q ·<br/>P N P<br/>· C ·</pre> | Q = Quantum Core · P = Perla de ender · N = Estrella del Nether · C = Brújula |
 | Network Monitor | <pre>G G G<br/>K C K<br/>G G G</pre> | G = Panel de vidrio · K = Comparador · C = Network Circuit |
 | Wireless Transmitter | <pre>I R I<br/>R C R<br/>I Q I</pre> | I = Lingote de hierro · R = Bloque de redstone · C = Conducto · Q = Quantum Core |
@@ -444,6 +446,7 @@ receta mientras la sección `slimefun-machines` de `config.yml` las tenga activa
 | Quota Manager | <pre>R K R<br/>P M P<br/>R L R</pre> | R = Redstone · K = Comparador · P = Papel · M = Network Monitor · L = Network Quota Limiter |
 | Request Crafter | <pre>R C R<br/>L P L<br/>R C R</pre> | R = Redstone · C = Mesa de crafteo · L = Atril · P = Logic Processor |
 | Slimefun Auto-Crafter | <pre>E C E<br/>I P I<br/>E C E</pre> | E = Perla de ender · C = Obsidiana llorosa · I = Lingote de hierro · P = Logic Processor |
+| Slimefun Stock Crafter | <pre>E K E<br/>K A K<br/>E B E</pre> | E = Perla de ender · K = Comparador · A = Slimefun Auto-Crafter · B = Bloque de amatista |
 | Slimefun Request Crafter | <pre>E C E<br/>L P L<br/>E C E</pre> | E = Perla de ender · C = Pilar de púrpura · L = Atril · P = Logic Processor |
 
 ## ⌨️ Comandos
@@ -488,7 +491,7 @@ español):
 | `wireless.local-range-without-router` | 64 | Alcance del Terminal Inalámbrico sin Router |
 | `wireless.combat-cooldown-seconds` | 10 | Bloqueo del Terminal Inalámbrico tras combate |
 | `compat.slimefun` | true | Integración con máquinas, cables y barriles de Slimefun |
-| `slimefun-machines.enabled` | true | Interruptor general de las tres máquinas de Slimefun (codificador, Auto-Crafter, Request Crafter): apagado = sin receta, no se pueden colocar, sin menú, sin trabajo |
+| `slimefun-machines.enabled` | true | Interruptor general de las máquinas de Slimefun (codificador, Auto-Crafter, Stock Crafter, Request Crafter): apagado = sin receta, no se pueden colocar, sin menú, sin trabajo |
 | `slimefun-machines.encoder` / `slimefun-machines.crafters` | true | Cada máquina de Slimefun por separado (las claves antiguas `sf-encoder.enabled` / `sf-crafter.enabled` siguen funcionando) |
 | `blocked-worlds` | [] | Mundos donde no se pueden colocar dispositivos |
 | `protection.*` | — | Ver [Protección](#proteccion) |

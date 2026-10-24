@@ -34,13 +34,13 @@ compat:
 # -------------------------------------------------------------------------------------
 #  Slimefun Machines / Máquinas de Slimefun
 # -------------------------------------------------------------------------------------
-# [EN] The machines made for Slimefun: Slimefun Recipe Encoder, Slimefun Auto-Crafter and
-#      Slimefun Request Crafter. A disabled machine has no recipe, cannot be placed, does not
+# [EN] The machines made for Slimefun: Slimefun Recipe Encoder, Slimefun Auto-Crafter,
+#      Slimefun Stock Crafter and Slimefun Request Crafter. A disabled machine has no recipe, cannot be placed, does not
 #      open its menu and does no work; blocks already placed stay where they are (break them to
 #      get the item back) and start working again as soon as the machine is enabled.
 #      Old configs that still use sf-encoder.enabled / sf-crafter.enabled keep working.
-# [ES] Las máquinas hechas para Slimefun: Codificador de Recetas, Auto-Crafter y Crafter bajo
-#      pedido de Slimefun. Una máquina desactivada no tiene receta, no se puede colocar, no abre su
+# [ES] Las máquinas hechas para Slimefun: Codificador de Recetas, Auto-Crafter, Stock Crafter y
+#      Crafter bajo pedido de Slimefun. Una máquina desactivada no tiene receta, no se puede colocar, no abre su
 #      menú y no trabaja; los bloques ya colocados se quedan donde están (rómpelos para recuperar el
 #      ítem) y vuelven a trabajar en cuanto la máquina se activa.
 #      Las configs antiguas con sf-encoder.enabled / sf-crafter.enabled siguen funcionando.
@@ -52,8 +52,8 @@ slimefun-machines:
   # [EN] Slimefun Recipe Encoder.
   # [ES] Codificador de Recetas de Slimefun.
   encoder: true
-  # [EN] Slimefun Auto-Crafter and Slimefun Request Crafter.
-  # [ES] Auto-Crafter y Crafter bajo pedido de Slimefun.
+  # [EN] Slimefun Auto-Crafter, Slimefun Stock Crafter and Slimefun Request Crafter.
+  # [ES] Auto-Crafter, Stock Crafter y Crafter bajo pedido de Slimefun.
   crafters: true
 
 # -------------------------------------------------------------------------------------
