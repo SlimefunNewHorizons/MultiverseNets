@@ -898,19 +898,22 @@ public final class SlimefunBridge {
                     if (item == null) continue;
                     Class<?> itemClass = item.getClass();
 
-                    Method mGetId = itemClass.getMethod("getId");
+                    // Addon item implementations can expose optional types that are not part of
+                    // every Slimefun distribution. Inspect the stable inherited API instead of
+                    // resolving every method declared on the concrete addon class.
+                    Method mGetId = findInheritedSlimefunMethod(itemClass, "getId");
                     String id = (String) mGetId.invoke(item);
                     if (id == null || id.toUpperCase(Locale.ROOT).contains("BACKPACK")) {
                         continue;
                     }
 
-                    Method mGetRecipe = itemClass.getMethod("getRecipe");
+                    Method mGetRecipe = findInheritedSlimefunMethod(itemClass, "getRecipe");
                     ItemStack[] recipe = (ItemStack[]) mGetRecipe.invoke(item);
                     if (recipe == null || recipe.length != 9 || hasPackInput(recipe)) {
                         continue;
                     }
 
-                    Method mGetRecipeOutput = itemClass.getMethod("getRecipeOutput");
+                    Method mGetRecipeOutput = findInheritedSlimefunMethod(itemClass, "getRecipeOutput");
                     ItemStack output = (ItemStack) mGetRecipeOutput.invoke(item);
                     if (output == null || output.getType().isAir()) {
                         continue;
@@ -918,7 +921,7 @@ public final class SlimefunBridge {
 
                     String typeName = "Slimefun Recipe";
                     try {
-                        Method mGetRecipeType = itemClass.getMethod("getRecipeType");
+                        Method mGetRecipeType = findInheritedSlimefunMethod(itemClass, "getRecipeType");
                         Object recipeType = mGetRecipeType.invoke(item);
                         if (recipeType != null) {
                             try {
@@ -945,6 +948,31 @@ public final class SlimefunBridge {
         } catch (Throwable t) {
             Logger.getLogger("MultiverseNets").log(Level.WARNING, "Failed to load Slimefun recipes", t);
         }
+    }
+
+    /**
+     * Resolves a Slimefun item API method from its inherited base class.
+     *
+     * Some third-party item classes reference optional integration classes in their own method
+     * signatures. Calling {@link Class#getMethod(String, Class[])} on the concrete class then
+     * resolves those signatures and can throw a {@link LinkageError}. The methods used by the
+     * recipe cache belong to the Slimefun base item API, so walking superclasses avoids loading
+     * unrelated optional integrations while preserving support for both supported namespaces.
+     */
+    private static Method findInheritedSlimefunMethod(Class<?> itemClass, String methodName)
+            throws NoSuchMethodException {
+        Class<?> current = itemClass.getSuperclass();
+        while (current != null && current != Object.class) {
+            try {
+                return current.getMethod(methodName);
+            } catch (LinkageError ignored) {
+                // Try the next base type; optional addon signatures must not abort all recipes.
+                current = current.getSuperclass();
+            } catch (NoSuchMethodException ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        throw new NoSuchMethodException(methodName + " is not part of the inherited Slimefun item API");
     }
 
     /**
