@@ -132,6 +132,7 @@ public final class SlimefunBridge {
             if (tryHook(root)) {
                 available = true;
                 loadSlimefunRecipes();
+                registerSlimefunGuide(log);
                 log.info("[Compat] Slimefun detected (" + root + "). Grabbers, pushers, and crafters can use machines.");
                 return;
             }
@@ -1127,5 +1128,131 @@ public final class SlimefunBridge {
         Logger.getLogger("MultiverseNets").log(Level.FINE,
                 "Failed communicating with Slimefun machine at " + block.getX() + "," + block.getY()
                         + "," + block.getZ(), error);
+    }
+
+    /**
+     * EN: Dynamically registers MultiverseNets items and categories into the Slimefun Guide
+     * entirely via reflection so that MultiverseNets remains 100% standalone without hard dependencies.
+     *
+     * ES: Registra dinamicamente los items y categorias de MultiverseNets en la Guia de Slimefun
+     * completamente mediante reflexion, manteniendo el plugin 100% independiente sin dependencias duras.
+     */
+    public static void registerSlimefunGuide(Logger log) {
+        if (!available) {
+            return;
+        }
+        try {
+            org.bukkit.plugin.Plugin sf = Bukkit.getPluginManager().getPlugin("Slimefun");
+            if (sf == null) {
+                return;
+            }
+
+            Class<?> cItemGroup = null;
+            Class<?> cSfItem = null;
+            Class<?> cSfStack = null;
+            Class<?> cRecipeType = null;
+
+            for (String prefix : new String[]{"com.github.drakescraft_labs.slimefun4", "io.github.thebusybiscuit.slimefun4"}) {
+                try {
+                    if (cItemGroup == null) cItemGroup = Class.forName(prefix + ".api.items.ItemGroup");
+                    if (cSfItem == null) cSfItem = Class.forName(prefix + ".api.items.SlimefunItem");
+                    if (cSfStack == null) cSfStack = Class.forName(prefix + ".api.items.SlimefunItemStack");
+                    if (cRecipeType == null) cRecipeType = Class.forName(prefix + ".api.recipes.RecipeType");
+                } catch (ClassNotFoundException ignored) {}
+            }
+
+            if (cItemGroup == null || cSfItem == null || cSfStack == null || cRecipeType == null) {
+                log.info("[Compat] Slimefun Guide classes not found via reflection; skipping guide registration.");
+                return;
+            }
+
+            Field fEnhanced = cRecipeType.getField("ENHANCED_CRAFTING_TABLE");
+            Object recipeType = fEnhanced.get(null);
+
+            Constructor<?> ctorGroup = cItemGroup.getConstructor(NamespacedKey.class, ItemStack.class, int.class);
+            NamespacedKey groupKey = new NamespacedKey("multiversenets", "multiverse_networks");
+            ItemStack groupIcon = Items.create(DeviceType.MVN_CONTROLLER);
+            Object itemGroup = ctorGroup.newInstance(groupKey, groupIcon, 3);
+
+            Constructor<?> ctorStack = cSfStack.getConstructor(String.class, ItemStack.class);
+            Constructor<?> ctorItem = cSfItem.getConstructor(cItemGroup, cSfStack, cRecipeType, ItemStack[].class);
+
+            Method mRegisterItem = null;
+            for (Method m : cSfItem.getMethods()) {
+                if (m.getName().equals("register") && m.getParameterCount() == 1) {
+                    mRegisterItem = m;
+                    break;
+                }
+            }
+
+            Method mRegisterGroup = null;
+            for (Method m : cItemGroup.getMethods()) {
+                if (m.getName().equals("register") && m.getParameterCount() == 1) {
+                    mRegisterGroup = m;
+                    break;
+                }
+            }
+
+            if (mRegisterGroup != null) {
+                try {
+                    mRegisterGroup.invoke(itemGroup, sf);
+                } catch (Throwable ignored) {
+                }
+            }
+
+            if (mRegisterItem == null) {
+                return;
+            }
+
+            DeviceType[] guideDevices = {
+                    DeviceType.MVN_CONTROLLER,
+                    DeviceType.MVN_CABLE,
+                    DeviceType.MVN_TERMINAL,
+                    DeviceType.MVN_MONITOR,
+                    DeviceType.MVN_ROUTER,
+                    DeviceType.MVN_SILICON_WAFER,
+                    DeviceType.MVN_NETWORK_CIRCUIT,
+                    DeviceType.MVN_LOGIC_PROCESSOR,
+                    DeviceType.MVN_STORAGE_MATRIX,
+                    DeviceType.MVN_TRANSFER_COIL,
+                    DeviceType.MVN_QUANTUM_CORE,
+                    DeviceType.MVN_CACHE_L1,
+                    DeviceType.MVN_CACHE_L2,
+                    DeviceType.MVN_CACHE_L3,
+                    DeviceType.MVN_CACHE_DRAM,
+                    DeviceType.MVN_CACHE_QUANTUM,
+                    DeviceType.MVN_CELL_T1,
+                    DeviceType.MVN_CELL_T2,
+                    DeviceType.MVN_CELL_T3,
+                    DeviceType.MVN_CELL_T4,
+                    DeviceType.MVN_CELL_T5,
+                    DeviceType.MVN_CELL_T6,
+                    DeviceType.MVN_GREEDY_CELL,
+                    DeviceType.MVN_INFINITY_BARREL,
+                    DeviceType.MVN_GRABBER,
+                    DeviceType.MVN_GRABBER_HT,
+                    DeviceType.MVN_PUSHER,
+                    DeviceType.MVN_PUSHER_HT,
+                    DeviceType.MVN_VACUUM
+            };
+
+            int count = 0;
+            for (DeviceType dev : guideDevices) {
+                try {
+                    ItemStack itemStack = Items.create(dev);
+                    if (itemStack == null) continue;
+                    String sfId = "MVN_" + dev.name();
+                    Object sfStack = ctorStack.newInstance(sfId, itemStack);
+                    ItemStack[] matrix = new ItemStack[9];
+                    Object sfItem = ctorItem.newInstance(itemGroup, sfStack, recipeType, matrix);
+                    mRegisterItem.invoke(sfItem, sf);
+                    count++;
+                } catch (Throwable ignored) {
+                }
+            }
+            log.info("[Compat] MultiverseNets integrado en la Guia de Slimefun: " + count + " dispositivos registrados en /sf guide.");
+        } catch (Throwable t) {
+            log.warning("[Compat] No se pudo registrar MultiverseNets en la Guia de Slimefun: " + t.getMessage());
+        }
     }
 }
