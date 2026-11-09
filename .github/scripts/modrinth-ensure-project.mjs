@@ -9,7 +9,7 @@ const V3 = 'https://api.modrinth.com/v3';
 const TOKEN = process.env.MODRINTH_TOKEN;
 const SLUG = (process.env.PROJECT_SLUG || '').toLowerCase();
 const NOMBRE = process.env.PROJECT_NAME || SLUG;
-const RESUMEN = (process.env.PROJECT_SUMMARY || 'Redes de logistica digital y almacenamiento masivo standalone para Paper (sin Slimefun).').slice(0, 256);
+const RESUMEN = (process.env.PROJECT_SUMMARY || 'MultiverseNets - High performance Paper 1.21.11 expansion for Slimefun4.').slice(0, 256);
 const ORG_PEDIDA = process.env.MODRINTH_ORG || '';
 
 if (!TOKEN) {
