@@ -962,7 +962,7 @@ public final class SlimefunBridge {
      */
     private static Method findInheritedSlimefunMethod(Class<?> itemClass, String methodName)
             throws NoSuchMethodException {
-        Class<?> current = itemClass.getSuperclass();
+        Class<?> current = itemClass;
         while (current != null && current != Object.class) {
             try {
                 return current.getMethod(methodName);
