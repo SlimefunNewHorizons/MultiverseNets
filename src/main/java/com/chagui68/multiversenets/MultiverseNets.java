@@ -78,6 +78,7 @@ public class MultiverseNets extends JavaPlugin {
         // and memoises their answers. Dormant when no protection plugin is installed.
         com.chagui68.multiversenets.compat.ProtectionBridge.init(getLogger());
         Items.registerRecipes(this);
+        com.chagui68.multiversenets.compat.SlimefunBridge.registerSlimefunGuide(getLogger());
         NodeStore.init(this);
         // Antes de escanear redes: los chunks ya cargados pasan sus datos antiguos del PDC a las
         // regiones, y los que carguen despues lo hacen en StorageListener.

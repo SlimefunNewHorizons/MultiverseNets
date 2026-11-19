@@ -8,14 +8,22 @@ import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.Recipe;
+import org.bukkit.inventory.RecipeChoice;
+import org.bukkit.inventory.ShapedRecipe;
+import org.bukkit.inventory.meta.ItemMeta;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -132,7 +140,6 @@ public final class SlimefunBridge {
             if (tryHook(root)) {
                 available = true;
                 loadSlimefunRecipes();
-                registerSlimefunGuide(log);
                 log.info("[Compat] Slimefun detected (" + root + "). Grabbers, pushers, and crafters can use machines.");
                 return;
             }
@@ -1137,8 +1144,10 @@ public final class SlimefunBridge {
      * ES: Registra dinamicamente los items y categorias de MultiverseNets en la Guia de Slimefun
      * completamente mediante reflexion, manteniendo el plugin 100% independiente sin dependencias duras.
      */
+    private static boolean guideRegistered = false;
+
     public static void registerSlimefunGuide(Logger log) {
-        if (!available) {
+        if (!available || guideRegistered) {
             return;
         }
         try {
@@ -1166,16 +1175,58 @@ public final class SlimefunBridge {
                 return;
             }
 
-            Field fEnhanced = cRecipeType.getField("ENHANCED_CRAFTING_TABLE");
-            Object recipeType = fEnhanced.get(null);
+            Object nullRecipeType = null;
+            try {
+                nullRecipeType = cRecipeType.getField("NULL").get(null);
+            } catch (Throwable ignored) {
+            }
 
+            // Custom RecipeType pointing to a vanilla Crafting Table (does not register into Enhanced Crafting Table)
+            Object craftingTableRecipeType = nullRecipeType;
+            try {
+                Constructor<?> ctorRecipeType = cRecipeType.getConstructor(NamespacedKey.class, ItemStack.class);
+                ItemStack tableIcon = new ItemStack(Material.CRAFTING_TABLE);
+                ItemMeta tableMeta = tableIcon.getItemMeta();
+                if (tableMeta != null) {
+                    tableMeta.displayName(Component.text("Crafting Table", NamedTextColor.AQUA)
+                            .decoration(TextDecoration.ITALIC, false));
+                    tableMeta.lore(List.of(
+                            Component.text("Craft this item in a standard Crafting Table", NamedTextColor.GREEN)
+                                    .decoration(TextDecoration.ITALIC, true),
+                            Component.text("Interactive guide: /mvnets guide", NamedTextColor.GRAY)
+                                    .decoration(TextDecoration.ITALIC, false)));
+                    tableIcon.setItemMeta(tableMeta);
+                }
+                craftingTableRecipeType = ctorRecipeType.newInstance(
+                        new NamespacedKey("multiversenets", "crafting_table"), tableIcon);
+            } catch (Throwable t) {
+                log.fine("[Compat] Falling back to RecipeType.NULL for MultiverseNets guide: " + t.getMessage());
+            }
+
+            // Dedicated category icon with proper title instead of raw MVN_CONTROLLER ("Network Controller")
             Constructor<?> ctorGroup = cItemGroup.getConstructor(NamespacedKey.class, ItemStack.class, int.class);
             NamespacedKey groupKey = new NamespacedKey("multiversenets", "multiverse_networks");
-            ItemStack groupIcon = Items.create(DeviceType.MVN_CONTROLLER);
+            ItemStack groupIcon = new ItemStack(Material.LODESTONE);
+            ItemMeta groupMeta = groupIcon.getItemMeta();
+            if (groupMeta != null) {
+                groupMeta.displayName(Component.text("MultiverseNets", NamedTextColor.AQUA)
+                        .decoration(TextDecoration.ITALIC, false));
+                groupMeta.lore(List.of(
+                        Component.text("Storage & Automation Networks", NamedTextColor.GRAY)
+                                .decoration(TextDecoration.ITALIC, false),
+                        Component.text("Use /mvnets guide for full interactive info", NamedTextColor.DARK_GRAY)
+                                .decoration(TextDecoration.ITALIC, false)));
+                groupIcon.setItemMeta(groupMeta);
+            }
             Object itemGroup = ctorGroup.newInstance(groupKey, groupIcon, 3);
 
             Constructor<?> ctorStack = cSfStack.getConstructor(String.class, ItemStack.class);
-            Constructor<?> ctorItem = cSfItem.getConstructor(cItemGroup, cSfStack, cRecipeType, ItemStack[].class);
+            Constructor<?> ctorItem4 = cSfItem.getConstructor(cItemGroup, cSfStack, cRecipeType, ItemStack[].class);
+            Constructor<?> ctorItem5 = null;
+            try {
+                ctorItem5 = cSfItem.getConstructor(cItemGroup, cSfStack, cRecipeType, ItemStack[].class, ItemStack.class);
+            } catch (NoSuchMethodException ignored) {
+            }
 
             Method mRegisterItem = null;
             for (Method m : cSfItem.getMethods()) {
@@ -1204,55 +1255,125 @@ public final class SlimefunBridge {
                 return;
             }
 
-            DeviceType[] guideDevices = {
-                    DeviceType.MVN_CONTROLLER,
-                    DeviceType.MVN_CABLE,
-                    DeviceType.MVN_TERMINAL,
-                    DeviceType.MVN_MONITOR,
-                    DeviceType.MVN_ROUTER,
-                    DeviceType.MVN_SILICON_WAFER,
-                    DeviceType.MVN_NETWORK_CIRCUIT,
-                    DeviceType.MVN_LOGIC_PROCESSOR,
-                    DeviceType.MVN_STORAGE_MATRIX,
-                    DeviceType.MVN_TRANSFER_COIL,
-                    DeviceType.MVN_QUANTUM_CORE,
-                    DeviceType.MVN_CACHE_L1,
-                    DeviceType.MVN_CACHE_L2,
-                    DeviceType.MVN_CACHE_L3,
-                    DeviceType.MVN_CACHE_DRAM,
-                    DeviceType.MVN_CACHE_QUANTUM,
-                    DeviceType.MVN_CELL_T1,
-                    DeviceType.MVN_CELL_T2,
-                    DeviceType.MVN_CELL_T3,
-                    DeviceType.MVN_CELL_T4,
-                    DeviceType.MVN_CELL_T5,
-                    DeviceType.MVN_CELL_T6,
-                    DeviceType.MVN_GREEDY_CELL,
-                    DeviceType.MVN_INFINITY_BARREL,
-                    DeviceType.MVN_GRABBER,
-                    DeviceType.MVN_GRABBER_HT,
-                    DeviceType.MVN_PUSHER,
-                    DeviceType.MVN_PUSHER_HT,
-                    DeviceType.MVN_VACUUM
-            };
-
-            int count = 0;
-            for (DeviceType dev : guideDevices) {
+            // First pass: create SlimefunItemStacks for all DeviceTypes so recipe ingredients can reference them
+            // and remain clickable inside /sf guide.
+            DeviceType[] allDevices = DeviceType.values();
+            Map<DeviceType, Object> sfStacks = new EnumMap<>(DeviceType.class);
+            Map<DeviceType, ItemStack> ingredientStacks = new EnumMap<>(DeviceType.class);
+            for (DeviceType dev : allDevices) {
                 try {
-                    ItemStack itemStack = Items.create(dev);
-                    if (itemStack == null) continue;
+                    ItemStack baseItem = dev == DeviceType.MVN_RAKE ? Items.rake() : Items.create(dev);
+                    if (baseItem == null) continue;
                     String sfId = "MVN_" + dev.name();
-                    Object sfStack = ctorStack.newInstance(sfId, itemStack);
-                    ItemStack[] matrix = new ItemStack[9];
-                    Object sfItem = ctorItem.newInstance(itemGroup, sfStack, recipeType, matrix);
-                    mRegisterItem.invoke(sfItem, sf);
-                    count++;
+                    Object sfStack = ctorStack.newInstance(sfId, baseItem);
+                    sfStacks.put(dev, sfStack);
+                    if (sfStack instanceof ItemStack stack) {
+                        ingredientStacks.put(dev, stack);
+                    } else {
+                        ingredientStacks.put(dev, baseItem);
+                    }
                 } catch (Throwable ignored) {
                 }
             }
-            log.info("[Compat] MultiverseNets integrado en la Guia de Slimefun: " + count + " dispositivos registrados en /sf guide.");
+
+            // Map each DeviceType to its primary registered recipe key (first matching key wins, e.g. "cable" over dyed cables)
+            Map<DeviceType, NamespacedKey> recipeByDevice = mapPrimaryRecipes();
+
+            int count = 0;
+            int withRecipe = 0;
+            for (DeviceType dev : allDevices) {
+                Object sfStack = sfStacks.get(dev);
+                if (sfStack == null) continue;
+                try {
+                    NamespacedKey recipeKey = recipeByDevice.get(dev);
+                    ShapedRecipe shaped = recipeKey != null ? Items.originalRecipe(recipeKey) : null;
+                    ItemStack[] matrix = shaped != null
+                            ? buildGuideRecipeMatrix(recipeKey, shaped, ingredientStacks)
+                            : new ItemStack[9];
+                    Object rType = shaped != null ? craftingTableRecipeType : nullRecipeType;
+                    if (rType == null) {
+                        rType = craftingTableRecipeType;
+                    }
+                    Object sfItem;
+                    if (shaped != null && ctorItem5 != null) {
+                        ItemStack output = shaped.getResult().clone();
+                        sfItem = ctorItem5.newInstance(itemGroup, sfStack, rType, matrix, output);
+                    } else {
+                        sfItem = ctorItem4.newInstance(itemGroup, sfStack, rType, matrix);
+                    }
+                    mRegisterItem.invoke(sfItem, sf);
+                    count++;
+                    if (shaped != null) {
+                        withRecipe++;
+                    }
+                } catch (Throwable t) {
+                    log.fine("[Compat] Could not register " + dev.name() + " in Slimefun Guide: " + t.getMessage());
+                }
+            }
+            guideRegistered = true;
+            log.info("[Compat] MultiverseNets integrado en la Guia de Slimefun: " + count
+                    + " dispositivos registrados (" + withRecipe + " con receta) en /sf guide.");
         } catch (Throwable t) {
             log.warning("[Compat] No se pudo registrar MultiverseNets en la Guia de Slimefun: " + t.getMessage());
         }
+    }
+
+    private static Map<DeviceType, NamespacedKey> mapPrimaryRecipes() {
+        Map<DeviceType, NamespacedKey> map = new EnumMap<>(DeviceType.class);
+        for (NamespacedKey key : Items.recipeKeys()) {
+            ShapedRecipe original = Items.originalRecipe(key);
+            if (original == null) {
+                continue;
+            }
+            Recipe active = Bukkit.getRecipe(key);
+            if (active == null) {
+                continue;
+            }
+            DeviceType resultType = Items.typeOf(original.getResult());
+            if (resultType != null) {
+                map.putIfAbsent(resultType, key);
+            }
+        }
+        return map;
+    }
+
+    /**
+     * Builds the 3x3 recipe matrix for the Slimefun Guide from a registered ShapedRecipe.
+     */
+    public static ItemStack[] buildGuideRecipeMatrix(NamespacedKey key, ShapedRecipe shaped,
+                                                     Map<DeviceType, ItemStack> deviceStacks) {
+        ItemStack[] matrix = new ItemStack[9];
+        if (key == null || shaped == null) {
+            return matrix;
+        }
+        String[] shape = shaped.getShape();
+        Map<Character, RecipeChoice> choices = shaped.getChoiceMap();
+        for (int row = 0; row < 3 && row < shape.length; row++) {
+            String line = shape[row];
+            for (int col = 0; col < 3 && col < line.length(); col++) {
+                char c = line.charAt(col);
+                if (c == ' ') {
+                    continue;
+                }
+                DeviceType ingredientDevice = Items.deviceIngredientAt(key, c);
+                ItemStack slotItem = null;
+                if (ingredientDevice != null) {
+                    ItemStack mapped = deviceStacks != null ? deviceStacks.get(ingredientDevice) : null;
+                    slotItem = mapped != null ? mapped.clone() : Items.create(ingredientDevice);
+                } else {
+                    RecipeChoice choice = choices.get(c);
+                    if (choice instanceof RecipeChoice.MaterialChoice materials && !materials.getChoices().isEmpty()) {
+                        slotItem = new ItemStack(materials.getChoices().get(0));
+                    } else if (choice instanceof RecipeChoice.ExactChoice exact && !exact.getChoices().isEmpty()) {
+                        slotItem = exact.getChoices().get(0).clone();
+                    }
+                }
+                if (slotItem != null) {
+                    slotItem.setAmount(1);
+                    matrix[row * 3 + col] = slotItem;
+                }
+            }
+        }
+        return matrix;
     }
 }
