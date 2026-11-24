@@ -48,13 +48,13 @@ public enum DeviceType {
     MVN_INFINITY_BARREL(Material.BARREL, "Infinity Barrel", true, -1),
     
     /** Simple item importer (all sides) / Importador simple de ítems (todos los lados) */
-    MVN_GRABBER(Material.OBSERVER, "Simple Grabber", true, -1),
+    MVN_GRABBER(Material.GREEN_STAINED_GLASS, "Simple Grabber", true, -1),
     /** Advanced directional item importer / Importador avanzado direccional de ítems */
-    MVN_GRABBER_HT(Material.STICKY_PISTON, "Advanced Grabber", true, -1),
+    MVN_GRABBER_HT(Material.CYAN_STAINED_GLASS, "Advanced Grabber", true, -1),
     /** Simple item exporter (all sides) / Exportador simple de ítems (todos los lados) */
-    MVN_PUSHER(Material.TARGET, "Simple Pusher", true, -1),
+    MVN_PUSHER(Material.ORANGE_STAINED_GLASS, "Simple Pusher", true, -1),
     /** Advanced directional item exporter / Exportador avanzado direccional de ítems */
-    MVN_PUSHER_HT(Material.PISTON, "Advanced Pusher", true, -1),
+    MVN_PUSHER_HT(Material.RED_STAINED_GLASS, "Advanced Pusher", true, -1),
     /** World item entity vacuum / Aspiradora de entidades de ítems del mundo */
     MVN_VACUUM(Material.SPONGE, "Network Vacuum", true, -1),
 
