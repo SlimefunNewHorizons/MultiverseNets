@@ -3,6 +3,7 @@ package com.chagui68.multiversenets;
 import com.chagui68.multiversenets.item.DeviceType;
 import com.chagui68.multiversenets.item.Items;
 import com.chagui68.multiversenets.util.Keys;
+import io.papermc.paper.event.server.ServerResourcesReloadedEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -53,6 +54,16 @@ class RecipeTest {
             Recipe recipe = Bukkit.getRecipe(nk);
             assertNotNull(recipe, "Recipe " + key + " should be registered in Bukkit");
         }
+    }
+
+    @Test
+    void datapackReloadReRegistersRecipes() {
+        // /minecraft:reload reemplaza el RecipeManager: sin re-registro el recipe book los borra al entrar.
+        NamespacedKey key = new NamespacedKey(plugin, "pusher_ht");
+        server.clearRecipes();
+        assertNull(Bukkit.getRecipe(key));
+        server.getPluginManager().callEvent(new ServerResourcesReloadedEvent(ServerResourcesReloadedEvent.Cause.COMMAND));
+        assertNotNull(Bukkit.getRecipe(key), "recipes must come back after a datapack reload");
     }
 
     @Test

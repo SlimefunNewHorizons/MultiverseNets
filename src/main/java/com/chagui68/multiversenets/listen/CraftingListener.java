@@ -7,6 +7,7 @@ import com.chagui68.multiversenets.net.MemoryModules;
 import com.chagui68.multiversenets.persist.NodeBlob;
 import com.chagui68.multiversenets.persist.NodeStore;
 import com.chagui68.multiversenets.util.Keys;
+import io.papermc.paper.event.server.ServerResourcesReloadedEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -54,6 +55,21 @@ public class CraftingListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onServerLoad(ServerLoadEvent event) {
         plugin.getLogger().info("[Recipes] ServerLoadEvent (" + event.getType() + "): Verifying and registering recipes...");
+        Items.registerRecipes(plugin);
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            Items.discoverRecipes(player);
+        }
+    }
+
+    /**
+     * EN: /minecraft:reload and /datapack replace the whole RecipeManager map with datapack recipes,
+     * dropping every Bukkit recipe; without this, joins log "Tried to load unrecognized recipe"
+     * and wipe our keys from the recipe book until the next restart.
+     * ES: /minecraft:reload y /datapack reemplazan el RecipeManager y borran las recetas Bukkit.
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onResourcesReloaded(ServerResourcesReloadedEvent event) {
+        plugin.getLogger().info("[Recipes] ServerResourcesReloadedEvent (" + event.getCause() + "): re-registering recipes...");
         Items.registerRecipes(plugin);
         for (Player player : Bukkit.getOnlinePlayers()) {
             Items.discoverRecipes(player);
